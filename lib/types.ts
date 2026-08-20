@@ -183,6 +183,8 @@ export interface Employee {
   isTherapist: boolean;
   skills: string[];
   therapistGrade?: "Junior" | "Senior" | "Master";
+  /** Real staff headshot path (e.g. "/img/therapists/CKW/amelia.jpg"). Undefined for mock/demo employees — UI falls back to the initials avatar. */
+  photoUrl?: string;
   maxSessionsPerDay?: number;
   rating?: number;
   requestedCount?: number;

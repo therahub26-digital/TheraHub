@@ -3,12 +3,12 @@
 import { useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Icon from "@/components/Icon";
-import { Field } from "@/components/ui";
+import { Field, Avatar } from "@/components/ui";
 import { rp, minutesToHm } from "@/lib/format";
 import { createBooking } from "@/lib/actions/bookings";
 
 type PackageOption = { id: string; name: string; durationMin: number; listPrice: number };
-type TherapistOption = { id: string; name: string; grade?: string; skills: string[] };
+type TherapistOption = { id: string; name: string; grade?: string; skills: string[]; photoUrl?: string };
 type RoomOption = { id: string; name: string; type: string };
 
 export default function BookingForm({
@@ -41,6 +41,7 @@ export default function BookingForm({
   const [notes, setNotes] = useState("");
 
   const selectedPackage = packages.find((p) => p.id === packageId);
+  const selectedTherapist = therapists.find((t) => t.id === therapistId);
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -104,7 +105,9 @@ export default function BookingForm({
 
       <div className="grid grid-2" style={{ gap: 12 }}>
         <Field label="Terapis">
-          <select className="select" required value={therapistId} onChange={(e) => setTherapistId(e.target.value)}>
+          <div className="row g2">
+            {selectedTherapist && <Avatar name={selectedTherapist.name} photoUrl={selectedTherapist.photoUrl} size={32} />}
+            <select className="select" required value={therapistId} onChange={(e) => setTherapistId(e.target.value)} style={{ flex: 1 }}>
             {therapists.length === 0 && <option value="">Belum ada terapis di outlet ini</option>}
             {therapists.map((t) => (
               <option key={t.id} value={t.id}>
@@ -112,7 +115,8 @@ export default function BookingForm({
                 {t.grade ? ` (${t.grade})` : ""}
               </option>
             ))}
-          </select>
+            </select>
+          </div>
         </Field>
         <Field label="Room">
           <select className="select" required value={roomId} onChange={(e) => setRoomId(e.target.value)}>

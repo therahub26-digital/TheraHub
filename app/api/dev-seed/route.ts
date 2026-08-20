@@ -613,6 +613,11 @@ export async function GET() {
       therapist_grade: "Junior" as const, // placeholder — see comment above
       phone, // fabricated placeholder — see comment above
       email, // fabricated placeholder — see comment above
+      // Real headshots (round 7 follow-up) — user supplied one cropped photo
+      // per real therapist, saved at public/img/therapists/<branch>/<slug>.jpg
+      // using this exact same slug convention. Requires the 0003 migration
+      // (adds employees.photo_url) to have been run first.
+      photo_url: `/img/therapists/${branchShort}/${slug}.jpg`,
     };
 
     const { data: existingTherapist } = await admin

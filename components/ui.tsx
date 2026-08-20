@@ -187,12 +187,15 @@ export function Avatar({
   size = 34,
   rect,
   status,
+  photoUrl,
 }: {
   name: string;
   toneKey?: string;
   size?: number;
   rect?: boolean;
   status?: "online" | "busy" | "off";
+  /** Real staff photo (e.g. therapist headshot) — when present, renders instead of the initials-on-color-tone fallback. */
+  photoUrl?: string;
 }) {
   return (
     <span
@@ -200,12 +203,22 @@ export function Avatar({
       style={{
         width: size,
         height: size,
-        background: tone(toneKey),
+        background: photoUrl ? undefined : tone(toneKey),
         fontSize: Math.round(size * 0.38),
+        overflow: "hidden",
       }}
       title={name}
     >
-      {initials(name)}
+      {photoUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element -- avatar photos come from a per-tenant Supabase-fed path, not a static/optimizable import set
+        <img
+          src={photoUrl}
+          alt={name}
+          style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center 15%" }}
+        />
+      ) : (
+        initials(name)
+      )}
       {status && <i className={`avatar-status ${status}`} />}
     </span>
   );
@@ -217,16 +230,18 @@ export function PersonCell({
   toneKey,
   size = 32,
   status,
+  photoUrl,
 }: {
   name: string;
   sub?: string;
   toneKey?: string;
   size?: number;
   status?: "online" | "busy" | "off";
+  photoUrl?: string;
 }) {
   return (
     <div className="row g3" style={{ minWidth: 0 }}>
-      <Avatar name={name} toneKey={toneKey} size={size} status={status} />
+      <Avatar name={name} toneKey={toneKey} size={size} status={status} photoUrl={photoUrl} />
       <div style={{ minWidth: 0 }}>
         <div className="strong truncate" style={{ color: "var(--text-1)", fontWeight: 600 }}>
           {name}

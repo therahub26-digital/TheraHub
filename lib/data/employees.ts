@@ -40,6 +40,7 @@ type EmployeeRow = {
   featured: boolean;
   featured_badge: string | null;
   bio: string | null;
+  photo_url: string | null;
 };
 
 function mapEmployee(row: EmployeeRow): Employee {
@@ -67,6 +68,7 @@ function mapEmployee(row: EmployeeRow): Employee {
     featured: row.featured,
     featuredBadge: row.featured_badge ?? undefined,
     bio: row.bio ?? undefined,
+    photoUrl: row.photo_url ?? undefined,
   };
 }
 

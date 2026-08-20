@@ -46,7 +46,7 @@ export default async function UsersPage() {
             <tbody>
               {EMPLOYEES.map((e) => (
                 <tr key={e.id}>
-                  <td><PersonCell name={e.name} sub={e.code} toneKey={e.avatarTone} /></td>
+                  <td><PersonCell name={e.name} sub={e.code} toneKey={e.avatarTone} photoUrl={e.photoUrl} /></td>
                   <td><Badge tone={ROLE_TONE[e.jobRole] ?? "neutral"}>{e.jobRole}</Badge></td>
                   <td className="muted">{outletNameById.get(e.outletId) ?? e.outletId}</td>
                   <td className="small muted">{e.phone}</td>

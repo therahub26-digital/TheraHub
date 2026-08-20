@@ -43,7 +43,13 @@ export default async function BookingsPage({
     getTherapistsForOutlet(outlet.id),
   ]);
   const bookings = rawBookings.filter((b) => b.status !== "CANCELLED");
-  const therapists = rawTherapists.slice(0, 8);
+  // Was `.slice(0, 8)` — a leftover cap from when mock data always had ≤8
+  // therapists per outlet. Real outlets now have 10-11, so the cap was
+  // silently dropping real therapists (e.g. Zahra) out of the calendar
+  // grid entirely — not a scroll issue, the column never existed. The
+  // grid's column count and `.table-wrap`'s horizontal scroll already
+  // handle an arbitrary therapist count, so just show everyone.
+  const therapists = rawTherapists;
   // Week-day chips: 7 days centered on "today" (was DAY_RANGE.slice(3, 10)
   // — a fixed 15-day mock range built around the frozen demo date, which
   // would show the wrong days once real bookings/dates are live).

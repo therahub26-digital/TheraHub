@@ -1,42 +1,351 @@
+/* ============================================================
+   TheraHub — Design System
+   Dark premium theme · teal/emerald accent · glassmorphism
+   ============================================================ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* ---- Surfaces (deep navy / charcoal) ---- */
+  --bg-base: #070b12;
+  --bg-deep: #0a0f18;
+  --bg-surface: #0f1521;
+  --bg-surface-2: #141c2b;
+  --bg-surface-3: #1a2434;
+  --bg-elevated: #1e2939;
+  --bg-hover: rgba(255, 255, 255, 0.04);
+  --bg-active: rgba(255, 255, 255, 0.07);
+
+  /* ---- Glass ---- */
+  --glass-bg: rgba(20, 28, 43, 0.62);
+  --glass-bg-strong: rgba(20, 28, 43, 0.86);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-border-strong: rgba(255, 255, 255, 0.14);
+  --glass-blur: 18px;
+
+  /* ---- Accent: teal / emerald ---- */
+  --accent: #10b981;
+  --accent-2: #0d9488;
+  --accent-3: #14b8a6;
+  --accent-soft: rgba(16, 185, 129, 0.14);
+  --accent-soft-2: rgba(16, 185, 129, 0.24);
+  --accent-glow: rgba(16, 185, 129, 0.35);
+  --accent-gradient: linear-gradient(135deg, #10b981 0%, #0d9488 100%);
+  --accent-gradient-soft: linear-gradient(135deg, rgba(16, 185, 129, 0.18) 0%, rgba(13, 148, 136, 0.06) 100%);
+
+  /* ---- Gold highlight ---- */
+  --gold: #f0b429;
+  --gold-soft: rgba(240, 180, 41, 0.14);
+  --gold-gradient: linear-gradient(135deg, #f5c451 0%, #d99a1c 100%);
+
+  /* ---- Semantic ---- */
+  --success: #22c55e;
+  --success-soft: rgba(34, 197, 94, 0.14);
+  --warning: #f59e0b;
+  --warning-soft: rgba(245, 158, 11, 0.14);
+  --danger: #ef4444;
+  --danger-soft: rgba(239, 68, 68, 0.14);
+  --info: #38bdf8;
+  --info-soft: rgba(56, 189, 248, 0.14);
+  --purple: #a78bfa;
+  --purple-soft: rgba(167, 139, 250, 0.14);
+
+  /* ---- Text ---- */
+  --text-1: #f1f5f9;
+  --text-2: #cbd5e1;
+  --text-3: #94a3b8;
+  --text-4: #64748b;
+  --text-inverse: #04140f;
+
+  /* ---- Borders ---- */
+  --border: rgba(255, 255, 255, 0.07);
+  --border-2: rgba(255, 255, 255, 0.11);
+  --border-3: rgba(255, 255, 255, 0.18);
+
+  /* ---- Radius ---- */
+  --r-xs: 6px;
+  --r-sm: 9px;
+  --r-md: 13px;
+  --r-lg: 18px;
+  --r-xl: 24px;
+  --r-full: 999px;
+
+  /* ---- Shadow / elevation ---- */
+  --sh-1: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --sh-2: 0 4px 14px rgba(0, 0, 0, 0.34);
+  --sh-3: 0 12px 32px rgba(0, 0, 0, 0.42);
+  --sh-4: 0 24px 64px rgba(0, 0, 0, 0.55);
+  --sh-accent: 0 8px 26px rgba(16, 185, 129, 0.28);
+
+  /* ---- Spacing scale ---- */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-7: 32px;
+  --s-8: 40px;
+  --s-9: 56px;
+
+  /* ---- Typography ---- */
+  --font-body: var(--font-inter), system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: var(--font-outfit), var(--font-inter), system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+
+  /* ---- Motion ---- */
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-1: 120ms;
+  --dur-2: 220ms;
+  --dur-3: 380ms;
+
+  /* ---- Layout ---- */
+  --sidebar-w: 254px;
+  --sidebar-w-collapsed: 72px;
+  --header-h: 62px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ============================================================
+   Light / "Bright" scheme — toggled via [data-theme="light"] on
+   <html> (see lib/theme.tsx). Same variable names, so every
+   component that already reads a surface, text, or border
+   custom property repaints automatically; only the raw values
+   change here.
+   ============================================================ */
+:root[data-theme="light"] {
+  /* ---- Surfaces ---- */
+  --bg-base: #f3f5f8;
+  --bg-deep: #eceff3;
+  --bg-surface: #ffffff;
+  --bg-surface-2: #f6f7fa;
+  --bg-surface-3: #eef1f5;
+  --bg-elevated: #ffffff;
+  --bg-hover: rgba(15, 23, 42, 0.045);
+  --bg-active: rgba(15, 23, 42, 0.075);
+
+  /* ---- Glass ---- */
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-bg-strong: rgba(255, 255, 255, 0.92);
+  --glass-border: rgba(15, 23, 42, 0.08);
+  --glass-border-strong: rgba(15, 23, 42, 0.14);
+
+  /* ---- Text ---- */
+  --text-1: #0f172a;
+  --text-2: #334155;
+  --text-3: #64748b;
+  --text-4: #94a3b8;
+
+  /* ---- Borders ---- */
+  --border: rgba(15, 23, 42, 0.09);
+  --border-2: rgba(15, 23, 42, 0.14);
+  --border-3: rgba(15, 23, 42, 0.22);
+
+  /* ---- Shadow / elevation (softer — no need for deep black glow) ---- */
+  --sh-1: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --sh-2: 0 4px 14px rgba(15, 23, 42, 0.07);
+  --sh-3: 0 12px 32px rgba(15, 23, 42, 0.10);
+  --sh-4: 0 24px 64px rgba(15, 23, 42, 0.14);
+}
+
+/* Chrome hardcodes these outside the variable system — retint for light mode. */
+[data-theme="light"] .sidebar {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(248, 250, 252, 0.97));
+}
+[data-theme="light"] .topbar {
+  background: rgba(255, 255, 255, 0.78);
+}
+[data-theme="light"] .landing-bg {
+  background:
+    radial-gradient(1100px 620px at 8% -10%, rgba(16, 185, 129, 0.10), transparent 55%),
+    radial-gradient(900px 560px at 100% 0%, rgba(13, 148, 136, 0.08), transparent 55%),
+    radial-gradient(1200px 700px at 50% 120%, rgba(240, 180, 41, 0.05), transparent 60%);
+}
+[data-theme="light"] .modal-foot {
+  background: rgba(15, 23, 42, 0.03);
+}
+/* The tenant ambient background is inline (per-preset), so it needs !important
+   to win over it — see lib/brand.ts backgroundVars(). */
+[data-theme="light"] .app-bg,
+[data-theme="light"] .device {
+  background-color: var(--bg-base) !important;
+}
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.14);
+  background-clip: content-box;
+}
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(15, 23, 42, 0.26);
+  background-clip: content-box;
+}
+
+/* ============================ RESET ============================ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+* {
+  margin: 0;
+  padding: 0;
 }
 
 html,
 body {
-  max-width: 100vw;
-  overflow-x: hidden;
+  height: 100%;
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-body);
+  background: var(--bg-base);
+  color: var(--text-2);
+  font-size: 14px;
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
 }
 
-* {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
+/* Ambient background wash */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(900px 520px at 12% -8%, rgba(16, 185, 129, 0.10), transparent 60%),
+    radial-gradient(760px 480px at 92% 4%, rgba(13, 148, 136, 0.09), transparent 62%),
+    radial-gradient(1000px 600px at 60% 110%, rgba(240, 180, 41, 0.045), transparent 60%);
 }
+
+h1, h2, h3, h4, h5 {
+  font-family: var(--font-display);
+  color: var(--text-1);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+h1 { font-size: 26px; }
+h2 { font-size: 20px; }
+h3 { font-size: 16px; }
+h4 { font-size: 14px; }
 
 a {
   color: inherit;
   text-decoration: none;
 }
 
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
+button, input, select, textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button { cursor: pointer; background: none; border: none; }
+
+ul, ol { list-style: none; }
+
+img, svg { display: block; max-width: 100%; }
+
+table { border-collapse: collapse; width: 100%; }
+
+::selection { background: var(--accent-soft-2); color: var(--text-1); }
+
+/* Scrollbars */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.10);
+  border-radius: var(--r-full);
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); background-clip: content-box; }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--r-xs);
+}
+
+/* ============================ UTILITIES ============================ */
+.stack { display: flex; flex-direction: column; }
+.row { display: flex; align-items: center; }
+.between { display: flex; align-items: center; justify-content: space-between; }
+.wrap { flex-wrap: wrap; }
+.g1 { gap: var(--s-1); }
+.g2 { gap: var(--s-2); }
+.g3 { gap: var(--s-3); }
+.g4 { gap: var(--s-4); }
+.g5 { gap: var(--s-5); }
+.g6 { gap: var(--s-6); }
+.g7 { gap: var(--s-7); }
+.grow { flex: 1; }
+.mono { font-family: var(--font-mono); font-size: 0.92em; letter-spacing: -0.01em; }
+.muted { color: var(--text-3); }
+.dim { color: var(--text-4); }
+.tiny { font-size: 11px; }
+.small { font-size: 12.5px; }
+.bold { font-weight: 600; }
+.center { text-align: center; }
+.right { text-align: right; }
+.nowrap { white-space: nowrap; }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.uppercase { text-transform: uppercase; letter-spacing: 0.08em; font-size: 10.5px; font-weight: 600; }
+.pos { color: var(--success); }
+.neg { color: var(--danger); }
+.accent-text { color: var(--accent); }
+.gold-text { color: var(--gold); }
+
+.grid { display: grid; gap: var(--s-4); }
+.grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.grid-auto { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+
+@media (max-width: 1180px) {
+  .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  .grid-2, .grid-3, .grid-4 { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ============================ ANIMATIONS ============================ */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 0 0 var(--accent-glow); }
+  50% { box-shadow: 0 0 0 7px rgba(16, 185, 129, 0); }
+}
+@keyframes shimmer {
+  from { background-position: -420px 0; }
+  to { background-position: 420px 0; }
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.anim-in { animation: fadeUp var(--dur-3) var(--ease) both; }
+.d1 { animation-delay: 40ms; }
+.d2 { animation-delay: 80ms; }
+.d3 { animation-delay: 120ms; }
+.d4 { animation-delay: 160ms; }
+.d5 { animation-delay: 200ms; }
+.d6 { animation-delay: 240ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
   }
 }

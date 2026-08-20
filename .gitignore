@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local sync scratch (device bridge tarballs, safe to ignore)
+_incoming/
+_to_delete/

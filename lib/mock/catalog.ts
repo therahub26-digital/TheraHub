@@ -124,19 +124,19 @@ export const packagesOf = (outletId: string) => PACKAGES.filter((p) => p.outletI
 export const packageById = (id: string) => PACKAGES.find((p) => p.id === id);
 
 export const EXTENSIONS: ExtensionOption[] = OUTLETS.flatMap((o) => [
-  { id: `EXT-15`, outletId: o.id, name: "Extension +15", durationMin: 15, price: 40_000, commission: 12_000, active: true },
-  { id: `EXT-30`, outletId: o.id, name: "Extension +30", durationMin: 30, price: 70_000, commission: 20_000, active: true },
-  { id: `EXT-60`, outletId: o.id, name: "Extension +60", durationMin: 60, price: 120_000, commission: 38_000, active: o.id !== "OUT-003" },
+  { id: `EXT-15`, outletId: o.id, name: "Extension +15", durationMin: 15, price: 40_000, commissionType: "fixed" as const, commission: 12_000, active: true },
+  { id: `EXT-30`, outletId: o.id, name: "Extension +30", durationMin: 30, price: 70_000, commissionType: "fixed" as const, commission: 20_000, active: true },
+  { id: `EXT-60`, outletId: o.id, name: "Extension +60", durationMin: 60, price: 120_000, commissionType: "fixed" as const, commission: 38_000, active: o.id !== "OUT-003" },
 ]);
 
 export const extensionsOf = (outletId: string) => EXTENSIONS.filter((e) => e.outletId === outletId);
 
 export const ADDONS: AddOn[] = OUTLETS.flatMap((o) => [
-  { id: `ADD-HS`, outletId: o.id, name: "Hot Stone Add-on", price: 65_000, commission: 15_000, durationMin: 0, active: true },
-  { id: `ADD-AR`, outletId: o.id, name: "Aromatherapy Upgrade", price: 45_000, commission: 12_000, durationMin: 0, active: true },
-  { id: `ADD-HC`, outletId: o.id, name: "Hot Compress", price: 35_000, commission: 9_000, durationMin: 0, active: true },
-  { id: `ADD-GS`, outletId: o.id, name: "Ginger Foot Soak", price: 40_000, commission: 10_000, durationMin: 10, active: o.id !== "OUT-002" },
-  { id: `ADD-SC`, outletId: o.id, name: "Scalp Massage 15", price: 55_000, commission: 14_000, durationMin: 15, active: true },
+  { id: `ADD-HS`, outletId: o.id, name: "Hot Stone Add-on", price: 65_000, commissionType: "fixed" as const, commission: 15_000, durationMin: 0, active: true },
+  { id: `ADD-AR`, outletId: o.id, name: "Aromatherapy Upgrade", price: 45_000, commissionType: "fixed" as const, commission: 12_000, durationMin: 0, active: true },
+  { id: `ADD-HC`, outletId: o.id, name: "Hot Compress", price: 35_000, commissionType: "fixed" as const, commission: 9_000, durationMin: 0, active: true },
+  { id: `ADD-GS`, outletId: o.id, name: "Ginger Foot Soak", price: 40_000, commissionType: "fixed" as const, commission: 10_000, durationMin: 10, active: o.id !== "OUT-002" },
+  { id: `ADD-SC`, outletId: o.id, name: "Scalp Massage 15", price: 55_000, commissionType: "fixed" as const, commission: 14_000, durationMin: 15, active: true },
 ]);
 
 export const addonsOf = (outletId: string) => ADDONS.filter((a) => a.outletId === outletId);

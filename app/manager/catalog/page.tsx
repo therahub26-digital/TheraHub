@@ -3,6 +3,8 @@ import { PageHead, Card, CardHead, StatCard, Badge, StatusBadge, Progress } from
 import { getOutlets } from "@/lib/data/outlets";
 import { getCategories, getServiceTypes, getPackagesForOutlet, getExtensionsForOutlet, getAddonsForOutlet } from "@/lib/data/catalog";
 import { rp, minutesToHm } from "@/lib/format";
+import { formatCommissionRule, commissionAmount } from "@/lib/commission";
+import { PackagePricingEditor, ExtensionPricingEditor } from "@/components/CommissionEditor";
 
 export default async function CatalogPage() {
   // No per-manager outlet-session scoping yet (see Fase 9 in the roadmap) —
@@ -63,7 +65,7 @@ export default async function CatalogPage() {
             <thead>
               <tr>
                 <th>Paket</th><th>Durasi</th><th>Harga List</th><th>Member</th><th>Weekend</th>
-                <th>Room</th><th>Komisi</th><th>Popularitas</th><th>Status</th>
+                <th>Room</th><th>Komisi</th><th>Popularitas</th><th>Status</th><th>Aksi</th>
               </tr>
             </thead>
             <tbody>
@@ -75,7 +77,20 @@ export default async function CatalogPage() {
                   <td className="num small muted">{rp(p.memberPrice)}</td>
                   <td className="num small muted">{rp(p.weekendPrice)}</td>
                   <td className="muted small">{p.roomType}</td>
-                  <td className="num small muted">{rp(p.commissionValue)}</td>
+                  <td className="small muted">
+                    {p.commissionValue > 0 ? (
+                      <>
+                        <span className="strong" style={{ color: "var(--text-1)" }}>
+                          {formatCommissionRule({ type: p.commissionType, value: p.commissionValue })}
+                        </span>
+                        {p.commissionType === "percent" && (
+                          <span className="tiny dim"> = {rp(commissionAmount({ type: p.commissionType, value: p.commissionValue }, p.listPrice))}</span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="tiny" style={{ color: "var(--warning, #d08b28)" }}>Belum diatur</span>
+                    )}
+                  </td>
                   <td style={{ minWidth: 90 }}>
                     <div className="row g2">
                       <div style={{ flex: 1, minWidth: 50 }}><Progress value={p.popularity} /></div>
@@ -83,6 +98,15 @@ export default async function CatalogPage() {
                     </div>
                   </td>
                   <td><StatusBadge status={p.status} /></td>
+                  <td>
+                    <PackagePricingEditor
+                      packageId={p.id}
+                      name={p.name}
+                      listPrice={p.listPrice}
+                      commissionType={p.commissionType}
+                      commissionValue={p.commissionValue}
+                    />
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -98,11 +122,26 @@ export default async function CatalogPage() {
               <div key={e.id} className="row between small" style={{ padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
                 <div>
                   <div className="strong" style={{ color: "var(--text-1)" }}>{e.name}</div>
-                  <div className="tiny dim">Komisi {rp(e.commission)}</div>
+                  <div className="tiny dim">
+                    {e.commission > 0
+                      ? `Komisi ${formatCommissionRule({ type: e.commissionType, value: e.commission })}${
+                          e.commissionType === "percent"
+                            ? ` = ${rp(commissionAmount({ type: e.commissionType, value: e.commission }, e.price))}`
+                            : ""
+                        }`
+                      : "Komisi belum diatur"}
+                  </div>
                 </div>
                 <div className="row g3">
                   <span className="strong" style={{ color: "var(--text-1)" }}>{rp(e.price)}</span>
                   <Badge tone={e.active ? "success" : "neutral"} dot>{e.active ? "Aktif" : "Nonaktif"}</Badge>
+                  <ExtensionPricingEditor
+                    extensionId={e.id}
+                    name={e.name}
+                    price={e.price}
+                    commissionType={e.commissionType}
+                    commission={e.commission}
+                  />
                 </div>
               </div>
             ))}
@@ -117,7 +156,10 @@ export default async function CatalogPage() {
                 <div>
                   <div className="strong" style={{ color: "var(--text-1)" }}>{a.name}</div>
                   <div className="tiny dim">
-                    Komisi {rp(a.commission)}{a.durationMin > 0 ? ` · +${a.durationMin}m` : ""}
+                    {a.commission > 0
+                      ? `Komisi ${formatCommissionRule({ type: a.commissionType, value: a.commission })}`
+                      : "Komisi belum diatur"}
+                    {a.durationMin > 0 ? ` · +${a.durationMin}m` : ""}
                   </div>
                 </div>
                 <div className="row g3">

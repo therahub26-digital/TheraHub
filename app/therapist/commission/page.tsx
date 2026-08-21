@@ -1,19 +1,31 @@
 import { Badge } from "@/components/ui";
 import MobileShell from "@/components/MobileShell";
-import { ME_THERAPIST, commissionsOf, CURRENT_PERIOD } from "@/lib/mock";
+import { ME_THERAPIST } from "@/lib/mock";
+import { getCommissionsForTherapist, getEffectivePeriod, getSignedInTherapist } from "@/lib/data/commissions";
 import { rp, fmtDateShort, monthLabel } from "@/lib/format";
 
-export default function CommissionPage() {
-  const me = ME_THERAPIST;
-  const commissions = commissionsOf(me.id);
-  const thisMonth = commissions.filter((c) => c.date.startsWith(CURRENT_PERIOD));
+export default async function CommissionPage() {
+  // Live: the therapist who is actually signed in. Demo/"Ganti Role":
+  // the ME_THERAPIST persona, so the showcase still has a face. Without
+  // this resolution a real therapist would be shown someone else's
+  // earnings, which is both wrong and a privacy leak.
+  const signedIn = await getSignedInTherapist();
+  const me = signedIn ?? ME_THERAPIST;
+  const [commissions, period] = await Promise.all([
+    getCommissionsForTherapist(me.id),
+    getEffectivePeriod(),
+  ]);
+  const thisMonth = commissions.filter((c) => c.date.startsWith(period));
   const pending = commissions.filter((c) => c.status === "PENDING").reduce((s, c) => s + c.amount, 0);
   const approved = commissions.filter((c) => c.status === "APPROVED" || c.status === "INCLUDED_IN_PAYROLL").reduce((s, c) => s + c.amount, 0);
   const paid = commissions.filter((c) => c.status === "PAID").reduce((s, c) => s + c.amount, 0);
   const total = thisMonth.reduce((s, c) => s + c.amount, 0);
+  // The live employee record has no avatar tone column; the mock persona
+  // does. Fall back to a fixed tone rather than adding a cosmetic column.
+  const avatarTone = signedIn ? "teal" : ME_THERAPIST.avatarTone;
 
   return (
-    <MobileShell role="therapist" title="Komisi Saya" subtitle={monthLabel(CURRENT_PERIOD)} avatarName={me.name} avatarTone={me.avatarTone}>
+    <MobileShell role="therapist" title="Komisi Saya" subtitle={monthLabel(period)} avatarName={me.name} avatarTone={avatarTone}>
       <div className="stack g4">
         <div className="m-card" style={{ textAlign: "center", background: "var(--accent-soft)", border: "1px solid var(--accent)" }}>
           <div className="tiny dim uppercase" style={{ marginBottom: 4 }}>Total Komisi Bulan Ini</div>
@@ -39,6 +51,11 @@ export default function CommissionPage() {
         <div>
           <div className="m-section">Riwayat Komisi</div>
           <div className="stack g2">
+            {commissions.length === 0 && (
+              <div className="m-row tiny dim" style={{ justifyContent: "center", padding: "16px 0" }}>
+                Belum ada komisi tercatat.
+              </div>
+            )}
             {commissions.slice(0, 20).map((c) => (
               <div key={c.id} className="m-row">
                 <div style={{ minWidth: 0, flex: 1 }}>

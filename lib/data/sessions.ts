@@ -53,7 +53,7 @@ type SessionRow = {
 };
 
 type SessionLookups = {
-  bookings: Map<string, { code: string; customerId: string; packageId: string }>;
+  bookings: Map<string, { code: string; customerId: string; packageId: string; status: string }>;
   customers: Map<string, string>;
   employees: Map<string, string>;
   rooms: Map<string, string>;
@@ -102,6 +102,9 @@ function mapSessionRow(row: SessionRow, lookups: SessionLookups, now: string): S
     expectedEnd: toHHMM(row.expected_end),
     actualEnd: row.actual_end ? toHHMM(row.actual_end) : null,
     extensionMinutes: row.extension_minutes,
+    // Billed-ness lives on the booking, not the session — see the
+    // SessionRec.isPaid comment in lib/types.ts.
+    isPaid: booking?.status === "PAID",
     status,
     minutesRemaining,
     progressPct,
@@ -127,7 +130,7 @@ async function fetchLiveSessions(): Promise<SessionRec[] | null> {
 
   const { data: bookingRows } = await supabase
     .from("bookings")
-    .select("id, code, customer_id, package_id")
+    .select("id, code, customer_id, package_id, status")
     .in("id", bookingIds);
 
   const customerIds = [...new Set((bookingRows ?? []).map((b) => b.customer_id))];
@@ -141,7 +144,7 @@ async function fetchLiveSessions(): Promise<SessionRec[] | null> {
   ]);
 
   const lookups: SessionLookups = {
-    bookings: new Map((bookingRows ?? []).map((b) => [b.id, { code: b.code, customerId: b.customer_id, packageId: b.package_id }])),
+    bookings: new Map((bookingRows ?? []).map((b) => [b.id, { code: b.code, customerId: b.customer_id, packageId: b.package_id, status: b.status }])),
     customers: new Map((customerRows ?? []).map((c) => [c.id, c.name])),
     employees: new Map((employeeRows ?? []).map((e) => [e.id, e.name])),
     rooms: new Map((roomRows ?? []).map((r) => [r.id, r.name])),

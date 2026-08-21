@@ -144,6 +144,7 @@ export const SESSIONS: SessionRec[] = BOOKINGS.filter(
     expectedEnd: fromMin(expectedEnd),
     actualEnd: active ? null : fromMin(expectedEnd + int(r, -3, 6)),
     extensionMinutes: extension,
+    isPaid: b.status === "PAID",
     status,
     minutesRemaining: active ? remaining : 0,
     progressPct: active

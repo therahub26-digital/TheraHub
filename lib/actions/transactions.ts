@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { nowIso } from "@/lib/wallclock";
+import { commissionAmount, commissionRuleSnapshot, type CommissionType } from "@/lib/commission";
 
 // ---------------------------------------------------------------------
 // Server Action: payForSession — the write half of the Transactions/POS
@@ -84,7 +85,13 @@ export async function payForSession(sessionId: string, paymentMethod: PaymentMet
     .single();
   if (bookingErr || !booking) return { ok: false, error: "Booking terkait sesi ini tidak ditemukan." };
 
-  const { data: pkg } = await supabase.from("service_packages").select("name").eq("id", booking.package_id).maybeSingle();
+  // The package carries both the display name for the receipt line and
+  // the commission rule the therapist is paid under.
+  const { data: pkg } = await supabase
+    .from("service_packages")
+    .select("name, commission_type, commission_value")
+    .eq("id", booking.package_id)
+    .maybeSingle();
 
   const { data: outlet, error: outletErr } = await supabase
     .from("outlets")
@@ -136,10 +143,64 @@ export async function payForSession(sessionId: string, paymentMethod: PaymentMet
   const { error: bookingUpdateErr } = await supabase.from("bookings").update({ status: "PAID" }).eq("id", booking.id);
   if (bookingUpdateErr) return { ok: false, error: "Transaksi tersimpan tapi status booking gagal diupdate." };
 
+  // ---------------------------------------------------------------
+  // Commission — earned at the moment the treatment is paid for, not
+  // when the session ends. Billing is the event that makes the money
+  // real, and a session that is completed but never paid (walk-out,
+  // void) must not put a payable on the books.
+  //
+  // Written here rather than derived later on the payroll screen so the
+  // rule is FROZEN at the rate in force today: `rule_snapshot` stores
+  // the rule as text, so if the admin later moves the package from 25%
+  // to 30%, past earnings keep the rate they were actually computed
+  // under instead of being silently restated.
+  //
+  // A missing rule (the seeded placeholder, commission_value = 0) writes
+  // NO row at all. A therapist with no configured rate has genuinely
+  // earned nothing recordable yet — inserting an explicit Rp0 payable
+  // would look like a decision that they earn nothing, which is a claim
+  // about someone's pay that nobody has actually made. The catalog
+  // screen flags those packages as "Belum diatur" so the gap is visible
+  // rather than silently zero.
+  // ---------------------------------------------------------------
+  if (session.therapist_id && pkg) {
+    const rule = {
+      type: (pkg.commission_type ?? "fixed") as CommissionType,
+      value: Number(pkg.commission_value ?? 0),
+    };
+    const earned = commissionAmount(rule, subtotal);
+
+    if (earned > 0) {
+      const { error: commissionErr } = await supabase.from("commission_entries").insert({
+        therapist_id: session.therapist_id,
+        outlet_id: session.outlet_id,
+        date,
+        booking_id: booking.id,
+        package_name: pkg.name ?? "Layanan",
+        rule_snapshot: commissionRuleSnapshot(rule, pkg.name ?? "Layanan"),
+        basis_amount: subtotal,
+        amount: earned,
+        status: "PENDING",
+      });
+      // Deliberately non-fatal: the guest has already paid and the
+      // transaction is committed. Failing the whole action here would
+      // tell the kasir the payment did not go through, which is false
+      // and would invite a duplicate charge. The commission is
+      // reconstructable from the transaction, so surface it as a warning
+      // to chase rather than rolling back money that genuinely changed
+      // hands.
+      if (commissionErr) {
+        return { ok: false, error: "Pembayaran BERHASIL, tapi komisi terapis gagal dicatat — laporkan ke admin (transaksi tidak perlu diulang)." };
+      }
+    }
+  }
+
   revalidatePath("/kasir/sessions");
   revalidatePath("/manager/sessions");
   revalidatePath("/kasir/receipts");
   revalidatePath("/manager/bookings");
+  revalidatePath("/therapist/commission");
+  revalidatePath("/owner/payroll");
 
   return { ok: true };
 }

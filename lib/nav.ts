@@ -101,6 +101,7 @@ export const ROLES: RoleDef[] = [
       { href: "/manager/customers", label: "Customers", icon: "heart-handshake", section: "Master" },
       { href: "/manager/promotions", label: "Promo & Membership", icon: "ticket", section: "Master" },
       { href: "/manager/pos", label: "POS / Transactions", icon: "receipt", section: "Commerce" },
+      { href: "/manager/commissions", label: "Komisi Terapis", icon: "percent", section: "Commerce" },
       { href: "/manager/inventory", label: "Inventory", icon: "package", section: "Commerce" },
       { href: "/manager/expenses", label: "Expenses", icon: "wallet", section: "Commerce" },
       { href: "/manager/reports", label: "Reports", icon: "bar-chart-3", section: "Insight" },

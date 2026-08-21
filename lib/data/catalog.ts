@@ -45,8 +45,8 @@ type PackageRow = {
   status: string;
   materials: { name: string; qty: string }[] | null;
 };
-type ExtensionRow = { id: string; outlet_id: string; name: string; duration_min: number; price: number | string; commission: number | string; active: boolean };
-type AddOnRow = { id: string; outlet_id: string; name: string; duration_min: number; price: number | string; commission: number | string; active: boolean };
+type ExtensionRow = { id: string; outlet_id: string; name: string; duration_min: number; price: number | string; commission_type: "fixed" | "percent"; commission: number | string; active: boolean };
+type AddOnRow = { id: string; outlet_id: string; name: string; duration_min: number; price: number | string; commission_type: "fixed" | "percent"; commission: number | string; active: boolean };
 
 function mapCategory(row: CategoryRow): ServiceCategory {
   return { id: row.id, tenantId: row.tenant_id, name: row.name, icon: row.icon ?? "layers", description: row.description ?? "" };
@@ -87,6 +87,7 @@ function mapExtension(row: ExtensionRow): ExtensionOption {
     name: row.name,
     durationMin: row.duration_min,
     price: Number(row.price),
+    commissionType: row.commission_type ?? "fixed",
     commission: Number(row.commission),
     active: row.active,
   };
@@ -99,6 +100,7 @@ function mapAddOn(row: AddOnRow): AddOn {
     name: row.name,
     durationMin: row.duration_min,
     price: Number(row.price),
+    commissionType: row.commission_type ?? "fixed",
     commission: Number(row.commission),
     active: row.active,
   };

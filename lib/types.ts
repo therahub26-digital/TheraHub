@@ -278,6 +278,8 @@ export interface ExtensionOption {
   name: string;
   durationMin: number;
   price: number;
+  /** Unit of `commission`: a rupiah amount, or a percentage of `price`. */
+  commissionType: "fixed" | "percent";
   commission: number;
   active: boolean;
 }
@@ -287,6 +289,8 @@ export interface AddOn {
   outletId: string;
   name: string;
   price: number;
+  /** Unit of `commission`: a rupiah amount, or a percentage of `price`. */
+  commissionType: "fixed" | "percent";
   commission: number;
   durationMin: number;
   active: boolean;
@@ -377,6 +381,14 @@ export interface SessionRec {
   expectedEnd: string;
   actualEnd: string | null;
   extensionMinutes: number;
+  /**
+   * Whether the treatment has already been billed (its booking reached
+   * PAID). A session's own status stays COMPLETED forever once the
+   * therapist finishes — it says nothing about money — so the cashier's
+   * "ready to bill" queue needs this separate flag, or an already-paid
+   * guest keeps reappearing in the payment list after every refresh.
+   */
+  isPaid: boolean;
   status: SessionStatus;
   minutesRemaining: number;
   progressPct: number;

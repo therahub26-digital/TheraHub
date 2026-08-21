@@ -14,7 +14,15 @@ export default async function SessionMonitorPage() {
 
   const running = sessions.filter((s) => s.status === "ACTIVE" || s.status === "ENDING_SOON");
   const endingSoon = sessions.filter((s) => s.status === "ENDING_SOON");
+  // A completed session is only the CASHIER'S problem until it has been
+  // billed. Session status stays COMPLETED forever, so without the
+  // isPaid split an already-paid guest reappears in the payment queue on
+  // every refresh — and a kasir working down that list would charge them
+  // twice. (The server-side guard in payForSession() blocks the second
+  // charge, but the queue should not be inviting it in the first place.)
   const completed = sessions.filter((s) => s.status === "COMPLETED");
+  const awaitingPayment = completed.filter((s) => !s.isPaid);
+  const alreadyPaid = completed.filter((s) => s.isPaid);
 
   return (
     <>
@@ -26,7 +34,7 @@ export default async function SessionMonitorPage() {
       <div className="grid grid-3" style={{ marginBottom: 20 }}>
         <StatCard label="Sesi Aktif" value={running.length} icon="timer" toneKey="teal" deltaLabel="Sedang berjalan" />
         <StatCard label="Akan Selesai" value={endingSoon.length} icon="hourglass" toneKey="amber" deltaLabel="Siapkan struk ≤ 10 menit" />
-        <StatCard label="Selesai — Siap Bayar" value={completed.length} icon="credit-card" toneKey="gold" deltaLabel="Menunggu pembayaran" />
+        <StatCard label="Selesai — Siap Bayar" value={awaitingPayment.length} icon="credit-card" toneKey="gold" deltaLabel={alreadyPaid.length ? `${alreadyPaid.length} sudah dibayar` : "Menunggu pembayaran"} />
       </div>
 
       <div className="grid grid-2" style={{ alignItems: "start" }}>
@@ -50,10 +58,13 @@ export default async function SessionMonitorPage() {
         </Card>
 
         <Card>
-          <CardHead title="Siap Diproses Pembayaran" sub={`${completed.length} sesi selesai`} action={<button className="btn btn-quiet btn-sm">Lihat POS</button>} />
+          <CardHead title="Siap Diproses Pembayaran" sub={`${awaitingPayment.length} menunggu · ${alreadyPaid.length} sudah dibayar`} action={<button className="btn btn-quiet btn-sm">Lihat POS</button>} />
           <div className="card-body stack g2">
             {completed.length === 0 && <div className="small dim">Belum ada sesi yang selesai.</div>}
-            {completed.map((s) => (
+            {completed.length > 0 && awaitingPayment.length === 0 && (
+              <div className="small dim">Semua sesi hari ini sudah dibayar.</div>
+            )}
+            {awaitingPayment.map((s) => (
               <div key={s.id} className="row between small" style={{ padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
                 <PersonCell name={s.customerName} sub={`${s.packageName} · ${s.therapistName}`} toneKey="gold" size={28} />
                 <div className="row g2" style={{ alignItems: "center" }}>
@@ -62,6 +73,21 @@ export default async function SessionMonitorPage() {
                 </div>
               </div>
             ))}
+
+            {alreadyPaid.length > 0 && (
+              <>
+                <div className="tiny dim" style={{ marginTop: 8 }}>Sudah dibayar hari ini</div>
+                {alreadyPaid.map((s) => (
+                  <div key={s.id} className="row between small" style={{ padding: "8px 0", borderBottom: "1px solid var(--border)", opacity: 0.65 }}>
+                    <PersonCell name={s.customerName} sub={`${s.packageName} · ${s.therapistName}`} toneKey="teal" size={28} />
+                    <div className="row g2" style={{ alignItems: "center" }}>
+                      <span className="tiny dim">{s.bookingCode}</span>
+                      <Badge tone="success" dot>Lunas</Badge>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
           </div>
         </Card>
       </div>

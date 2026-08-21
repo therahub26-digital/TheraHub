@@ -139,8 +139,18 @@ export async function runPayroll(outletId: string, period: string): Promise<RunP
   const commissionByEmployee = new Map<string, number>();
   // Treatment COUNT per employee, not just the amount — the referral fee
   // below needs this when it's charged per-treatment ("Rp5.000/slot"),
-  // which is a different number than the peso total.
-  const commissionCountByEmployee = new Map<string, number>();
+  // which is a different number than the rupiah total.
+  //
+  // Counted per BOOKING, not per commission row. A session sold with an
+  // extension writes TWO commission_entries rows against the same
+  // booking (package rate and extension rate are different rules — see
+  // lib/actions/transactions.ts). Counting rows would charge the
+  // per-session referral fee twice for one treatment — real money
+  // deducted from a therapist's pay for a slot she only worked once.
+  // Rows with no booking_id (the demo-commission generator writes those
+  // deliberately, one per simulated session) fall back to their own id
+  // so each still counts as its own slot.
+  const commissionSlotsByEmployee = new Map<string, Set<string>>();
   const commissionIds: string[] = [];
   if (uses("COMMISSION")) {
     // Half-open range [first of period, first of next month). Using a
@@ -161,10 +171,11 @@ export async function runPayroll(outletId: string, period: string): Promise<RunP
       amount: number | string;
       date: string;
       status: string;
+      booking_id: string | null;
     }>(async (from, to) =>
       supabase
         .from("commission_entries")
-        .select("id, therapist_id, amount, date, status")
+        .select("id, therapist_id, amount, date, status, booking_id")
         .eq("outlet_id", outletId)
         .gte("date", `${period}-01`)
         .lt("date", nextMonth)
@@ -178,10 +189,9 @@ export async function runPayroll(outletId: string, period: string): Promise<RunP
         row.therapist_id,
         (commissionByEmployee.get(row.therapist_id) ?? 0) + Number(row.amount)
       );
-      commissionCountByEmployee.set(
-        row.therapist_id,
-        (commissionCountByEmployee.get(row.therapist_id) ?? 0) + 1
-      );
+      const slots = commissionSlotsByEmployee.get(row.therapist_id) ?? new Set<string>();
+      slots.add(row.booking_id ?? row.id);
+      commissionSlotsByEmployee.set(row.therapist_id, slots);
       commissionIds.push(row.id);
     }
   }
@@ -204,7 +214,7 @@ export async function runPayroll(outletId: string, period: string): Promise<RunP
         e.referred_by_employee_id &&
         e.referral_fee_type &&
         e.referral_fee_value !== null &&
-        (commissionCountByEmployee.get(e.id) ?? 0) > 0
+        (commissionSlotsByEmployee.get(e.id)?.size ?? 0) > 0
     );
 
     if (referred.length) {
@@ -227,7 +237,7 @@ export async function runPayroll(outletId: string, period: string): Promise<RunP
 
       const referralRows = referred.flatMap((e) => {
         const recruiterId = e.referred_by_employee_id as string;
-        const count = commissionCountByEmployee.get(e.id) ?? 0;
+        const count = commissionSlotsByEmployee.get(e.id)?.size ?? 0;
         const totalCommission = commissionByEmployee.get(e.id) ?? 0;
         const fee =
           e.referral_fee_type === "percent"

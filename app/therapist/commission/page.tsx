@@ -28,21 +28,36 @@ export default async function CommissionPage() {
 
   // ---------------------------------------------------------------
   // Riwayat kerja (2026-08-21): "setiap hari berapa slot, sebulan
-  // berapa slot". Each commission entry corresponds 1:1 to one paid
-  // session (written by payForSession() only when a treatment is
-  // actually billed — see lib/actions/transactions.ts), so counting
-  // entries per date is the real slot count, not an estimate. Grouped
-  // from `commissions` (already fetched above, DB-filtered per
-  // therapist — see lib/data/commissions.ts's own truncation-bug
-  // history for why this must stay DB-scoped rather than loading
-  // everything and filtering in JS).
+  // berapa slot". Grouped from `commissions` (already fetched above,
+  // DB-filtered per therapist — see lib/data/commissions.ts's own
+  // truncation-bug history for why this must stay DB-scoped rather than
+  // loading everything and filtering in JS).
+  //
+  // Counted per BOOKING, not per commission row. A row is NOT 1:1 with a
+  // slot: a session sold with an extension writes two commission_entries
+  // rows against the same booking (the package's rate and the
+  // extension's own rate are different rules — see lib/actions/
+  // transactions.ts), and counting rows would report that single session
+  // as two slots. The inflation would land hardest on the therapists who
+  // get extended most, which is exactly backwards.
+  //
+  // Fallback to the entry id when there is no booking code: the
+  // demo-commission generator (/api/dev-seed-demo-commissions) writes
+  // rows with booking_id NULL on purpose, one row per simulated session,
+  // so each of those is its own slot rather than all collapsing into one.
   // ---------------------------------------------------------------
-  const slotsToday = commissions.filter((c) => c.date === today).length;
-  const slotsByDayThisMonth = new Map<string, number>();
+  const slotKey = (c: { bookingCode: string; id: string }) => c.bookingCode || c.id;
+  const slotsToday = new Set(commissions.filter((c) => c.date === today).map(slotKey)).size;
+  const slotsByDayThisMonth = new Map<string, Set<string>>();
   for (const c of thisMonth) {
-    slotsByDayThisMonth.set(c.date, (slotsByDayThisMonth.get(c.date) ?? 0) + 1);
+    const bucket = slotsByDayThisMonth.get(c.date) ?? new Set<string>();
+    bucket.add(slotKey(c));
+    slotsByDayThisMonth.set(c.date, bucket);
   }
-  const dailyBreakdown = [...slotsByDayThisMonth.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+  const slotsThisMonth = new Set(thisMonth.map(slotKey)).size;
+  const dailyBreakdown = [...slotsByDayThisMonth.entries()]
+    .map(([date, keys]) => [date, keys.size] as const)
+    .sort((a, b) => b[0].localeCompare(a[0]));
 
   return (
     <MobileShell role="therapist" title="Komisi Saya" subtitle={monthLabel(period)} avatarName={me.name} avatarTone={avatarTone}>
@@ -50,7 +65,7 @@ export default async function CommissionPage() {
         <div className="m-card" style={{ textAlign: "center", background: "var(--accent-soft)", border: "1px solid var(--accent)" }}>
           <div className="tiny dim uppercase" style={{ marginBottom: 4 }}>Total Komisi Bulan Ini</div>
           <div style={{ fontFamily: "var(--font-display)", fontSize: 28, fontWeight: 700, color: "var(--text-1)" }}>{rp(total)}</div>
-          <div className="tiny dim">{thisMonth.length} sesi tercatat</div>
+          <div className="tiny dim">{slotsThisMonth} sesi tercatat</div>
         </div>
 
         <div className="row g2">
@@ -74,7 +89,7 @@ export default async function CommissionPage() {
             <div className="tiny dim">Slot Hari Ini</div>
           </div>
           <div className="m-stat">
-            <div className="m-stat-value">{thisMonth.length}</div>
+            <div className="m-stat-value">{slotsThisMonth}</div>
             <div className="tiny dim">Slot Bulan Ini</div>
           </div>
         </div>

@@ -1,10 +1,17 @@
-import Icon from "@/components/Icon";
 import { PageHead, Card, CardHead, StatCard, Badge, PersonCell, Progress } from "@/components/ui";
-import { PRIMARY_OUTLET, sessionsOf, TODAY, NOW_HHMM } from "@/lib/mock";
+import { PaySessionButton } from "@/components/SessionActions";
+import { getOutlets } from "@/lib/data/outlets";
+import { getSessionsForOutlet } from "@/lib/data/sessions";
+import { getEffectiveToday, getEffectiveNow } from "@/lib/data/bookings";
 
-export default function SessionMonitorPage() {
-  const outlet = PRIMARY_OUTLET;
-  const sessions = sessionsOf(outlet.id);
+export default async function SessionMonitorPage() {
+  // Same first-outlet default + effective-today convention as the other
+  // migrated pages (see Fase 9 in the roadmap for real per-user scoping).
+  const OUTLETS = await getOutlets();
+  const outlet = OUTLETS[0];
+  const [today, now] = await Promise.all([getEffectiveToday(), getEffectiveNow()]);
+  const sessions = await getSessionsForOutlet(outlet.id, today);
+
   const running = sessions.filter((s) => s.status === "ACTIVE" || s.status === "ENDING_SOON");
   const endingSoon = sessions.filter((s) => s.status === "ENDING_SOON");
   const completed = sessions.filter((s) => s.status === "COMPLETED");
@@ -13,7 +20,7 @@ export default function SessionMonitorPage() {
     <>
       <PageHead
         title="Session Monitor"
-        desc={`${outlet.name} · ${TODAY} · Pukul ${NOW_HHMM} · Pantau sesi berjalan untuk persiapan pembayaran.`}
+        desc={`${outlet.name} · ${today} · Pukul ${now} · Pantau sesi berjalan untuk persiapan pembayaran.`}
       />
 
       <div className="grid grid-3" style={{ marginBottom: 20 }}>
@@ -49,9 +56,9 @@ export default function SessionMonitorPage() {
             {completed.map((s) => (
               <div key={s.id} className="row between small" style={{ padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
                 <PersonCell name={s.customerName} sub={`${s.packageName} · ${s.therapistName}`} toneKey="gold" size={28} />
-                <div className="row g2">
+                <div className="row g2" style={{ alignItems: "center" }}>
                   <span className="tiny dim">{s.bookingCode}</span>
-                  <button className="btn btn-primary btn-sm"><Icon name="shopping-cart" size={12} /> Bayar</button>
+                  <PaySessionButton sessionId={s.id} />
                 </div>
               </div>
             ))}

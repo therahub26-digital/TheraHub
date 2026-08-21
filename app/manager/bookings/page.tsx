@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Icon from "@/components/Icon";
 import { PageHead, Card, StatusBadge, Badge } from "@/components/ui";
+import { BookingRowActions } from "@/components/SessionActions";
 import { getOutlets } from "@/lib/data/outlets";
 import { getTherapistsForOutlet } from "@/lib/data/employees";
 import { getBookingsForOutlet, getEffectiveToday } from "@/lib/data/bookings";
@@ -131,7 +132,7 @@ export default async function BookingsPage({
         <Card>
           <div className="table-wrap">
             <table className="tbl">
-              <thead><tr><th>Jam</th><th>Tamu</th><th>Layanan</th><th>Terapis</th><th>Room</th><th>Sumber</th><th>Status</th></tr></thead>
+              <thead><tr><th>Jam</th><th>Tamu</th><th>Layanan</th><th>Terapis</th><th>Room</th><th>Sumber</th><th>Status</th><th>Aksi</th></tr></thead>
               <tbody>
                 {bookings.map((b) => (
                   <tr key={b.id}>
@@ -142,6 +143,7 @@ export default async function BookingsPage({
                     <td className="muted small">{b.roomName}</td>
                     <td><Badge tone="neutral">{b.source}</Badge></td>
                     <td><StatusBadge status={b.status} /></td>
+                    <td><BookingRowActions bookingId={b.id} status={b.status} /></td>
                   </tr>
                 ))}
               </tbody>

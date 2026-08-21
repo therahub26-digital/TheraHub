@@ -1,11 +1,24 @@
 import Icon from "@/components/Icon";
 import { PageHead, Card, CardHead, StatCard, Badge } from "@/components/ui";
-import { PRIMARY_OUTLET, transactionsOf, PRINT_JOBS, PRINTER_PROFILES, TODAY } from "@/lib/mock";
+import { PRINT_JOBS, PRINTER_PROFILES } from "@/lib/mock";
+import { getOutlets } from "@/lib/data/outlets";
+import { getTransactionsForOutlet } from "@/lib/data/transactions";
+import { getEffectiveToday } from "@/lib/data/bookings";
 import { rp, fmtTime, fmtDateTime } from "@/lib/format";
 
-export default function ReceiptsPage() {
-  const outlet = PRIMARY_OUTLET;
-  const transactions = transactionsOf(outlet.id, TODAY);
+// ---------------------------------------------------------------------
+// Live-migrated for the transaction history table (lib/data/transactions.ts,
+// same auth-based fallback rule as bookings/sessions). Printer status and
+// print-job history stay mock/presentational — there is no printer or
+// print_job table in the schema (confirmed via grep), so this is the same
+// "sengaja belum dipindah" boundary used elsewhere. See the roadmap doc.
+// ---------------------------------------------------------------------
+
+export default async function ReceiptsPage() {
+  const OUTLETS = await getOutlets();
+  const outlet = OUTLETS[0];
+  const today = await getEffectiveToday();
+  const transactions = await getTransactionsForOutlet(outlet.id, today);
   const jobs = PRINT_JOBS;
   const printers = PRINTER_PROFILES.filter((p) => p.outletId === outlet.id);
   const failed = jobs.filter((j) => j.status === "Failed").length;
@@ -14,7 +27,7 @@ export default function ReceiptsPage() {
     <>
       <PageHead
         title="Receipts & Reprint"
-        desc={`${outlet.name} · ${TODAY} · Riwayat struk transaksi dan status printer.`}
+        desc={`${outlet.name} · ${today} · Riwayat struk transaksi dan status printer.`}
       />
 
       <div className="grid grid-4" style={{ marginBottom: 20 }}>

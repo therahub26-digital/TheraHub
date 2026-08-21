@@ -139,6 +139,7 @@ export const SESSIONS: SessionRec[] = BOOKINGS.filter(
     roomName: b.roomName,
     packageName: b.packageName,
     purchasedDurationMin: b.durationMin,
+    date: b.date,
     actualStart: fromMin(actualStart),
     expectedEnd: fromMin(expectedEnd),
     actualEnd: active ? null : fromMin(expectedEnd + int(r, -3, 6)),

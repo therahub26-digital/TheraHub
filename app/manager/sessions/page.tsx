@@ -1,6 +1,9 @@
 import Icon from "@/components/Icon";
 import { PageHead, Card, CardHead, StatCard, Badge, PersonCell, Progress } from "@/components/ui";
-import { PRIMARY_OUTLET, sessionsOf, EXTENSION_REQUESTS, TODAY, NOW_HHMM } from "@/lib/mock";
+import { CompleteSessionButton } from "@/components/SessionActions";
+import { getOutlets } from "@/lib/data/outlets";
+import { getSessionsForOutlet, getExtensionRequestsForOutlet } from "@/lib/data/sessions";
+import { getEffectiveToday, getEffectiveNow } from "@/lib/data/bookings";
 import { minutesToHm, rp } from "@/lib/format";
 
 const CONFLICT_LABEL: Record<string, string> = {
@@ -9,13 +12,23 @@ const CONFLICT_LABEL: Record<string, string> = {
   THERAPIST_CONFLICT: "Konflik jadwal terapis",
 };
 
-export default function SessionsPage() {
-  const outlet = PRIMARY_OUTLET;
-  const sessions = sessionsOf(outlet.id);
+export default async function SessionsPage() {
+  // No per-manager outlet-session scoping yet (Fase 9) — default to the
+  // first real outlet, same convention as the other migrated pages.
+  const OUTLETS = await getOutlets();
+  const outlet = OUTLETS[0];
+  // "Effective" today/now: the real clock for a live session, the frozen
+  // demo date for the mock/"Ganti Role" viewer. Shared with the bookings
+  // pages so both never disagree about what day it is.
+  const [today, now] = await Promise.all([getEffectiveToday(), getEffectiveNow()]);
+  const [sessions, requests] = await Promise.all([
+    getSessionsForOutlet(outlet.id, today),
+    getExtensionRequestsForOutlet(outlet.id),
+  ]);
+
   const running = sessions.filter((s) => s.status === "ACTIVE" || s.status === "ENDING_SOON");
   const endingSoon = sessions.filter((s) => s.status === "ENDING_SOON");
   const completed = sessions.filter((s) => s.status === "COMPLETED");
-  const requests = EXTENSION_REQUESTS;
   const avgProgress = running.length
     ? Math.round(running.reduce((s, r) => s + r.progressPct, 0) / running.length)
     : 0;
@@ -24,7 +37,7 @@ export default function SessionsPage() {
     <>
       <PageHead
         title="Sessions"
-        desc={`${outlet.name} · ${TODAY} · Pukul ${NOW_HHMM} · Monitor sesi berjalan dan permintaan extension`}
+        desc={`${outlet.name} · ${today} · Pukul ${now} · Monitor sesi berjalan dan permintaan extension`}
       />
 
       <div className="grid grid-4" style={{ marginBottom: 20 }}>
@@ -36,9 +49,13 @@ export default function SessionsPage() {
 
       <div className="grid grid-3" style={{ alignItems: "start", marginBottom: 20 }}>
         <Card style={{ gridColumn: "span 2" }}>
-          <CardHead title="Sesi Berjalan" sub={`Rata-rata progres ${avgProgress}%`} />
+          <CardHead title="Sesi Berjalan" sub={running.length ? `Rata-rata progres ${avgProgress}%` : "Belum ada sesi berjalan"} />
           <div className="card-body stack g3">
-            {running.length === 0 && <div className="small dim">Tidak ada sesi aktif saat ini.</div>}
+            {running.length === 0 && (
+              <div className="small dim">
+                Tidak ada sesi aktif saat ini. Mulai sesi dari halaman Bookings setelah tamu check-in.
+              </div>
+            )}
             {running.map((s) => (
               <div key={s.id} className="stack g2" style={{ padding: "12px 14px", borderRadius: "var(--r-md)", background: "var(--bg-deep)", border: "1px solid var(--border)" }}>
                 <div className="between">
@@ -54,6 +71,9 @@ export default function SessionsPage() {
                     Estimasi selesai {s.expectedEnd}
                     {s.extensionMinutes > 0 && ` · +${s.extensionMinutes}m extension`}
                   </span>
+                </div>
+                <div className="row">
+                  <CompleteSessionButton sessionId={s.id} />
                 </div>
               </div>
             ))}

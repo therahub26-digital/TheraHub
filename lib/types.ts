@@ -365,6 +365,14 @@ export interface SessionRec {
   roomName: string;
   packageName: string;
   purchasedDurationMin: number;
+  /**
+   * Calendar day the treatment happened ("YYYY-MM-DD"). Needed because
+   * `actualStart` is only a time-of-day string — without this, a
+   * "sesi selesai hari ini" list would keep counting every completed
+   * session ever recorded, growing forever. Mock data is all one day, so
+   * this was previously implicit.
+   */
+  date: string;
   actualStart: string;
   expectedEnd: string;
   actualEnd: string | null;

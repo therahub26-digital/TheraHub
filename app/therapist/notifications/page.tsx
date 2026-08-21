@@ -1,6 +1,9 @@
 import Icon from "@/components/Icon";
 import MobileShell from "@/components/MobileShell";
-import { ME_THERAPIST, THERAPIST_NOTIFICATIONS } from "@/lib/mock";
+import { ME_THERAPIST } from "@/lib/mock";
+import { getSignedInTherapist } from "@/lib/data/commissions";
+import { getCurrentOutlet } from "@/lib/data/outlets";
+import { getNotificationsForTherapist, MOCK_NOTIFICATIONS } from "@/lib/data/notifications";
 import { fmtDateTime } from "@/lib/format";
 
 const SEVERITY_BG: Record<string, string> = {
@@ -15,11 +18,20 @@ const SEVERITY_FG: Record<string, string> = {
 const TYPE_ICON: Record<string, string> = {
   "job.assigned": "list-todo", "extension.approved": "check-circle", "attendance.ok": "map-pin-check",
   "commission.approved": "percent", "shift.changed": "calendar-clock",
+  // Live alerts (2026-08-21) — computed at read time, see lib/data/notifications.ts.
+  "shift.upcoming": "clock", "session.ending": "hourglass",
 };
 
-export default function TherapistNotificationsPage() {
-  const me = ME_THERAPIST;
-  const notifications = THERAPIST_NOTIFICATIONS;
+export default async function TherapistNotificationsPage() {
+  const signedIn = await getSignedInTherapist();
+  const me = signedIn ?? ME_THERAPIST;
+  const avatarTone = signedIn ? "teal" : ME_THERAPIST.avatarTone;
+
+  let notifications = MOCK_NOTIFICATIONS;
+  if (signedIn) {
+    const outlet = await getCurrentOutlet();
+    notifications = await getNotificationsForTherapist(me.id, outlet.id);
+  }
 
   return (
     <MobileShell
@@ -27,7 +39,7 @@ export default function TherapistNotificationsPage() {
       title="Notifikasi"
       subtitle={`${notifications.filter((n) => !n.read).length} belum dibaca`}
       avatarName={me.name}
-      avatarTone={me.avatarTone}
+      avatarTone={avatarTone}
     >
       <div className="stack g2">
         {notifications.map((n) => (

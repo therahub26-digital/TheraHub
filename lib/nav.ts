@@ -102,6 +102,8 @@ export const ROLES: RoleDef[] = [
       { href: "/manager/promotions", label: "Promo & Membership", icon: "ticket", section: "Master" },
       { href: "/manager/pos", label: "POS / Transactions", icon: "receipt", section: "Commerce" },
       { href: "/manager/commissions", label: "Komisi Terapis", icon: "percent", section: "Commerce" },
+      { href: "/manager/payroll", label: "Payroll", icon: "wallet", section: "Insight" },
+      { href: "/manager/payroll-settings", label: "Pengaturan Payroll", icon: "sliders-horizontal", section: "Insight" },
       { href: "/manager/inventory", label: "Inventory", icon: "package", section: "Commerce" },
       { href: "/manager/expenses", label: "Expenses", icon: "wallet", section: "Commerce" },
       { href: "/manager/reports", label: "Reports", icon: "bar-chart-3", section: "Insight" },

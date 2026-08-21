@@ -1,7 +1,7 @@
 import Icon from "@/components/Icon";
 import { PageHead, Card, CardHead, StatCard, Badge } from "@/components/ui";
 import { PRINT_JOBS, PRINTER_PROFILES } from "@/lib/mock";
-import { getOutlets } from "@/lib/data/outlets";
+import { getCurrentOutlet } from "@/lib/data/outlets";
 import { getTransactionsForOutlet } from "@/lib/data/transactions";
 import { getEffectiveToday } from "@/lib/data/bookings";
 import { rp, fmtTime, fmtDateTime } from "@/lib/format";
@@ -15,8 +15,7 @@ import { rp, fmtTime, fmtDateTime } from "@/lib/format";
 // ---------------------------------------------------------------------
 
 export default async function ReceiptsPage() {
-  const OUTLETS = await getOutlets();
-  const outlet = OUTLETS[0];
+  const outlet = await getCurrentOutlet();
   const today = await getEffectiveToday();
   const transactions = await getTransactionsForOutlet(outlet.id, today);
   const jobs = PRINT_JOBS;

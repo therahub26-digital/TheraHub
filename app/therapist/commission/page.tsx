@@ -2,6 +2,7 @@ import { Badge } from "@/components/ui";
 import MobileShell from "@/components/MobileShell";
 import { ME_THERAPIST } from "@/lib/mock";
 import { getCommissionsForTherapist, getEffectivePeriod, getSignedInTherapist } from "@/lib/data/commissions";
+import { getEffectiveToday } from "@/lib/data/bookings";
 import { rp, fmtDateShort, monthLabel } from "@/lib/format";
 
 export default async function CommissionPage() {
@@ -11,9 +12,10 @@ export default async function CommissionPage() {
   // earnings, which is both wrong and a privacy leak.
   const signedIn = await getSignedInTherapist();
   const me = signedIn ?? ME_THERAPIST;
-  const [commissions, period] = await Promise.all([
+  const [commissions, period, today] = await Promise.all([
     getCommissionsForTherapist(me.id),
     getEffectivePeriod(),
+    getEffectiveToday(),
   ]);
   const thisMonth = commissions.filter((c) => c.date.startsWith(period));
   const pending = commissions.filter((c) => c.status === "PENDING").reduce((s, c) => s + c.amount, 0);
@@ -23,6 +25,24 @@ export default async function CommissionPage() {
   // The live employee record has no avatar tone column; the mock persona
   // does. Fall back to a fixed tone rather than adding a cosmetic column.
   const avatarTone = signedIn ? "teal" : ME_THERAPIST.avatarTone;
+
+  // ---------------------------------------------------------------
+  // Riwayat kerja (2026-08-21): "setiap hari berapa slot, sebulan
+  // berapa slot". Each commission entry corresponds 1:1 to one paid
+  // session (written by payForSession() only when a treatment is
+  // actually billed — see lib/actions/transactions.ts), so counting
+  // entries per date is the real slot count, not an estimate. Grouped
+  // from `commissions` (already fetched above, DB-filtered per
+  // therapist — see lib/data/commissions.ts's own truncation-bug
+  // history for why this must stay DB-scoped rather than loading
+  // everything and filtering in JS).
+  // ---------------------------------------------------------------
+  const slotsToday = commissions.filter((c) => c.date === today).length;
+  const slotsByDayThisMonth = new Map<string, number>();
+  for (const c of thisMonth) {
+    slotsByDayThisMonth.set(c.date, (slotsByDayThisMonth.get(c.date) ?? 0) + 1);
+  }
+  const dailyBreakdown = [...slotsByDayThisMonth.entries()].sort((a, b) => b[0].localeCompare(a[0]));
 
   return (
     <MobileShell role="therapist" title="Komisi Saya" subtitle={monthLabel(period)} avatarName={me.name} avatarTone={avatarTone}>
@@ -47,6 +67,31 @@ export default async function CommissionPage() {
             <div className="tiny dim">Terbayar</div>
           </div>
         </div>
+
+        <div className="row g2">
+          <div className="m-stat">
+            <div className="m-stat-value">{slotsToday}</div>
+            <div className="tiny dim">Slot Hari Ini</div>
+          </div>
+          <div className="m-stat">
+            <div className="m-stat-value">{thisMonth.length}</div>
+            <div className="tiny dim">Slot Bulan Ini</div>
+          </div>
+        </div>
+
+        {dailyBreakdown.length > 0 && (
+          <div>
+            <div className="m-section">Riwayat Kerja Bulan Ini</div>
+            <div className="stack g1">
+              {dailyBreakdown.map(([date, count]) => (
+                <div key={date} className="row between tiny" style={{ padding: "6px 0", borderBottom: "1px solid var(--border)" }}>
+                  <span className="dim">{fmtDateShort(date)}</span>
+                  <span className="bold" style={{ color: "var(--text-1)" }}>{count} slot</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div>
           <div className="m-section">Riwayat Komisi</div>

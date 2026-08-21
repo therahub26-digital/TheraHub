@@ -41,6 +41,9 @@ type EmployeeRow = {
   featured_badge: string | null;
   bio: string | null;
   photo_url: string | null;
+  referred_by_employee_id: string | null;
+  referral_fee_type: string | null;
+  referral_fee_value: number | string | null;
 };
 
 function mapEmployee(row: EmployeeRow): Employee {
@@ -69,6 +72,11 @@ function mapEmployee(row: EmployeeRow): Employee {
     featuredBadge: row.featured_badge ?? undefined,
     bio: row.bio ?? undefined,
     photoUrl: row.photo_url ?? undefined,
+    // "Belum diatur ≠ nol" — null means no referral relationship, not a
+    // fee of zero. See lib/types.ts and supabase/migrations/0008_referral_fee.sql.
+    referredByEmployeeId: row.referred_by_employee_id ?? undefined,
+    referralFeeType: (row.referral_fee_type as Employee["referralFeeType"]) ?? undefined,
+    referralFeeValue: row.referral_fee_value !== null ? Number(row.referral_fee_value) : undefined,
   };
 }
 
@@ -93,12 +101,23 @@ export async function getEmployeeById(id: string): Promise<Employee | undefined>
   return (await loadEmployeesData()).employees.find((e) => e.id === id);
 }
 
+// Both filters require `status === "ACTIVE"`. Retiring a stray/duplicate
+// employee row (see the dev-seed fix in app/api/dev-seed/route.ts) sets it
+// to INACTIVE rather than deleting it, precisely so historical
+// bookings/sessions/commissions keep their link — but that means every
+// *read* path that lists "who can be booked" must exclude non-active rows
+// itself, or the retired row keeps showing up here even though it's gone
+// from payroll (which already filtered on status). Missing this filter is
+// exactly why a retired duplicate "Zahra" kept appearing as a bookable
+// calendar column after the dev-seed fix.
 export async function getTherapists(): Promise<Employee[]> {
-  return (await loadEmployeesData()).employees.filter((e) => e.isTherapist);
+  return (await loadEmployeesData()).employees.filter((e) => e.isTherapist && e.status === "ACTIVE");
 }
 
 export async function getTherapistsForOutlet(outletId: string): Promise<Employee[]> {
-  return (await loadEmployeesData()).employees.filter((e) => e.isTherapist && e.outletId === outletId);
+  return (await loadEmployeesData()).employees.filter(
+    (e) => e.isTherapist && e.outletId === outletId && e.status === "ACTIVE"
+  );
 }
 
 export async function isLiveEmployeesData(): Promise<boolean> {

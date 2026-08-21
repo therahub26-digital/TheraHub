@@ -1,7 +1,7 @@
 import Icon from "@/components/Icon";
 import { PageHead, Card, CardHead, StatCard, Badge, PersonCell, Progress } from "@/components/ui";
-import { CompleteSessionButton } from "@/components/SessionActions";
-import { getOutlets } from "@/lib/data/outlets";
+import { CompleteSessionButton, ExtensionDecisionButtons } from "@/components/SessionActions";
+import { getCurrentOutlet } from "@/lib/data/outlets";
 import { getSessionsForOutlet, getExtensionRequestsForOutlet } from "@/lib/data/sessions";
 import { getEffectiveToday, getEffectiveNow } from "@/lib/data/bookings";
 import { minutesToHm, rp } from "@/lib/format";
@@ -13,10 +13,7 @@ const CONFLICT_LABEL: Record<string, string> = {
 };
 
 export default async function SessionsPage() {
-  // No per-manager outlet-session scoping yet (Fase 9) — default to the
-  // first real outlet, same convention as the other migrated pages.
-  const OUTLETS = await getOutlets();
-  const outlet = OUTLETS[0];
+  const outlet = await getCurrentOutlet();
   // "Effective" today/now: the real clock for a live session, the frozen
   // demo date for the mock/"Ganti Role" viewer. Shared with the bookings
   // pages so both never disagree about what day it is.
@@ -108,12 +105,7 @@ export default async function SessionsPage() {
                     {CONFLICT_LABEL[r.conflictCheck]}
                   </div>
                 )}
-                {r.status === "PENDING" && (
-                  <div className="row g2">
-                    <button className="btn btn-primary btn-sm" style={{ flex: 1 }}><Icon name="check" size={13} /> Setujui</button>
-                    <button className="btn btn-ghost btn-sm" style={{ flex: 1 }}><Icon name="x" size={13} /> Tolak</button>
-                  </div>
-                )}
+                {r.status === "PENDING" && <ExtensionDecisionButtons requestId={r.id} />}
               </div>
             ))}
           </div>

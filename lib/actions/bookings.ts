@@ -13,14 +13,25 @@ import { addMin } from "@/lib/format";
 // `bookings_staff` / `customers_staff_manage` policies — a kasir/manager
 // can only write within their own outlet/tenant, same as every read.
 //
-// Conflict rule: a therapist or a room can only be in one ACTIVE booking
-// at a time. "Active" deliberately excludes CANCELLED/NO_SHOW/COMPLETED —
-// a cancelled slot must free up the therapist/room for a new booking.
+// Conflict rule: a therapist can only be in one ACTIVE booking at a
+// time. "Active" deliberately excludes CANCELLED/NO_SHOW/COMPLETED — a
+// cancelled slot must free up the therapist for a new booking.
 // Overlap is checked in JS on the (small, same-day, same-outlet) result
 // set rather than a Postgres range-overlap query, since scheduled_start/
 // scheduled_end are plain timestamptz and this keeps the check readable;
 // revisit with a DB-level exclusion constraint if booking volume ever
 // makes the day/outlet slice large enough for a race condition to matter.
+//
+// NO ROOM AT BOOKING TIME — decided 2026-08-21. A room is picked live at
+// check-in (checkInBooking, lib/actions/sessions.ts) from whatever is
+// actually free that moment, not reserved days ahead. The therapist a
+// guest books IS the service they're buying, so it has to be locked in
+// advance; which of the outlet's interchangeable rooms they end up in
+// does not, and locking one in advance only manufactured false
+// conflicts (a room "booked" for 2pm that's actually been empty since
+// 1:45 because the prior session ran short). `bookings.room_id` stays
+// nullable through BOOKED/CONFIRMED/ARRIVED and gets filled in exactly
+// once, at check-in.
 // ---------------------------------------------------------------------
 
 const ACTIVE_STATUSES = ["BOOKED", "CONFIRMED", "ARRIVED", "CHECKED_IN", "IN_SESSION"];
@@ -35,7 +46,6 @@ export type CreateBookingInput = {
   customerPhone: string;
   packageId: string;
   therapistId: string;
-  roomId: string;
   date: string; // "YYYY-MM-DD"
   startTime: string; // "HH:mm"
   notes?: string;
@@ -57,8 +67,8 @@ export async function createBooking(input: CreateBookingInput): Promise<CreateBo
   if (!customerName || !customerPhone) {
     return { ok: false, error: "Nama dan nomor telepon tamu wajib diisi." };
   }
-  if (!input.packageId || !input.therapistId || !input.roomId) {
-    return { ok: false, error: "Layanan, terapis, dan room wajib dipilih." };
+  if (!input.packageId || !input.therapistId) {
+    return { ok: false, error: "Layanan dan terapis wajib dipilih." };
   }
 
   // Resolve the signed-in staff member's tenant — needed to create a new
@@ -86,26 +96,16 @@ export async function createBooking(input: CreateBookingInput): Promise<CreateBo
 
   const { data: sameDayBookings, error: sameDayErr } = await supabase
     .from("bookings")
-    .select("id, therapist_id, room_id, scheduled_start, scheduled_end")
+    .select("id, therapist_id, scheduled_start, scheduled_end")
     .eq("outlet_id", input.outletId)
     .eq("date", input.date)
+    .eq("therapist_id", input.therapistId)
     .in("status", ACTIVE_STATUSES);
   if (sameDayErr) return { ok: false, error: "Gagal memeriksa jadwal yang sudah ada — coba lagi." };
 
-  const conflict = (sameDayBookings ?? []).find((b) => {
-    const sameTherapist = b.therapist_id === input.therapistId;
-    const sameRoom = b.room_id === input.roomId;
-    if (!sameTherapist && !sameRoom) return false;
-    return overlaps(startIso, endIso, b.scheduled_start, b.scheduled_end);
-  });
+  const conflict = (sameDayBookings ?? []).find((b) => overlaps(startIso, endIso, b.scheduled_start, b.scheduled_end));
   if (conflict) {
-    const sameTherapist = conflict.therapist_id === input.therapistId;
-    return {
-      ok: false,
-      error: sameTherapist
-        ? "Terapis ini sudah punya booking lain di jam tersebut. Pilih terapis atau jam lain."
-        : "Room ini sudah dipakai booking lain di jam tersebut. Pilih room atau jam lain.",
-    };
+    return { ok: false, error: "Terapis ini sudah punya booking lain di jam tersebut. Pilih terapis atau jam lain." };
   }
 
   // Find an existing customer by phone within this tenant, else create one.
@@ -148,7 +148,7 @@ export async function createBooking(input: CreateBookingInput): Promise<CreateBo
       outlet_id: input.outletId,
       customer_id: customerId,
       therapist_id: input.therapistId,
-      room_id: input.roomId,
+      room_id: null, // assigned live at check-in — see file header
       package_id: input.packageId,
       duration_min: pkg.duration_min,
       price: pkg.list_price,

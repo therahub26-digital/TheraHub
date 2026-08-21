@@ -37,7 +37,7 @@ function receiptNo(prefix: string, date: string): string {
 
 export type PaymentMethod = "Cash" | "QRIS" | "Debit Card" | "Credit Card" | "Transfer" | "E-Wallet";
 
-export async function payForSession(sessionId: string, paymentMethod: PaymentMethod): Promise<ActionResult> {
+export async function payForSession(sessionId: string, paymentMethod: PaymentMethod, promoCode?: string): Promise<ActionResult> {
   const supabase = await createClient();
 
   const {
@@ -100,13 +100,98 @@ export async function payForSession(sessionId: string, paymentMethod: PaymentMet
     .single();
   if (outletErr || !outlet) return { ok: false, error: "Outlet tidak ditemukan." };
 
-  const subtotal = Number(booking.price);
+  const packagePrice = Number(booking.price);
+
+  // ---------------------------------------------------------------
+  // Approved extensions (2026-08-21, "ajukan -> approve kasir ->
+  // tagihan"): billed HERE, once, at payment — not when the kasir
+  // approved it. An approval only means "yes, give them the extra
+  // time"; it does not itself move money. Summing every APPROVED
+  // extension_request tied to this session (rather than trusting
+  // sessions.extension_minutes, which is only a display convenience
+  // updated best-effort by approveExtension) is what makes this
+  // idempotent against that column ever drifting.
+  // ---------------------------------------------------------------
+  const { data: approvedExtRows } = await supabase
+    .from("extension_requests")
+    .select("id, extension_id")
+    .eq("session_id", sessionId)
+    .eq("status", "APPROVED");
+
+  type BilledExtension = { name: string; price: number; commission: number };
+  const billedExtensions: BilledExtension[] = [];
+  if (approvedExtRows && approvedExtRows.length > 0) {
+    const extensionIds = [...new Set(approvedExtRows.map((r) => r.extension_id))];
+    const { data: extensionRows } = await supabase
+      .from("extension_options")
+      .select("id, name, price, commission_type, commission")
+      .in("id", extensionIds);
+    const extensionById = new Map((extensionRows ?? []).map((e) => [e.id, e]));
+
+    for (const row of approvedExtRows) {
+      const ext = extensionById.get(row.extension_id);
+      if (!ext) continue; // extension option deleted since approval — skip rather than bill an unknown price
+      const price = Number(ext.price);
+      const rule = { type: (ext.commission_type ?? "fixed") as CommissionType, value: Number(ext.commission ?? 0) };
+      billedExtensions.push({ name: ext.name, price, commission: commissionAmount(rule, price) });
+    }
+  }
+  const extensionTotal = billedExtensions.reduce((s, e) => s + e.price, 0);
+
+  const subtotal = packagePrice + extensionTotal;
   const serviceCharge = Math.round((subtotal * Number(outlet.service_charge_pct)) / 100);
   const tax = Math.round(((subtotal + serviceCharge) * Number(outlet.tax_pct)) / 100);
-  const total = subtotal + serviceCharge + tax;
 
   const paidAt = nowIso();
   const date = paidAt.slice(0, 10);
+
+  // ---------------------------------------------------------------
+  // Referral/voucher promo code (2026-08-21, "ajak teman"). Validated
+  // fresh here, at the moment of payment, NOT against lib/data/
+  // promotions.ts's cached display layer — usage_count and status can
+  // legitimately change between the kasir's page load and this click.
+  // ---------------------------------------------------------------
+  let discount = 0;
+  let appliedPromo: { id: string; usageCount: number } | null = null;
+  if (promoCode && promoCode.trim()) {
+    const code = promoCode.trim();
+    const { data: promo, error: promoErr } = await supabase
+      .from("promotions")
+      .select("id, status, valid_from, valid_to, usage_count, max_usage, discount_amount, new_customers_only")
+      .eq("outlet_id", session.outlet_id)
+      .ilike("code", code)
+      .maybeSingle();
+    if (promoErr || !promo) return { ok: false, error: `Kode promo "${code}" tidak ditemukan di outlet ini.` };
+    if (promo.status !== "ACTIVE") return { ok: false, error: `Kode promo "${code}" sedang tidak aktif.` };
+    if (date < promo.valid_from || date > promo.valid_to) {
+      return { ok: false, error: `Kode promo "${code}" sudah tidak berlaku untuk periode ini.` };
+    }
+    if (promo.max_usage !== null && promo.usage_count >= promo.max_usage) {
+      return { ok: false, error: `Kuota kode promo "${code}" sudah habis.` };
+    }
+    // "Belum diatur ≠ nol" — a promo with no discount_amount configured
+    // is catalog-only (display text like "-20%" that nothing computes
+    // from yet), not a promo worth Rp0.
+    if (promo.discount_amount === null) {
+      return { ok: false, error: `Promo "${code}" belum punya nominal diskon yang diatur — hubungi admin/manager.` };
+    }
+    if (promo.new_customers_only) {
+      const { data: priorTx } = await supabase
+        .from("transactions")
+        .select("id")
+        .eq("customer_id", booking.customer_id)
+        .eq("status", "PAID")
+        .limit(1)
+        .maybeSingle();
+      if (priorTx) {
+        return { ok: false, error: `Kode promo "${code}" hanya untuk pelanggan baru — pelanggan ini sudah pernah bertransaksi di sini.` };
+      }
+    }
+    discount = Math.min(Number(promo.discount_amount), subtotal + serviceCharge + tax);
+    appliedPromo = { id: promo.id, usageCount: promo.usage_count };
+  }
+
+  const total = subtotal + serviceCharge + tax - discount;
 
   const { data: tx, error: txErr } = await supabase
     .from("transactions")
@@ -117,7 +202,7 @@ export async function payForSession(sessionId: string, paymentMethod: PaymentMet
       customer_id: booking.customer_id,
       cashier_id: cashierId,
       subtotal,
-      discount: 0,
+      discount,
       tax,
       service_charge: serviceCharge,
       total,
@@ -135,10 +220,37 @@ export async function payForSession(sessionId: string, paymentMethod: PaymentMet
     item_type: "SERVICE",
     name: pkg?.name ?? "Layanan",
     qty: 1,
-    unit_price: subtotal,
+    unit_price: packagePrice,
     therapist_id: session.therapist_id,
   });
   if (itemErr) return { ok: false, error: "Transaksi tersimpan tapi item gagal disimpan — hubungi admin." };
+
+  if (billedExtensions.length > 0) {
+    const { error: extItemErr } = await supabase.from("transaction_items").insert(
+      billedExtensions.map((e) => ({
+        transaction_id: tx.id,
+        item_type: "EXTENSION" as const,
+        name: e.name,
+        qty: 1,
+        unit_price: e.price,
+        therapist_id: session.therapist_id,
+      }))
+    );
+    if (extItemErr) return { ok: false, error: "Transaksi tersimpan tapi item extension gagal disimpan — hubungi admin." };
+  }
+
+  // Non-fatal on purpose, same reasoning as the commission-write below:
+  // the guest has paid, the discount is already reflected on the
+  // transaction total, and failing the whole action here over a counter
+  // increment would invite a duplicate charge for no real benefit — the
+  // worst case is `usage_count` under-counting by one, not money moving
+  // wrong.
+  if (appliedPromo) {
+    await supabase
+      .from("promotions")
+      .update({ usage_count: appliedPromo.usageCount + 1 })
+      .eq("id", appliedPromo.id);
+  }
 
   const { error: bookingUpdateErr } = await supabase.from("bookings").update({ status: "PAID" }).eq("id", booking.id);
   if (bookingUpdateErr) return { ok: false, error: "Transaksi tersimpan tapi status booking gagal diupdate." };
@@ -168,7 +280,11 @@ export async function payForSession(sessionId: string, paymentMethod: PaymentMet
       type: (pkg.commission_type ?? "fixed") as CommissionType,
       value: Number(pkg.commission_value ?? 0),
     };
-    const earned = commissionAmount(rule, subtotal);
+    // Basis is the PACKAGE price alone, not the combined subtotal —
+    // extension commission is a separate, differently-rated line below,
+    // and folding it in here would double-rate it under the package's
+    // percent/fixed rule instead of the extension's own.
+    const earned = commissionAmount(rule, packagePrice);
 
     if (earned > 0) {
       const { error: commissionErr } = await supabase.from("commission_entries").insert({
@@ -178,7 +294,7 @@ export async function payForSession(sessionId: string, paymentMethod: PaymentMet
         booking_id: booking.id,
         package_name: pkg.name ?? "Layanan",
         rule_snapshot: commissionRuleSnapshot(rule, pkg.name ?? "Layanan"),
-        basis_amount: subtotal,
+        basis_amount: packagePrice,
         amount: earned,
         status: "PENDING",
       });
@@ -191,6 +307,33 @@ export async function payForSession(sessionId: string, paymentMethod: PaymentMet
       // hands.
       if (commissionErr) {
         return { ok: false, error: "Pembayaran BERHASIL, tapi komisi terapis gagal dicatat — laporkan ke admin (transaksi tidak perlu diulang)." };
+      }
+    }
+  }
+
+  // Extension commission — same "earned at payment, frozen rule
+  // snapshot, non-fatal write" reasoning as the package commission
+  // above, kept as its own commission_entries row (not folded into the
+  // package row) so a therapist's history shows extension earnings as
+  // their own line rather than an unexplained jump in the package's
+  // usual amount.
+  if (session.therapist_id && billedExtensions.length > 0) {
+    const extensionCommissionTotal = billedExtensions.reduce((s, e) => s + e.commission, 0);
+    if (extensionCommissionTotal > 0) {
+      const label = billedExtensions.length === 1 ? billedExtensions[0].name : `${billedExtensions.length}x Extension`;
+      const { error: extCommissionErr } = await supabase.from("commission_entries").insert({
+        therapist_id: session.therapist_id,
+        outlet_id: session.outlet_id,
+        date,
+        booking_id: booking.id,
+        package_name: label,
+        rule_snapshot: `${label}: Rp${extensionCommissionTotal.toLocaleString("id-ID")} (extension)`,
+        basis_amount: extensionTotal,
+        amount: extensionCommissionTotal,
+        status: "PENDING",
+      });
+      if (extCommissionErr) {
+        return { ok: false, error: "Pembayaran BERHASIL, tapi komisi extension gagal dicatat — laporkan ke admin (transaksi tidak perlu diulang)." };
       }
     }
   }

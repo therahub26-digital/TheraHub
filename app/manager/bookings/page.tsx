@@ -2,8 +2,9 @@ import Link from "next/link";
 import Icon from "@/components/Icon";
 import { PageHead, Card, StatusBadge, Badge } from "@/components/ui";
 import { BookingRowActions } from "@/components/SessionActions";
-import { getOutlets } from "@/lib/data/outlets";
+import { getCurrentOutlet } from "@/lib/data/outlets";
 import { getTherapistsForOutlet } from "@/lib/data/employees";
+import { getAvailableRoomsForOutlet } from "@/lib/data/rooms";
 import { getBookingsForOutlet, getEffectiveToday } from "@/lib/data/bookings";
 import { toMin, fmtTime, fmtDateLong, fmtDayShort, addDays } from "@/lib/format";
 import type { Booking } from "@/lib/types";
@@ -12,6 +13,21 @@ const OPEN = toMin("09:00");
 const CLOSE = toMin("22:00");
 const SPAN = CLOSE - OPEN;
 const HOURS = Array.from({ length: (CLOSE - OPEN) / 60 + 1 }, (_, i) => OPEN + i * 60);
+
+// Calendar column width by roster size. A fixed 148px column (the old
+// value) is comfortable up to ~6 therapists but forces horizontal scroll
+// beyond that on a typical manager desktop viewport (~1200-1400px content
+// width) — exactly the "kolom diperkecil" complaint. Stepping the width
+// down as the roster grows keeps ~8-10 therapists fitting on screen while
+// staying wide enough to read a truncated name + grade; below ~72px names
+// stop being legible at all, so `.table-wrap` scroll remains the fallback
+// for outlets with an unusually large roster.
+function colWidth(therapistCount: number): number {
+  if (therapistCount <= 6) return 148;
+  if (therapistCount <= 8) return 118;
+  if (therapistCount <= 10) return 96;
+  return 78;
+}
 
 const STATUS_BG: Record<string, string> = {
   BOOKED: "rgba(56,189,248,0.16)", CONFIRMED: "rgba(56,189,248,0.2)", ARRIVED: "rgba(167,139,250,0.2)",
@@ -31,18 +47,16 @@ export default async function BookingsPage({
   searchParams: Promise<{ date?: string; view?: string }>;
 }) {
   const sp = await searchParams;
-  // No per-manager outlet-session scoping yet (see Fase 9 in the roadmap) —
-  // same convention as the other migrated pages: default to the first
-  // real outlet (Cikawao) when live.
-  const OUTLETS = await getOutlets();
-  const outlet = OUTLETS[0];
+  const outlet = await getCurrentOutlet();
   const today = await getEffectiveToday();
   const date = sp.date ?? today;
   const view = sp.view ?? "calendar";
-  const [rawBookings, rawTherapists] = await Promise.all([
+  const [rawBookings, rawTherapists, availableRooms] = await Promise.all([
     getBookingsForOutlet(outlet.id, date),
     getTherapistsForOutlet(outlet.id),
+    getAvailableRoomsForOutlet(outlet.id),
   ]);
+  const roomOptions = availableRooms.map((r) => ({ id: r.id, name: r.name }));
   const bookings = rawBookings.filter((b) => b.status !== "CANCELLED");
   // Was `.slice(0, 8)` — a leftover cap from when mock data always had ≤8
   // therapists per outlet. Real outlets now have 10-11, so the cap was
@@ -97,12 +111,27 @@ export default async function BookingsPage({
       {view === "calendar" ? (
         <Card>
           <div className="table-wrap">
-            <div style={{ display: "grid", gridTemplateColumns: `64px repeat(${therapists.length}, minmax(148px, 1fr))`, minWidth: 148 * therapists.length + 64 }}>
+            {/*
+              Column width scales down as the roster grows instead of staying
+              fixed at 148px — a fixed width is why 10-11 real therapists
+              always needed horizontal scroll (Melati Puspita and Zahra were
+              retired from the roster, but Cikawao/Mekarwangi still run
+              8-10 active therapists each). Below the "fits most desktop
+              viewports without scrolling" bands, `.table-wrap` still falls
+              back to scroll rather than crushing columns unreadably thin.
+            */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: `56px repeat(${therapists.length}, minmax(${colWidth(therapists.length)}px, 1fr))`,
+                minWidth: colWidth(therapists.length) * therapists.length + 56,
+              }}
+            >
               <div style={{ borderBottom: "1px solid var(--border)", borderRight: "1px solid var(--border)" }} />
               {therapists.map((t) => (
-                <div key={t.id} className="small strong" style={{ padding: "10px 12px", borderBottom: "1px solid var(--border)", borderRight: "1px solid var(--border)", color: "var(--text-1)" }}>
-                  {t.name}
-                  <div className="tiny dim">{t.therapistGrade}</div>
+                <div key={t.id} className="small strong truncate" style={{ padding: "8px 8px", borderBottom: "1px solid var(--border)", borderRight: "1px solid var(--border)", color: "var(--text-1)" }} title={`${t.name} · ${t.therapistGrade}`}>
+                  <div className="truncate">{t.name}</div>
+                  <div className="tiny dim truncate">{t.therapistGrade}</div>
                 </div>
               ))}
 
@@ -143,7 +172,7 @@ export default async function BookingsPage({
                     <td className="muted small">{b.roomName}</td>
                     <td><Badge tone="neutral">{b.source}</Badge></td>
                     <td><StatusBadge status={b.status} /></td>
-                    <td><BookingRowActions bookingId={b.id} status={b.status} /></td>
+                    <td><BookingRowActions bookingId={b.id} status={b.status} rooms={roomOptions} /></td>
                   </tr>
                 ))}
               </tbody>

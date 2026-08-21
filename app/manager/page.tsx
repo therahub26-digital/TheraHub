@@ -1,40 +1,68 @@
 import Link from "next/link";
 import Icon from "@/components/Icon";
 import { PageHead, Card, CardHead, StatCard, Badge, PersonCell, StatusBadge } from "@/components/ui";
-import {
-  PRIMARY_OUTLET, bookingKpi, therapistsOf, attendanceToday, activeSessions,
-  lowStock, roomsOf, bookingsToday, TODAY, NOW_HHMM,
-} from "@/lib/mock";
+import { getCurrentOutlet } from "@/lib/data/outlets";
+import { getTherapistsForOutlet } from "@/lib/data/employees";
+import { getBookingKpi, getBookingsForOutlet, getEffectiveToday, getEffectiveNow } from "@/lib/data/bookings";
+import { getActiveSessionsForOutlet } from "@/lib/data/sessions";
+import { getRoomsForOutlet, getAvailableRoomsForOutlet } from "@/lib/data/rooms";
 import { rp, pct, fmtTime } from "@/lib/format";
 
-const PRESENCE_LABEL: Record<string, string> = {
-  AVAILABLE: "Tersedia", IN_SESSION: "Sedang Melayani", BREAK: "Istirahat", OFF: "Libur", LATE: "Terlambat", ABSENT: "Tidak Hadir",
-};
-const PRESENCE_TONE: Record<string, "success" | "accent" | "warning" | "neutral" | "danger"> = {
-  AVAILABLE: "success", IN_SESSION: "accent", BREAK: "warning", OFF: "neutral", LATE: "warning", ABSENT: "danger",
-};
+// ---------------------------------------------------------------------
+// Today Overview — was still reading lib/mock wholesale (bookingKpi,
+// therapistsOf, attendanceToday, activeSessions, lowStock, roomsOf,
+// bookingsToday), the last big manager page left on fake data. This is
+// what the user's screenshot flagged: Melati Puspita (a retired therapist)
+// and invented guest names in "Status Terapis" / "Sesi Aktif".
+//
+// SCOPE OF THIS MIGRATION — same honesty rule as /manager/therapists
+// (see that page's header): every card below is either backed by a real
+// table, or it says plainly that the underlying module doesn't exist yet.
+// Two cards fall in the second bucket and are NOT faked:
+//   - "Alert Kehadiran" needed an attendance/shift system (clock-in,
+//     scheduled-vs-actual). employees.presence is a real column but
+//     nothing anywhere writes to it — every real row is NULL — so reading
+//     it would silently launder "we don't know" into "everyone's here."
+//   - "Stok Menipis" needed a product/inventory module. There is no
+//     lib/data/inventory.ts, no products table read path — nothing to
+//     query.
+// "Status Terapis" keeps its card but drops BREAK/OFF/LATE/ABSENT: those
+// need attendance too. What IS real and shown: whether a therapist has a
+// session running right now (derived from getActiveSessionsForOutlet,
+// the same source /manager/sessions uses).
+// ---------------------------------------------------------------------
 
-export default function ManagerTodayPage() {
-  const outlet = PRIMARY_OUTLET;
-  const kpi = bookingKpi(outlet.id);
-  const therapists = therapistsOf(outlet.id);
-  const attendance = attendanceToday(outlet.id);
-  const late = attendance.filter((a) => a.status === "LATE" || a.status === "SUSPICIOUS");
-  const absent = attendance.filter((a) => a.status === "ABSENT");
-  const sessions = activeSessions(outlet.id);
-  const low = lowStock(outlet.id).slice(0, 5);
-  const rooms = roomsOf(outlet.id);
-  const upcoming = bookingsToday(outlet.id)
-    .filter((b) => ["BOOKED", "CONFIRMED", "ARRIVED"].includes(b.status) && b.scheduledStart >= NOW_HHMM)
+export default async function ManagerTodayPage() {
+  const outlet = await getCurrentOutlet();
+  const [today, nowHHMM] = await Promise.all([getEffectiveToday(), getEffectiveNow()]);
+
+  const [kpi, therapists, sessions, rooms, availableRooms, todaysBookings] = await Promise.all([
+    getBookingKpi(outlet.id, today),
+    getTherapistsForOutlet(outlet.id),
+    getActiveSessionsForOutlet(outlet.id),
+    getRoomsForOutlet(outlet.id),
+    getAvailableRoomsForOutlet(outlet.id),
+    getBookingsForOutlet(outlet.id, today),
+  ]);
+
+  // getTherapistsForOutlet already filters to status === "ACTIVE" (see
+  // lib/data/employees.ts) — no need to filter again here.
+  const busyTherapistIds = new Set(sessions.map((s) => s.therapistId).filter(Boolean));
+  const activeTherapists = therapists;
+  const busyCount = activeTherapists.filter((t) => busyTherapistIds.has(t.id)).length;
+  const availableCount = activeTherapists.length - busyCount;
+
+  const availableRoomIds = new Set(availableRooms.map((r) => r.id));
+
+  const upcoming = todaysBookings
+    .filter((b) => ["BOOKED", "CONFIRMED", "ARRIVED"].includes(b.status) && b.scheduledStart >= nowHHMM)
     .slice(0, 6);
-
-  const presenceCount = (p: string) => therapists.filter((t) => t.presence === p).length;
 
   return (
     <>
       <PageHead
         title="Today Overview"
-        desc={`${outlet.name} · ${TODAY} · Pukul ${NOW_HHMM}`}
+        desc={`${outlet.name} · ${today} · Pukul ${nowHHMM}`}
         actions={
           <>
             <Link href="/manager/bookings" className="btn btn-ghost btn-sm"><Icon name="calendar-plus" size={14} /> Booking Baru</Link>
@@ -52,23 +80,32 @@ export default function ManagerTodayPage() {
 
       <div className="grid grid-3" style={{ marginBottom: 20, alignItems: "start" }}>
         <Card>
-          <CardHead title="Status Terapis" sub={`Total ${therapists.length} terapis`} action={<Link href="/manager/therapists" className="btn btn-quiet btn-sm">Lihat semua</Link>} />
+          <CardHead title="Status Terapis" sub={`Total ${activeTherapists.length} terapis aktif`} action={<Link href="/manager/therapists" className="btn btn-quiet btn-sm">Lihat semua</Link>} />
           <div className="card-body">
-            <div className="grid grid-4" style={{ gap: 10, marginBottom: 14 }}>
-              {["AVAILABLE", "IN_SESSION", "BREAK", "OFF"].map((p) => (
-                <div key={p} className="stat" style={{ padding: "10px 12px" }}>
-                  <div className="stat-value" style={{ fontSize: 19 }}>{presenceCount(p)}</div>
-                  <div className="tiny dim">{PRESENCE_LABEL[p]}</div>
-                </div>
-              ))}
+            <div className="grid grid-2" style={{ gap: 10, marginBottom: 14 }}>
+              <div className="stat" style={{ padding: "10px 12px" }}>
+                <div className="stat-value" style={{ fontSize: 19 }}>{busyCount}</div>
+                <div className="tiny dim">Sedang Melayani</div>
+              </div>
+              <div className="stat" style={{ padding: "10px 12px" }}>
+                <div className="stat-value" style={{ fontSize: 19 }}>{availableCount}</div>
+                <div className="tiny dim">Tersedia</div>
+              </div>
             </div>
             <div className="stack g2">
-              {therapists.slice(0, 6).map((t) => (
-                <div key={t.id} className="row between small" style={{ padding: "6px 0" }}>
-                  <PersonCell name={t.name} sub={t.therapistGrade} toneKey={t.avatarTone} size={26} />
-                  <Badge tone={PRESENCE_TONE[t.presence ?? "AVAILABLE"]}>{PRESENCE_LABEL[t.presence ?? "AVAILABLE"]}</Badge>
-                </div>
-              ))}
+              {activeTherapists.slice(0, 6).map((t) => {
+                const busy = busyTherapistIds.has(t.id);
+                return (
+                  <div key={t.id} className="row between small" style={{ padding: "6px 0" }}>
+                    <PersonCell name={t.name} sub={t.therapistGrade} toneKey={t.avatarTone} size={26} />
+                    <Badge tone={busy ? "accent" : "success"}>{busy ? "Sedang Melayani" : "Tersedia"}</Badge>
+                  </div>
+                );
+              })}
+              {activeTherapists.length === 0 && <div className="small dim">Tidak ada terapis aktif di outlet ini.</div>}
+            </div>
+            <div className="tiny dim" style={{ marginTop: 10 }}>
+              Kehadiran/cuti/istirahat belum ditampilkan — butuh modul absensi yang belum live.
             </div>
           </div>
         </Card>
@@ -81,7 +118,7 @@ export default function ManagerTodayPage() {
               <div key={s.id} className="row between" style={{ padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
                 <div style={{ minWidth: 0 }}>
                   <div className="small strong truncate" style={{ color: "var(--text-1)" }}>{s.customerName}</div>
-                  <div className="tiny dim truncate">{s.packageName} · {s.roomName} · {s.therapistName}</div>
+                  <div className="tiny dim truncate">{s.packageName} · {s.roomName || "room?"} · {s.therapistName}</div>
                 </div>
                 <Badge tone={s.status === "ENDING_SOON" ? "warning" : "accent"}>
                   {s.status === "ENDING_SOON" ? `${s.minutesRemaining}m lagi` : "Aktif"}
@@ -95,9 +132,10 @@ export default function ManagerTodayPage() {
           <CardHead title="Status Ruangan" sub={`${rooms.length} room`} action={<Link href="/manager/rooms" className="btn btn-quiet btn-sm">Kelola</Link>} />
           <div className="card-body stack g2">
             {rooms.map((r) => {
-              const occ = sessions.some((s) => s.roomName === r.name);
-              const status = r.status === "MAINTENANCE" ? "Maintenance" : occ ? "Terpakai" : "Tersedia";
-              const tone = r.status === "MAINTENANCE" ? "warning" : occ ? "accent" : "success";
+              const maintenance = r.status !== "ACTIVE";
+              const occ = !maintenance && !availableRoomIds.has(r.id);
+              const status = maintenance ? "Maintenance" : occ ? "Terpakai" : "Tersedia";
+              const tone = maintenance ? "warning" : occ ? "accent" : "success";
               return (
                 <div key={r.id} className="row between small">
                   <span className="muted row g2"><Icon name="door-open" size={13} /> {r.name}</span>
@@ -105,6 +143,7 @@ export default function ManagerTodayPage() {
                 </div>
               );
             })}
+            {rooms.length === 0 && <div className="small dim">Belum ada room terdaftar di outlet ini.</div>}
           </div>
         </Card>
       </div>
@@ -122,10 +161,17 @@ export default function ManagerTodayPage() {
                     <td className="strong" style={{ color: "var(--text-1)" }}>{b.customerName}</td>
                     <td className="muted small">{b.packageName}</td>
                     <td className="muted small">{b.therapistName}</td>
-                    <td className="muted small">{b.roomName}</td>
+                    <td className="muted small">{b.roomName || "Belum ditentukan"}</td>
                     <td><StatusBadge status={b.status} /></td>
                   </tr>
                 ))}
+                {upcoming.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="dim small" style={{ textAlign: "center", padding: "20px 0" }}>
+                      Tidak ada booking yang masih menunggu hari ini.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -134,36 +180,18 @@ export default function ManagerTodayPage() {
         <div className="stack g5">
           <Card className="card-pad">
             <div className="row g2" style={{ marginBottom: 10 }}>
-              <Icon name="alert-triangle" size={15} style={{ color: late.length || absent.length ? "var(--warning)" : "var(--text-4)" }} />
+              <Icon name="alert-triangle" size={15} style={{ color: "var(--text-4)" }} />
               <h4>Alert Kehadiran</h4>
             </div>
-            {late.length === 0 && absent.length === 0 ? (
-              <div className="small dim">Semua terapis hadir tepat waktu.</div>
-            ) : (
-              <div className="stack g2">
-                {[...late, ...absent].slice(0, 4).map((a) => (
-                  <div key={a.id} className="row between small">
-                    <span className="muted">{a.employeeName}</span>
-                    <Badge tone={a.status === "ABSENT" ? "danger" : "warning"}>{a.status}</Badge>
-                  </div>
-                ))}
-              </div>
-            )}
+            <div className="small dim">Modul absensi/shift belum dibangun — belum ada data kehadiran real-time untuk ditampilkan di sini.</div>
           </Card>
 
           <Card className="card-pad">
             <div className="row g2" style={{ marginBottom: 10 }}>
-              <Icon name="package" size={15} style={{ color: "var(--warning)" }} />
+              <Icon name="package" size={15} style={{ color: "var(--text-4)" }} />
               <h4>Stok Menipis</h4>
             </div>
-            <div className="stack g2">
-              {low.map((p) => (
-                <div key={p.id} className="row between small">
-                  <span className="muted truncate" style={{ maxWidth: 160 }}>{p.name}</span>
-                  <span style={{ color: "var(--danger)" }}>{p.stocks[outlet.id]}/{p.minStock}</span>
-                </div>
-              ))}
-            </div>
+            <div className="small dim">Modul inventori belum dibangun — belum ada data stok untuk ditampilkan di sini.</div>
           </Card>
         </div>
       </div>

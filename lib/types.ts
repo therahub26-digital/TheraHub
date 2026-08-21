@@ -202,6 +202,18 @@ export interface Employee {
   featuredBadge?: string;
   /** Bio singkat ditampilkan di halaman profil outlet saat featured. */
   bio?: string;
+  /**
+   * Referral: who recruited this employee, and the fee owed to that person
+   * per treatment this employee does. Undefined/null = no referral
+   * relationship configured — "belum diatur ≠ nol" — never read as a fee
+   * of zero. Same fixed/percent shape as commission everywhere else in
+   * this app. See supabase/migrations/0008_referral_fee.sql and
+   * runPayroll() (lib/actions/payroll.ts) for how this turns into an
+   * actual payslip line.
+   */
+  referredByEmployeeId?: string;
+  referralFeeType?: "fixed" | "percent";
+  referralFeeValue?: number;
 }
 
 export type AttendanceStatus =
@@ -581,6 +593,17 @@ export interface Promotion {
   type: "Promo" | "Voucher" | "Prepaid Package" | "Membership" | "Loyalty";
   code?: string;
   value: string;
+  /**
+   * Structured rupiah discount, distinct from `value` (which is free-text
+   * for display, e.g. "Rp30.000 untuk teman baru"). Undefined/null means
+   * this promo has no programmatic redemption yet — it's catalog-only,
+   * same "belum diatur ≠ nol" rule as commission fields. See
+   * supabase/migrations/0009_referral_promo_and_extension_sale.sql and
+   * payForSession() (lib/actions/transactions.ts).
+   */
+  discountAmount?: number;
+  /** Redeemable only by a customer with zero prior PAID transactions. */
+  newCustomersOnly: boolean;
   validFrom: string;
   validTo: string;
   usageCount: number;

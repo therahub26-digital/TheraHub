@@ -3,20 +3,18 @@
 import { useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Icon from "@/components/Icon";
-import { Field, Avatar } from "@/components/ui";
+import { Field, Avatar, InfoNote } from "@/components/ui";
 import { rp, minutesToHm } from "@/lib/format";
 import { createBooking } from "@/lib/actions/bookings";
 
 type PackageOption = { id: string; name: string; durationMin: number; listPrice: number };
 type TherapistOption = { id: string; name: string; grade?: string; skills: string[]; photoUrl?: string };
-type RoomOption = { id: string; name: string; type: string };
 
 export default function BookingForm({
   outletId,
   today,
   packages,
   therapists,
-  rooms,
   source,
   backHref,
 }: {
@@ -24,7 +22,6 @@ export default function BookingForm({
   today: string;
   packages: PackageOption[];
   therapists: TherapistOption[];
-  rooms: RoomOption[];
   source: "Walk-in" | "Kasir";
   backHref: string;
 }) {
@@ -35,7 +32,6 @@ export default function BookingForm({
   const [customerPhone, setCustomerPhone] = useState("");
   const [packageId, setPackageId] = useState(packages[0]?.id ?? "");
   const [therapistId, setTherapistId] = useState(therapists[0]?.id ?? "");
-  const [roomId, setRoomId] = useState(rooms[0]?.id ?? "");
   const [date, setDate] = useState(today);
   const [startTime, setStartTime] = useState("10:00");
   const [notes, setNotes] = useState("");
@@ -53,7 +49,6 @@ export default function BookingForm({
         customerPhone,
         packageId,
         therapistId,
-        roomId,
         date,
         startTime,
         notes,
@@ -103,32 +98,20 @@ export default function BookingForm({
         </select>
       </Field>
 
-      <div className="grid grid-2" style={{ gap: 12 }}>
-        <Field label="Terapis">
-          <div className="row g2">
-            {selectedTherapist && <Avatar name={selectedTherapist.name} photoUrl={selectedTherapist.photoUrl} size={32} />}
-            <select className="select" required value={therapistId} onChange={(e) => setTherapistId(e.target.value)} style={{ flex: 1 }}>
-            {therapists.length === 0 && <option value="">Belum ada terapis di outlet ini</option>}
-            {therapists.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-                {t.grade ? ` (${t.grade})` : ""}
-              </option>
-            ))}
-            </select>
-          </div>
-        </Field>
-        <Field label="Room">
-          <select className="select" required value={roomId} onChange={(e) => setRoomId(e.target.value)}>
-            {rooms.length === 0 && <option value="">Belum ada room di outlet ini</option>}
-            {rooms.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
-              </option>
-            ))}
+      <Field label="Terapis">
+        <div className="row g2">
+          {selectedTherapist && <Avatar name={selectedTherapist.name} photoUrl={selectedTherapist.photoUrl} size={32} />}
+          <select className="select" required value={therapistId} onChange={(e) => setTherapistId(e.target.value)} style={{ flex: 1 }}>
+          {therapists.length === 0 && <option value="">Belum ada terapis di outlet ini</option>}
+          {therapists.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.name}
+              {t.grade ? ` (${t.grade})` : ""}
+            </option>
+          ))}
           </select>
-        </Field>
-      </div>
+        </div>
+      </Field>
 
       <div className="grid grid-2" style={{ gap: 12 }}>
         <Field label="Tanggal">
@@ -138,6 +121,8 @@ export default function BookingForm({
           <input className="input" type="time" required value={startTime} onChange={(e) => setStartTime(e.target.value)} />
         </Field>
       </div>
+
+      <InfoNote icon="info">Room ditentukan kasir saat tamu check-in, tergantung mana yang kosong saat itu.</InfoNote>
 
       <Field label="Catatan" hint="Opsional — preferensi tamu, kondisi khusus, dsb.">
         <textarea className="input" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
@@ -151,7 +136,7 @@ export default function BookingForm({
       )}
 
       <div className="row g2">
-        <button type="submit" className="btn btn-primary" disabled={isPending || packages.length === 0 || therapists.length === 0 || rooms.length === 0}>
+        <button type="submit" className="btn btn-primary" disabled={isPending || packages.length === 0 || therapists.length === 0}>
           <Icon name="calendar-plus" size={14} /> {isPending ? "Menyimpan…" : "Simpan Booking"}
         </button>
         <button type="button" className="btn btn-ghost" onClick={() => router.push(backHref)} disabled={isPending}>

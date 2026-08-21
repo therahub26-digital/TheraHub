@@ -1,16 +1,12 @@
 import Link from "next/link";
 import Icon from "@/components/Icon";
 import { PageHead, Card, CardHead, StatCard, Badge, StatusBadge, PersonCell } from "@/components/ui";
-import { getOutlets } from "@/lib/data/outlets";
+import { getCurrentOutlet } from "@/lib/data/outlets";
 import { getBookingsToday, getBookingKpi, getEffectiveToday, getEffectiveNow } from "@/lib/data/bookings";
 import { rp, fmtTime } from "@/lib/format";
 
 export default async function KasirTodayPage() {
-  // No per-kasir outlet-session scoping yet (see Fase 9 in the roadmap) —
-  // same convention as the other migrated pages: default to the first
-  // real outlet (Cikawao) when live.
-  const OUTLETS = await getOutlets();
-  const outlet = OUTLETS[0];
+  const outlet = await getCurrentOutlet();
   const [rawBookings, kpi, today, NOW_HHMM] = await Promise.all([
     getBookingsToday(outlet.id),
     getBookingKpi(outlet.id),

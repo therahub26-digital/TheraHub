@@ -1,72 +1,143 @@
+import Link from "next/link";
 import Icon from "@/components/Icon";
-import { PageHead, Card, CardHead, StatCard, StatusBadge } from "@/components/ui";
-import { DonutChart, LegendList } from "@/components/Charts";
-import { PAYROLL_RUNS, PAYROLL, commissionLiability, savingsLiability, THR_ACCRUALS } from "@/lib/mock";
+import { PageHead, Card, CardHead, StatCard, StatusBadge, PersonCell } from "@/components/ui";
+import { RunPayrollButton } from "@/components/PayrollControls";
+import { getOutlets } from "@/lib/data/outlets";
+import { getPayrollForOutlet, getPayrollSettings } from "@/lib/data/payroll";
+import { getCommissionsForOutlet, getEffectivePeriod } from "@/lib/data/commissions";
+import { activeComponents, splitComponents } from "@/lib/payroll";
 import { rp, monthLabel } from "@/lib/format";
 
-export default function PayrollLiabilityPage() {
-  const currentRun = PAYROLL_RUNS[0];
-  const items = PAYROLL.filter((p) => p.period === currentRun.period);
-  const byRole: Record<string, number> = {};
-  items.forEach((p) => (byRole[p.jobRole] = (byRole[p.jobRole] ?? 0) + p.netPay));
-  const roleData = Object.entries(byRole).map(([name, value]) => ({ name, value }));
-  const totalSavings = Object.values(savingsLiability).reduce((s, v) => s + v, 0);
-  const thrPending = THR_ACCRUALS.filter((t) => t.status === "PRORATA" || t.status === "ELIGIBLE_FULL").reduce((s, t) => s + t.accrued, 0);
+// ---------------------------------------------------------------------
+// Payroll run + liability view, live.
+//
+// Renders only the components the outlet actually uses (payroll_settings,
+// migration 0005). For Amethyst that is a single column — Komisi — and
+// the table is honest about being that narrow rather than padding itself
+// with Gaji Pokok / Tunjangan columns of Rp0 that no therapist is owed.
+//
+// Savings and THR cards from the mock version are GONE, not ported:
+// `savings_entries` has no write path and there is no THR accrual
+// policy, so those figures could only ever have been fabricated.
+// ---------------------------------------------------------------------
+
+export default async function PayrollPage() {
+  // Owner is tenant-wide by design (oversees every outlet), not bound to
+  // one via app_users.outlet_id the way manager/kasir now are (see
+  // getCurrentOutlet(), lib/data/outlets.ts) — so "first outlet" here isn't
+  // the same bug that was fixed for manager pages, it's a real open gap:
+  // an owner with more than one outlet needs a switcher or an aggregate
+  // view across outlets, neither of which exists yet. Cikawao-only is the
+  // known limitation until that's built.
+  const OUTLETS = await getOutlets();
+  const outlet = OUTLETS[0];
+  const period = await getEffectivePeriod();
+  const [settings, items, commissions] = await Promise.all([
+    getPayrollSettings(outlet.id),
+    getPayrollForOutlet(outlet.id, period),
+    getCommissionsForOutlet(outlet.id, period),
+  ]);
+
+  // Commission earned but not yet rolled into a payslip — the real
+  // outstanding liability, computed from actual entries rather than an
+  // invented accrual.
+  const unpaidCommission = commissions
+    .filter((c) => c.status === "PENDING")
+    .reduce((s, c) => s + c.amount, 0);
+
+  const components = activeComponents(settings?.components ?? []);
+  const { earnings, deductions } = splitComponents(components);
+  const totalNet = items.reduce((s, p) => s + p.netPay, 0);
+
+  if (!settings) {
+    return (
+      <>
+        <PageHead title="Payroll" desc={`${outlet.name} · ${monthLabel(period)}`} />
+        <Card>
+          <CardHead title="Struktur payroll belum diatur" />
+          <div className="card-body stack g3">
+            <p className="small muted" style={{ maxWidth: 560 }}>
+              Payroll belum bisa dihitung karena belum ada keputusan komponen apa saja yang
+              membentuk slip gaji di outlet ini. Ini sengaja tidak ditebak — menebaknya berarti
+              menetapkan kebijakan gaji atas nama bisnis Anda.
+            </p>
+            <div>
+              <Link className="btn btn-primary btn-sm" href="/manager/payroll-settings">
+                <Icon name="sliders-horizontal" size={13} /> Atur Struktur Payroll
+              </Link>
+            </div>
+          </div>
+        </Card>
+      </>
+    );
+  }
 
   return (
     <>
-      <PageHead title="Payroll Liability" desc="Overview kewajiban gaji, komisi, tabungan, dan THR seluruh outlet." />
+      <PageHead
+        title="Payroll"
+        desc={`${outlet.name} · ${monthLabel(period)} · ${components.map((c) => c.label).join(" + ")}`}
+        actions={<RunPayrollButton outletId={outlet.id} period={period} />}
+      />
 
       <div className="grid grid-4" style={{ marginBottom: 20 }}>
-        <StatCard label="Payroll Berjalan" value={rp(currentRun.net, { short: true })} icon="wallet" toneKey="gold" foot={`${currentRun.employees} karyawan · ${monthLabel(currentRun.period)}`} />
-        <StatCard label="Komisi Belum Dibayar" value={rp(commissionLiability(), { short: true })} icon="percent" toneKey="rose" />
-        <StatCard label="Liabilitas Tabungan" value={rp(totalSavings, { short: true })} icon="piggy-bank" toneKey="teal" />
-        <StatCard label="THR Accrued" value={rp(thrPending, { short: true })} icon="gift" toneKey="amber" />
+        <StatCard label="Total Take-Home" value={rp(totalNet, { short: true })} icon="wallet" toneKey="gold" deltaLabel={`${items.length} payslip`} />
+        <StatCard label="Komisi Belum Masuk Payroll" value={rp(unpaidCommission, { short: true })} icon="percent" toneKey="rose" deltaLabel="Status PENDING" />
+        <StatCard label="Komponen Aktif" value={components.length} icon="sliders-horizontal" toneKey="teal" deltaLabel={components.map((c) => c.label).join(", ")} />
+        <StatCard label="Periode" value={monthLabel(period)} icon="calendar-days" toneKey="sky" deltaLabel={settings.periodType === "MONTHLY" ? "Bulanan" : settings.periodType} />
       </div>
 
-      <div className="grid grid-3" style={{ marginBottom: 20, alignItems: "start" }}>
-        <Card style={{ gridColumn: "span 2" }}>
-          <CardHead title="Riwayat Payroll Run" sub="4 periode terakhir" />
-          <div className="table-wrap">
-            <table className="tbl">
-              <thead><tr><th>Periode</th><th>Karyawan</th><th>Gross</th><th>Potongan</th><th>Net</th><th>Status</th></tr></thead>
-              <tbody>
-                {PAYROLL_RUNS.map((r) => (
-                  <tr key={r.id}>
-                    <td className="strong" style={{ color: "var(--text-1)" }}>{monthLabel(r.period)}</td>
-                    <td className="num">{r.employees}</td>
-                    <td className="num">{rp(r.gross, { short: true })}</td>
-                    <td className="num muted">-{rp(r.deductions, { short: true })}</td>
-                    <td className="num strong">{rp(r.net, { short: true })}</td>
-                    <td><StatusBadge status={r.status} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {settings.note && (
+        <Card style={{ marginBottom: 20 }}>
+          <div className="card-body small muted">
+            <Icon name="info" size={13} style={{ verticalAlign: "-2px", marginRight: 6 }} />
+            {settings.note}
           </div>
         </Card>
+      )}
 
-        <Card className="card-pad">
-          <h3 style={{ marginBottom: 10 }}>Payroll per Role</h3>
-          <DonutChart data={roleData} nameKey="name" valueKey="value" centerValue={rp(currentRun.net, { short: true })} centerLabel="Net Payroll" height={168} />
-          <div style={{ marginTop: 12 }}>
-            <LegendList data={roleData.map((r) => ({ label: r.name, value: rp(r.value, { short: true }) }))} />
-          </div>
-        </Card>
-      </div>
-
-      <Card className="card-pad">
-        <div className="row g2" style={{ marginBottom: 10 }}>
-          <Icon name="info" size={15} style={{ color: "var(--info)" }} />
-          <h4>Payroll {monthLabel(currentRun.period)} menunggu approval</h4>
-        </div>
-        <p className="small muted" style={{ marginBottom: 14 }}>
-          Gross {rp(currentRun.gross)} · potongan {rp(currentRun.deductions)} · net dibayar {rp(currentRun.net)}.
-          Setujui untuk mempublikasikan payslip ke seluruh karyawan.
-        </p>
-        <div className="row g2">
-          <button className="btn btn-primary btn-sm"><Icon name="check-check" size={14} /> Setujui & Publish</button>
-          <button className="btn btn-ghost btn-sm">Lihat Detail per Karyawan</button>
+      <Card>
+        <CardHead
+          title="Slip Gaji Periode Ini"
+          sub={items.length ? `${items.length} karyawan` : "Belum dihitung — tekan Hitung Payroll"}
+        />
+        <div className="table-wrap">
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>Karyawan</th>
+                <th>Peran</th>
+                {earnings.map((c) => <th key={c.key}>{c.label}</th>)}
+                {deductions.map((c) => <th key={c.key}>{c.label}</th>)}
+                <th>Take-Home</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((p) => (
+                <tr key={p.id}>
+                  <td><PersonCell name={p.employeeName} toneKey="teal" size={26} /></td>
+                  <td className="muted small">{p.jobRole}</td>
+                  {earnings.map((c) => (
+                    <td key={c.key} className="num small">{rp(Number(p[c.field] ?? 0))}</td>
+                  ))}
+                  {deductions.map((c) => (
+                    <td key={c.key} className="num small muted">-{rp(Number(p[c.field] ?? 0))}</td>
+                  ))}
+                  <td className="num small strong" style={{ color: "var(--text-1)" }}>{rp(p.netPay)}</td>
+                  <td><StatusBadge status={p.status} /></td>
+                </tr>
+              ))}
+              {items.length === 0 && (
+                <tr>
+                  <td colSpan={4 + earnings.length + deductions.length} className="dim small" style={{ textAlign: "center", padding: "20px 0" }}>
+                    Belum ada payslip untuk {monthLabel(period)}. Tekan <strong>Hitung Payroll</strong> untuk
+                    membuatnya dari komisi yang tercatat periode ini.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </Card>
     </>

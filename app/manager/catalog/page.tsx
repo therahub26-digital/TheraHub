@@ -1,17 +1,13 @@
 import Icon from "@/components/Icon";
 import { PageHead, Card, CardHead, StatCard, Badge, StatusBadge, Progress } from "@/components/ui";
-import { getOutlets } from "@/lib/data/outlets";
+import { getCurrentOutlet } from "@/lib/data/outlets";
 import { getCategories, getServiceTypes, getPackagesForOutlet, getExtensionsForOutlet, getAddonsForOutlet } from "@/lib/data/catalog";
 import { rp, minutesToHm } from "@/lib/format";
 import { formatCommissionRule, commissionAmount } from "@/lib/commission";
 import { PackagePricingEditor, ExtensionPricingEditor } from "@/components/CommissionEditor";
 
 export default async function CatalogPage() {
-  // No per-manager outlet-session scoping yet (see Fase 9 in the roadmap) —
-  // same convention as the other manager/admin pages migrated so far:
-  // default to the first real outlet (Cikawao) when live.
-  const OUTLETS = await getOutlets();
-  const outlet = OUTLETS[0];
+  const outlet = await getCurrentOutlet();
   const [CATEGORIES, SERVICE_TYPES, rawPackages, extensions, addons] = await Promise.all([
     getCategories(),
     getServiceTypes(),

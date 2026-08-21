@@ -49,14 +49,27 @@ function revalidateOps() {
   revalidatePath("/kasir/sessions");
 }
 
-/** Guest has arrived and is ready to be taken to a room. */
-export async function checkInBooking(bookingId: string): Promise<ActionResult> {
+/**
+ * Guest has arrived. This is also where the room gets decided — not at
+ * booking time (see lib/actions/bookings.ts's file header for why) —
+ * so the kasir picks from whatever is actually free right now.
+ *
+ * The availability check is re-run here, server-side, even though the
+ * kasir's room picker was already built from getAvailableRoomsForOutlet:
+ * that list can go stale between page load and click (another kasir
+ * checks a guest into the same room a minute earlier), so the room a
+ * guest is actually walked into must be verified at the moment it's
+ * committed, not trusted from what the screen showed a moment ago.
+ */
+export async function checkInBooking(bookingId: string, roomId: string): Promise<ActionResult> {
   const { supabase, error } = await requireStaff();
   if (error) return { ok: false, error };
 
+  if (!roomId) return { ok: false, error: "Pilih room dulu sebelum check-in." };
+
   const { data: booking, error: readErr } = await supabase
     .from("bookings")
-    .select("id, status")
+    .select("id, outlet_id, status")
     .eq("id", bookingId)
     .maybeSingle();
   if (readErr || !booking) return { ok: false, error: "Booking tidak ditemukan." };
@@ -64,7 +77,28 @@ export async function checkInBooking(bookingId: string): Promise<ActionResult> {
     return { ok: false, error: `Booking ini berstatus ${booking.status} — tidak bisa di-check-in.` };
   }
 
-  const { error: updateErr } = await supabase.from("bookings").update({ status: "CHECKED_IN" }).eq("id", bookingId);
+  const { data: room, error: roomErr } = await supabase
+    .from("rooms")
+    .select("id, outlet_id, name, status")
+    .eq("id", roomId)
+    .maybeSingle();
+  if (roomErr || !room) return { ok: false, error: "Room tidak ditemukan." };
+  if (room.outlet_id !== booking.outlet_id) return { ok: false, error: "Room ini bukan milik outlet booking ini." };
+  if (room.status !== "ACTIVE") return { ok: false, error: `Room ${room.name} sedang ${room.status.toLowerCase()} — pilih room lain.` };
+
+  const { data: holder } = await supabase
+    .from("bookings")
+    .select("id")
+    .eq("room_id", roomId)
+    .in("status", ["CHECKED_IN", "IN_SESSION"])
+    .neq("id", bookingId)
+    .maybeSingle();
+  if (holder) return { ok: false, error: `Room ${room.name} baru saja dipakai booking lain — pilih room lain.` };
+
+  const { error: updateErr } = await supabase
+    .from("bookings")
+    .update({ status: "CHECKED_IN", room_id: roomId })
+    .eq("id", bookingId);
   if (updateErr) return { ok: false, error: "Gagal menyimpan check-in — coba lagi." };
 
   revalidateOps();
@@ -158,5 +192,146 @@ export async function completeSession(sessionId: string): Promise<ActionResult> 
   if (bookingErr) return { ok: false, error: "Sesi selesai tapi status booking gagal diperbarui — periksa halaman Bookings." };
 
   revalidateOps();
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------
+// Extension sale: ajukan (therapist) -> approve/tolak (kasir/manager) ->
+// billed at payment (payForSession, lib/actions/transactions.ts).
+//
+// Deliberately minimal for this round: `conflict_check` is always
+// written as 'CLEAR' — there is no automated check yet for whether
+// extending this session would collide with the room's or therapist's
+// next booking (the `ROOM_CONFLICT`/`THERAPIST_CONFLICT` values on the
+// enum exist for a future round to fill in). A kasir/manager approving
+// an extension is trusted to notice an obvious conflict themselves for
+// now, same as any other judgment call this app doesn't yet automate.
+// ---------------------------------------------------------------------
+
+function revalidateExtensions() {
+  revalidatePath("/therapist/session");
+  revalidatePath("/kasir/sessions");
+  revalidatePath("/manager/sessions");
+}
+
+/** Therapist asks for more time on a session that is still running. */
+export async function requestExtension(sessionId: string, extensionId: string, reason?: string): Promise<ActionResult> {
+  const { supabase, error } = await requireStaff();
+  if (error) return { ok: false, error };
+
+  const { data: session, error: sessionErr } = await supabase
+    .from("sessions")
+    .select("id, status")
+    .eq("id", sessionId)
+    .maybeSingle();
+  if (sessionErr || !session) return { ok: false, error: "Sesi tidak ditemukan." };
+  if (session.status !== "ACTIVE") {
+    return { ok: false, error: "Extension hanya bisa diajukan untuk sesi yang sedang berjalan." };
+  }
+
+  // One pending request at a time — a second ask before the first is
+  // decided would leave the kasir approving/rejecting duplicates for the
+  // same few extra minutes.
+  const { data: existing } = await supabase
+    .from("extension_requests")
+    .select("id")
+    .eq("session_id", sessionId)
+    .eq("status", "PENDING")
+    .maybeSingle();
+  if (existing) return { ok: false, error: "Sudah ada permintaan extension yang menunggu keputusan untuk sesi ini." };
+
+  const { error: insertErr } = await supabase.from("extension_requests").insert({
+    session_id: sessionId,
+    extension_id: extensionId,
+    requested_at: nowIso(),
+    status: "PENDING",
+    conflict_check: "CLEAR",
+    reason: reason?.trim() || null,
+  });
+  if (insertErr) return { ok: false, error: "Gagal mengajukan extension — coba lagi." };
+
+  revalidateExtensions();
+  return { ok: true };
+}
+
+/**
+ * Kasir or manager approves: the session's countdown is pushed out by the
+ * extension's duration right away (so the therapist and the session
+ * monitor both see the new end time immediately), but nothing is billed
+ * yet — that happens once at payment, in payForSession(), which sums
+ * every APPROVED extension_request tied to the session.
+ */
+export async function approveExtension(requestId: string): Promise<ActionResult> {
+  const { supabase, error } = await requireStaff();
+  if (error) return { ok: false, error };
+
+  const { data: request, error: reqErr } = await supabase
+    .from("extension_requests")
+    .select("id, session_id, extension_id, status")
+    .eq("id", requestId)
+    .maybeSingle();
+  if (reqErr || !request) return { ok: false, error: "Permintaan extension tidak ditemukan." };
+  if (request.status !== "PENDING") return { ok: false, error: "Permintaan ini sudah diputuskan." };
+
+  const { data: extension, error: extErr } = await supabase
+    .from("extension_options")
+    .select("duration_min")
+    .eq("id", request.extension_id)
+    .maybeSingle();
+  if (extErr || !extension) return { ok: false, error: "Opsi extension tidak ditemukan." };
+
+  const { data: session, error: sessionErr } = await supabase
+    .from("sessions")
+    .select("id, status, expected_end, extension_minutes")
+    .eq("id", request.session_id)
+    .maybeSingle();
+  if (sessionErr || !session) return { ok: false, error: "Sesi terkait tidak ditemukan." };
+  if (session.status !== "ACTIVE") {
+    return { ok: false, error: "Sesi ini sudah tidak berjalan — extension tidak bisa disetujui lagi." };
+  }
+
+  const { error: updateReqErr } = await supabase
+    .from("extension_requests")
+    .update({ status: "APPROVED" })
+    .eq("id", requestId);
+  if (updateReqErr) return { ok: false, error: "Gagal menyimpan persetujuan — coba lagi." };
+
+  const { error: updateSessionErr } = await supabase
+    .from("sessions")
+    .update({
+      expected_end: plusMinutes(session.expected_end, extension.duration_min),
+      extension_minutes: session.extension_minutes + extension.duration_min,
+    })
+    .eq("id", session.id);
+  // Non-fatal if this second update fails: the approval itself is already
+  // saved and will still be billed correctly at payment (payForSession
+  // sums extension_requests directly, not session.extension_minutes).
+  // Losing this update only means the live countdown doesn't reflect the
+  // extra time until the next read recomputes it some other way.
+  void updateSessionErr;
+
+  revalidateExtensions();
+  return { ok: true };
+}
+
+export async function rejectExtension(requestId: string, reason?: string): Promise<ActionResult> {
+  const { supabase, error } = await requireStaff();
+  if (error) return { ok: false, error };
+
+  const { data: request, error: reqErr } = await supabase
+    .from("extension_requests")
+    .select("id, status")
+    .eq("id", requestId)
+    .maybeSingle();
+  if (reqErr || !request) return { ok: false, error: "Permintaan extension tidak ditemukan." };
+  if (request.status !== "PENDING") return { ok: false, error: "Permintaan ini sudah diputuskan." };
+
+  const { error: updateErr } = await supabase
+    .from("extension_requests")
+    .update({ status: "REJECTED", reason: reason?.trim() || null })
+    .eq("id", requestId);
+  if (updateErr) return { ok: false, error: "Gagal menolak permintaan — coba lagi." };
+
+  revalidateExtensions();
   return { ok: true };
 }

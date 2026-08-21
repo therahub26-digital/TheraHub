@@ -181,9 +181,17 @@ export async function GET() {
   }
 
   // 4. staff: employee row + auth user (renamed if needed) + app_users link -
+  //
+  // Factored into a function (was a flat for-loop over one outlet) because
+  // outlet-session-scoping (getCurrentOutlet(), lib/data/outlets.ts) now
+  // reads app_users.outlet_id to decide which outlet a manager/kasir page
+  // shows. That fix is inert without a SECOND real login bound to a
+  // different outlet to prove it — until now dev-seed only ever created one
+  // manager/kasir account, both pinned to Cikawao, so a Mekarwangi manager
+  // account never existed to test with. See the MKW_STAFF block below.
   const created: Record<string, string> = {};
 
-  for (const s of STAFF) {
+  async function provisionStaffAccount(s: SeedAccount, outletIdForAccount: string): Promise<string | NextResponse> {
     const newEmail = `${s.localPart}@${EMAIL_DOMAIN}`;
     const oldEmail = `${s.localPart}@${OLD_EMAIL_DOMAIN}`;
 
@@ -198,7 +206,7 @@ export async function GET() {
           .from("employees")
           .insert({
             tenant_id: tenantId,
-            outlet_id: outletId,
+            outlet_id: outletIdForAccount,
             code: s.code,
             name: s.name,
             job_role: s.jobRole,
@@ -245,13 +253,13 @@ export async function GET() {
     if (existingAppUser) {
       await admin
         .from("app_users")
-        .update({ auth_user_id: authUserId, tenant_id: tenantId, outlet_id: outletId, employee_id: employeeId, role: s.role, name: s.name, email: newEmail })
+        .update({ auth_user_id: authUserId, tenant_id: tenantId, outlet_id: outletIdForAccount, employee_id: employeeId, role: s.role, name: s.name, email: newEmail })
         .eq("id", existingAppUser.id);
     } else {
       const { error } = await admin.from("app_users").insert({
         auth_user_id: authUserId,
         tenant_id: tenantId,
-        outlet_id: outletId,
+        outlet_id: outletIdForAccount,
         role: s.role,
         name: s.name,
         email: newEmail,
@@ -261,7 +269,13 @@ export async function GET() {
       log.push(`app_users ${s.name} (${s.role}) created`);
     }
 
-    created[s.role] = newEmail;
+    return newEmail;
+  }
+
+  for (const s of STAFF) {
+    const result = await provisionStaffAccount(s, outletId);
+    if (result instanceof NextResponse) return result;
+    created[s.role] = result;
   }
 
   // 5. one demo customer account (same rename-aware logic) -------------------
@@ -369,6 +383,24 @@ export async function GET() {
       outletIdByCode[code] = data.id;
       log.push(`outlet ${code} created`);
     }
+  }
+
+  // 6b. Mekarwangi's own manager + kasir login — placeholder names, same as
+  // the rest of STAFF (Sinta/Nurul/Dewi/Hendra are dev-seed test accounts,
+  // not confirmed real hires either; see the roadmap doc's "wajib diganti
+  // sebelum go-live" item). What matters functionally is outlet_id: a
+  // Mekarwangi manager who logs in must see Mekarwangi's own bookings/
+  // payroll/commissions, not Cikawao's — that's what getCurrentOutlet()
+  // (lib/data/outlets.ts) now reads app_users.outlet_id to guarantee, and
+  // there was no second-outlet account in dev-seed to prove it against.
+  const MKW_STAFF: SeedAccount[] = [
+    { localPart: "manager-mkw", role: "manager", name: "Rina Kusuma", jobRole: "Manager", code: "STF-MGR-MKW" },
+    { localPart: "kasir-mkw", role: "kasir", name: "Fitri Handayani", jobRole: "Kasir", code: "STF-KSR-MKW" },
+  ];
+  for (const s of MKW_STAFF) {
+    const result = await provisionStaffAccount(s, outletIdByCode["AMY-MKW"]);
+    if (result instanceof NextResponse) return result;
+    created[`${s.role}_mkw`] = result;
   }
 
   // One-time cleanup: "Pasteur" (AMY-PST) was never a real branch — delete it
@@ -637,7 +669,109 @@ export async function GET() {
       employeesCreated++;
     }
   }
+  // --- Retire therapist rows the roster no longer contains ---------------
+  //
+  // This loop matches on the sequential CODE, not the name, so shortening
+  // the roster shifts every name up one code and STRANDS the highest one
+  // with whatever name was last written to it. That is exactly how a
+  // second "Zahra" appeared: the roster used to be 11 for Cikawao
+  // (including "Erin"); dropping Erin moved Zahra from TRP-CKW-11 to
+  // TRP-CKW-10, and TRP-CKW-11 was never visited again. Two ACTIVE rows
+  // with the same name means the booking form offers the guest a choice
+  // between two of the same person, and payroll later cuts two payslips.
+  //
+  // Deactivated, never deleted: a stray row may already carry real
+  // bookings, sessions, or commission entries. `bookings.therapist_id` is
+  // ON DELETE SET NULL, so deleting would silently detach a real booking
+  // from the therapist who performed it — losing history to tidy up a
+  // list. INACTIVE keeps the record and its links while removing it from
+  // every picker.
+  const validCodes = new Set<string>();
+  const seqCheck: Record<string, number> = {};
+  for (const t of THERAPIST_ROSTER) {
+    const branchShort = t.outletCode.replace("AMY-", "");
+    seqCheck[branchShort] = (seqCheck[branchShort] ?? 0) + 1;
+    validCodes.add(`TRP-${branchShort}-${String(seqCheck[branchShort]).padStart(2, "0")}`);
+  }
+
+  const { data: allTherapists } = await admin
+    .from("employees")
+    .select("id, code, name, status")
+    .eq("tenant_id", tenantId)
+    .eq("is_therapist", true);
+
+  const strays = (allTherapists ?? []).filter(
+    (e) => e.code?.startsWith("TRP-") && !validCodes.has(e.code) && e.status === "ACTIVE"
+  );
+
+  if (strays.length) {
+    const { error: retireErr } = await admin
+      .from("employees")
+      .update({ status: "INACTIVE" })
+      .in("id", strays.map((e) => e.id));
+    if (retireErr) {
+      return NextResponse.json({ error: `retire stray therapists: ${retireErr.message}`, log }, { status: 500 });
+    }
+    log.push(
+      `retired ${strays.length} stray therapist row(s) not in the current roster: ${strays
+        .map((e) => `${e.code} (${e.name})`)
+        .join(", ")}`
+    );
+  }
+
   log.push(`therapist roster: ${employeesCreated} created, ${employeesUpdated} updated (${THERAPIST_ROSTER.length} total)`);
+
+  // 9c. re-point the therapist test login at a REAL roster therapist -------
+  //
+  // The staff loop above (section 4) links terapis@… to employee TRP-005
+  // "Melati Puspita" — a demo persona from the mock era. The retire sweep
+  // that just ran correctly sets her INACTIVE, since she is not on
+  // Amethyst's real roster. But that leaves the therapist login pointing
+  // at a retired employee, and everything downstream reads the login's
+  // employee_id: runPayroll only builds payslips for ACTIVE staff, so
+  // /therapist/payslip would say "belum ada slip" forever no matter how
+  // many times payroll ran. The login would look broken while the payroll
+  // module was in fact working.
+  //
+  // Deterministic choice, not a favourite: the FIRST therapist of the
+  // primary outlet's roster by code (TRP-CKW-01). Picking by "who has the
+  // most commission" would make the test account hop between real people
+  // as the data changes, which is worse for reproducing a bug.
+  //
+  // Only the login's employee_id moves. The employee rows themselves are
+  // untouched, and Melati Puspita stays INACTIVE rather than being
+  // deleted — she may already be attached to old bookings.
+  const therapistLoginEmail = `terapis@${EMAIL_DOMAIN}`;
+  const primaryTherapistCode = [...validCodes].filter((c) => c.startsWith("TRP-CKW-")).sort()[0];
+  if (primaryTherapistCode) {
+    const { data: realTherapist } = await admin
+      .from("employees")
+      .select("id, name")
+      .eq("tenant_id", tenantId)
+      .eq("code", primaryTherapistCode)
+      .maybeSingle();
+
+    if (realTherapist) {
+      const { data: therapistLogin } = await admin
+        .from("app_users")
+        .select("id, employee_id")
+        .eq("email", therapistLoginEmail)
+        .maybeSingle();
+
+      if (therapistLogin && therapistLogin.employee_id !== realTherapist.id) {
+        const { error: repointErr } = await admin
+          .from("app_users")
+          .update({ employee_id: realTherapist.id, name: realTherapist.name })
+          .eq("id", therapistLogin.id);
+        if (repointErr) {
+          return NextResponse.json({ error: `repoint therapist login: ${repointErr.message}`, log }, { status: 500 });
+        }
+        log.push(
+          `therapist login ${therapistLoginEmail} re-pointed to ${primaryTherapistCode} (${realTherapist.name}) — was a retired/demo employee`
+        );
+      }
+    }
+  }
 
   // 10. real service catalog (module: booking, prerequisite) ----------------
   // Real pricing per the user (chat, 2026-08-20): Amethyst currently has
@@ -709,7 +843,19 @@ export async function GET() {
   for (const outletCode of ["AMY-CKW", "AMY-MKW"]) {
     const oid = outletIdByCode[outletCode];
 
-    const packageFields = {
+    // Commission fields (commission_type/commission_value here, commission_type/
+    // commission on the extension below) are split out from the rest and only
+    // ever written on INSERT, never on UPDATE. Reason: /manager/catalog has a
+    // real editor (updatePackagePricing/updateExtensionPricing,
+    // lib/actions/catalog.ts) that a manager uses to set the actual commission
+    // — that's how the package's real Rp55.000-fixed rate got configured
+    // (confirmed live, see the roadmap doc). Before this fix, re-running
+    // dev-seed would silently stomp that back to the seed-time placeholder
+    // (was `commission_type: "percent", commission_value: 0` — WRONG unit
+    // AND wrong value) on every run. dev-seed's job is to guarantee the row
+    // exists, not to keep re-asserting a business decision someone already
+    // made through the UI.
+    const packageIdentityFields = {
       outlet_id: oid,
       service_type_id: realServiceTypeId,
       name: "Traditional Massage / Basic Shiatsu + Therapy PM 90'",
@@ -722,48 +868,80 @@ export async function GET() {
       buffer_before_min: 0,
       buffer_after_min: 10, // assumption — see comment above
       extension_allowed: true,
-      commission_type: "percent" as const,
-      commission_value: 0, // placeholder — see comment above
       status: "ACTIVE" as const,
       materials: [] as { name: string; qty: string }[],
     };
+    // Real, confirmed 2026-08-21: Rp55.000 per treatment, flat rupiah — only
+    // applied when the row is first created (see comment above).
+    const packageCommissionFields = { commission_type: "fixed" as const, commission_value: 55_000 };
 
     let { data: existingPkg } = await admin
       .from("service_packages")
-      .select("id")
+      .select("id, commission_type, commission_value")
       .eq("outlet_id", oid)
       .eq("service_type_id", realServiceTypeId)
       .maybeSingle();
     if (existingPkg) {
-      const { error } = await admin.from("service_packages").update(packageFields).eq("id", existingPkg.id);
+      // One-time correction, not a standing overwrite: the row was created
+      // before the real commission was known (seed-time placeholder was
+      // `percent`/0 — wrong unit AND wrong value), so it still needs fixing
+      // once. Detected by "still percent-typed", since a manager who
+      // genuinely configured a percent-based rule via the UI would never
+      // coincidentally match `commission_type: "percent"` AND leave the
+      // package otherwise untouched by this route. Once it's `fixed`
+      // (whether from this correction or a manager's own edit), never
+      // touched again.
+      const stillPlaceholder = existingPkg.commission_type === "percent";
+      const updatePayload = stillPlaceholder ? { ...packageIdentityFields, ...packageCommissionFields } : packageIdentityFields;
+      if (stillPlaceholder) log.push(`package commission corrected to real rate for ${outletCode} (was percent/0 placeholder)`);
+      const { error } = await admin.from("service_packages").update(updatePayload).eq("id", existingPkg.id);
       if (error) return NextResponse.json({ error: `real package update (${outletCode}): ${error.message}`, log }, { status: 500 });
     } else {
-      const { data, error } = await admin.from("service_packages").insert(packageFields).select("id").single();
+      const { data, error } = await admin
+        .from("service_packages")
+        .insert({ ...packageIdentityFields, ...packageCommissionFields })
+        .select("id, commission_type, commission_value")
+        .single();
       if (error) return NextResponse.json({ error: `real package insert (${outletCode}): ${error.message}`, log }, { status: 500 });
       existingPkg = data;
     }
     realPackageIdByOutlet[outletCode] = existingPkg!.id as string;
 
-    const extensionFields = {
+    const extensionIdentityFields = {
       outlet_id: oid,
       name: "Extension 30 Menit",
       duration_min: 30, // real
       price: 50_000, // real
-      commission: 0, // placeholder — see comment above
       active: true,
     };
+    // Real, confirmed 2026-08-21: Rp15.000 per extension sold, flat rupiah —
+    // same "only on INSERT" rule as the package above.
+    const extensionCommissionFields = { commission_type: "fixed" as const, commission: 15_000 };
 
     let { data: existingExt } = await admin
       .from("extension_options")
-      .select("id")
+      .select("id, commission")
       .eq("outlet_id", oid)
       .eq("name", "Extension 30 Menit")
       .maybeSingle();
     if (existingExt) {
-      const { error } = await admin.from("extension_options").update(extensionFields).eq("id", existingExt.id);
+      // Same one-time-correction rule as the package above: commission was
+      // seeded 0 (placeholder) before the real Rp15.000 rate was known.
+      // `commission === 0` reads as "never configured" per this project's
+      // own "belum diatur ≠ nol" convention, so correcting it once here is
+      // consistent, not presumptuous — and once it's nonzero, whether from
+      // this correction or a manager's own edit, this never touches it again.
+      const stillPlaceholder = Number(existingExt.commission) === 0;
+      const updatePayload = stillPlaceholder ? { ...extensionIdentityFields, ...extensionCommissionFields } : extensionIdentityFields;
+      if (stillPlaceholder) log.push(`extension commission corrected to real rate for ${outletCode} (was 0 placeholder)`);
+      const { error } = await admin.from("extension_options").update(updatePayload).eq("id", existingExt.id);
       if (error) return NextResponse.json({ error: `real extension update (${outletCode}): ${error.message}`, log }, { status: 500 });
     } else {
-      const { data, error } = await admin.from("extension_options").insert(extensionFields).select("id").single();
+      const { data, error } = await admin
+        .from("extension_options")
+        .insert({ ...extensionIdentityFields, ...extensionCommissionFields })
+        .select("id, commission")
+        .single();
       if (error) return NextResponse.json({ error: `real extension insert (${outletCode}): ${error.message}`, log }, { status: 500 });
       existingExt = data;
     }
@@ -778,6 +956,42 @@ export async function GET() {
     if (linkErr) return NextResponse.json({ error: `package<->extension link (${outletCode}): ${linkErr.message}`, log }, { status: 500 });
 
     log.push(`real catalog upserted for ${outletCode} (1 package, 1 extension)`);
+
+    // Referral promo "Ajak Teman" (user, 2026-08-21): a new customer gets
+    // Rp30.000 off their first transaction — same "new customer only"
+    // shape as WELCOME50 in the old mock catalog screen, now a REAL
+    // redeemable voucher (see lib/actions/transactions.ts's payForSession,
+    // which validates the code, checks new_customers_only against the
+    // customer's transaction history, and applies discount_amount).
+    // Matched by `code` (not name), and only INSERTED if missing — a
+    // manager who edits this promo later via /manager/promotions (once
+    // that page grows write support) must not have it silently reset on
+    // the next dev-seed run, same rule as the catalog commission fields
+    // above.
+    const { data: existingPromo } = await admin
+      .from("promotions")
+      .select("id")
+      .eq("outlet_id", oid)
+      .eq("code", "AJAKTEMAN30")
+      .maybeSingle();
+    if (!existingPromo) {
+      const { error: promoErr } = await admin.from("promotions").insert({
+        outlet_id: oid,
+        name: "Ajak Teman",
+        type: "Voucher",
+        code: "AJAKTEMAN30",
+        value: "Rp30.000 untuk teman baru",
+        discount_amount: 30_000,
+        new_customers_only: true,
+        valid_from: "2026-01-01",
+        valid_to: "2030-12-31",
+        usage_count: 0,
+        max_usage: null,
+        status: "ACTIVE",
+      });
+      if (promoErr) return NextResponse.json({ error: `referral promo insert (${outletCode}): ${promoErr.message}`, log }, { status: 500 });
+      log.push(`referral promo "AJAKTEMAN30" created for ${outletCode}`);
+    }
   }
 
   // 11. example customers (10, clearly placeholder — module: booking) -------

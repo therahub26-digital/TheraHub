@@ -1,6 +1,8 @@
 import Icon from "@/components/Icon";
 import { PageHead, Card, CardHead, StatCard, Badge, StatusBadge } from "@/components/ui";
-import { PRIMARY_OUTLET, promotionsOf } from "@/lib/mock";
+import { PromotionEditor } from "@/components/PromotionEditor";
+import { getCurrentOutlet } from "@/lib/data/outlets";
+import { getPromotionsForOutlet, isLivePromotionsData } from "@/lib/data/promotions";
 import { fmtDateShort, num } from "@/lib/format";
 
 const TYPE_ICON: Record<string, string> = {
@@ -10,9 +12,9 @@ const TYPE_TONE: Record<string, "success" | "info" | "gold" | "purple" | "warnin
   Promo: "success", Voucher: "info", "Prepaid Package": "gold", Membership: "purple", Loyalty: "warning",
 };
 
-export default function PromotionsPage() {
-  const outlet = PRIMARY_OUTLET;
-  const promos = promotionsOf(outlet.id);
+export default async function PromotionsPage() {
+  const outlet = await getCurrentOutlet();
+  const [promos, live] = await Promise.all([getPromotionsForOutlet(outlet.id), isLivePromotionsData()]);
   const active = promos.filter((p) => p.status === "ACTIVE");
   const scheduled = promos.filter((p) => p.status === "SCHEDULED");
   const totalUsage = promos.reduce((s, p) => s + p.usageCount, 0);
@@ -48,7 +50,29 @@ export default function PromotionsPage() {
                   </td>
                   <td><Badge tone={TYPE_TONE[p.type]}>{p.type}</Badge></td>
                   <td className="mono small muted">{p.code ?? "—"}</td>
-                  <td className="muted small">{p.value}</td>
+                  {/*
+                    Nilai diskon TIDAK lagi hardcode di kode — bisa diatur
+                    manager di sini sejak promo referral ditanyakan
+                    ("bisa diseting rupiahnya kan? gak fix 30rb?", user
+                    2026-08-21). Hanya untuk data live: editor menulis ke
+                    baris `promotions` sungguhan (lib/actions/
+                    promotions.ts), yang tidak ada artinya untuk id
+                    fiktif dari mode demo "Ganti Role".
+                  */}
+                  <td>
+                    {live ? (
+                      <PromotionEditor
+                        promotionId={p.id}
+                        value={p.value}
+                        discountAmount={p.discountAmount}
+                        maxUsage={p.maxUsage}
+                        validTo={p.validTo}
+                        status={p.status}
+                      />
+                    ) : (
+                      <span className="muted small">{p.value}</span>
+                    )}
+                  </td>
                   <td className="muted small nowrap">{fmtDateShort(p.validFrom)} – {fmtDateShort(p.validTo)}</td>
                   <td className="num small">
                     {p.usageCount}{p.maxUsage ? ` / ${p.maxUsage}` : ""}

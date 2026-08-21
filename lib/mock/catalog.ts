@@ -142,14 +142,15 @@ export const ADDONS: AddOn[] = OUTLETS.flatMap((o) => [
 export const addonsOf = (outletId: string) => ADDONS.filter((a) => a.outletId === outletId);
 
 export const PROMOTIONS: Promotion[] = [
-  { id: "PRM-001", outletId: "OUT-001", name: "Weekday Happy Hour", type: "Promo", value: "-20% jam 11:00–15:00", validFrom: "2026-07-01", validTo: "2026-09-30", usageCount: 412, maxUsage: null, status: "ACTIVE" },
-  { id: "PRM-002", outletId: "OUT-001", name: "WELCOME50", type: "Voucher", code: "WELCOME50", value: "Rp50.000 untuk kunjungan pertama", validFrom: "2026-01-01", validTo: "2026-12-31", usageCount: 186, maxUsage: 500, status: "ACTIVE" },
-  { id: "PRM-003", outletId: "OUT-001", name: "Massage 60 × 10 Sesi", type: "Prepaid Package", value: "Rp1.250.000 (hemat Rp250.000)", validFrom: "2026-03-01", validTo: "2026-12-31", usageCount: 74, maxUsage: null, status: "ACTIVE" },
-  { id: "PRM-004", outletId: "OUT-001", name: "Gold Membership", type: "Membership", value: "Rp1.000.000/tahun · diskon 10%", validFrom: "2026-01-01", validTo: "2026-12-31", usageCount: 128, maxUsage: null, status: "ACTIVE" },
-  { id: "PRM-005", outletId: "OUT-001", name: "Loyalty Points", type: "Loyalty", value: "Rp10.000 = 1 poin", validFrom: "2025-06-01", validTo: "2026-12-31", usageCount: 2_940, maxUsage: null, status: "ACTIVE" },
-  { id: "PRM-006", outletId: "OUT-002", name: "Dormant 60 Hari", type: "Promo", value: "-15% untuk customer tidak aktif 60 hari", validFrom: "2026-08-01", validTo: "2026-08-31", usageCount: 33, maxUsage: 200, status: "ACTIVE" },
-  { id: "PRM-007", outletId: "OUT-001", name: "Ramadhan Serenity", type: "Promo", value: "-25% paket 90 menit", validFrom: "2027-02-01", validTo: "2027-03-15", usageCount: 0, maxUsage: null, status: "SCHEDULED" },
-  { id: "PRM-008", outletId: "OUT-003", name: "Grand Opening Pasteur", type: "Voucher", code: "PASTEUR100", value: "Rp100.000 min. belanja Rp350.000", validFrom: "2026-04-01", validTo: "2026-06-30", usageCount: 241, maxUsage: 250, status: "EXPIRED" },
+  { id: "PRM-001", outletId: "OUT-001", name: "Weekday Happy Hour", type: "Promo", value: "-20% jam 11:00–15:00", newCustomersOnly: false, validFrom: "2026-07-01", validTo: "2026-09-30", usageCount: 412, maxUsage: null, status: "ACTIVE" },
+  { id: "PRM-002", outletId: "OUT-001", name: "WELCOME50", type: "Voucher", code: "WELCOME50", value: "Rp50.000 untuk kunjungan pertama", discountAmount: 50_000, newCustomersOnly: true, validFrom: "2026-01-01", validTo: "2026-12-31", usageCount: 186, maxUsage: 500, status: "ACTIVE" },
+  { id: "PRM-009", outletId: "OUT-001", name: "Ajak Teman", type: "Voucher", code: "AJAKTEMAN30", value: "Rp30.000 untuk teman baru", discountAmount: 30_000, newCustomersOnly: true, validFrom: "2026-01-01", validTo: "2030-12-31", usageCount: 57, maxUsage: null, status: "ACTIVE" },
+  { id: "PRM-003", outletId: "OUT-001", name: "Massage 60 × 10 Sesi", type: "Prepaid Package", value: "Rp1.250.000 (hemat Rp250.000)", newCustomersOnly: false, validFrom: "2026-03-01", validTo: "2026-12-31", usageCount: 74, maxUsage: null, status: "ACTIVE" },
+  { id: "PRM-004", outletId: "OUT-001", name: "Gold Membership", type: "Membership", value: "Rp1.000.000/tahun · diskon 10%", newCustomersOnly: false, validFrom: "2026-01-01", validTo: "2026-12-31", usageCount: 128, maxUsage: null, status: "ACTIVE" },
+  { id: "PRM-005", outletId: "OUT-001", name: "Loyalty Points", type: "Loyalty", value: "Rp10.000 = 1 poin", newCustomersOnly: false, validFrom: "2025-06-01", validTo: "2026-12-31", usageCount: 2_940, maxUsage: null, status: "ACTIVE" },
+  { id: "PRM-006", outletId: "OUT-002", name: "Dormant 60 Hari", type: "Promo", value: "-15% untuk customer tidak aktif 60 hari", newCustomersOnly: false, validFrom: "2026-08-01", validTo: "2026-08-31", usageCount: 33, maxUsage: 200, status: "ACTIVE" },
+  { id: "PRM-007", outletId: "OUT-001", name: "Ramadhan Serenity", type: "Promo", value: "-25% paket 90 menit", newCustomersOnly: false, validFrom: "2027-02-01", validTo: "2027-03-15", usageCount: 0, maxUsage: null, status: "SCHEDULED" },
+  { id: "PRM-008", outletId: "OUT-003", name: "Grand Opening Pasteur", type: "Voucher", code: "PASTEUR100", value: "Rp100.000 min. belanja Rp350.000", discountAmount: 100_000, newCustomersOnly: false, validFrom: "2026-04-01", validTo: "2026-06-30", usageCount: 241, maxUsage: 250, status: "EXPIRED" },
 ];
 
 export const promotionsOf = (outletId: string) => PROMOTIONS.filter((p) => p.outletId === outletId);

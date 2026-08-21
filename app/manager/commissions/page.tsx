@@ -1,5 +1,5 @@
 import { PageHead, Card, CardHead, StatCard, Badge, PersonCell } from "@/components/ui";
-import { getOutlets } from "@/lib/data/outlets";
+import { getCurrentOutlet } from "@/lib/data/outlets";
 import { getCommissionsForOutlet, getEffectivePeriod } from "@/lib/data/commissions";
 import { rp, fmtDateShort, monthLabel } from "@/lib/format";
 
@@ -26,10 +26,7 @@ const STATUS_TONE: Record<string, "warning" | "info" | "success" | "danger" | "n
 };
 
 export default async function ManagerCommissionsPage() {
-  // First-outlet default, same convention as the other migrated manager
-  // pages until real per-user outlet scoping lands (Fase 9).
-  const OUTLETS = await getOutlets();
-  const outlet = OUTLETS[0];
+  const outlet = await getCurrentOutlet();
   const period = await getEffectivePeriod();
   const commissions = await getCommissionsForOutlet(outlet.id, period);
 

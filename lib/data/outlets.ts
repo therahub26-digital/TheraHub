@@ -206,6 +206,50 @@ export async function getOutletById(id: string): Promise<Outlet | undefined> {
   return (await loadOutletsData()).outlets.find((o) => o.id === id);
 }
 
+// cache() so every page/component in one request's render tree that calls
+// getCurrentOutlet() shares a single app_users lookup instead of repeating
+// the round-trip.
+const loadCurrentOutletId = cache(async (): Promise<string | null> => {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null; // demo/"Ganti Role" viewer — no session to scope by, see file header
+
+  const { data: appUser } = await supabase
+    .from("app_users")
+    .select("outlet_id")
+    .eq("auth_user_id", user.id)
+    .maybeSingle();
+  return appUser?.outlet_id ?? null;
+});
+
+/**
+ * The outlet a manager/kasir page should actually scope itself to.
+ *
+ * Every manager/kasir page used to do `const outlet = (await getOutlets())[0]`
+ * — always the first outlet, Cikawao, regardless of who was signed in. That
+ * meant a real Mekarwangi manager logging in would silently see and act on
+ * Cikawao's bookings, payroll, and commissions — not an empty/wrong state
+ * that would get noticed, just the OTHER outlet's real data. Root cause:
+ * `app_users.outlet_id` (set by dev-seed / staff provisioning) was never
+ * read.
+ *
+ * Falls back to the first outlet when there's no signed-in session (demo/
+ * "Ganti Role" viewer, same convention as every other lib/data/*.ts fallback)
+ * or when the signed-in account isn't bound to one outlet at all — owner and
+ * admin are tenant-wide roles by design, not per-outlet, so this is the
+ * correct behavior for them today, not a bug: they need an explicit outlet
+ * switcher / cross-outlet aggregate view, which is separate, larger work
+ * (see the roadmap doc).
+ */
+export async function getCurrentOutlet(): Promise<Outlet> {
+  const outlets = await getOutlets();
+  const outletId = await loadCurrentOutletId();
+  const scoped = outletId ? outlets.find((o) => o.id === outletId) : undefined;
+  return scoped ?? outlets[0];
+}
+
 export async function getRoomsForOutlet(outletId: string): Promise<Room[]> {
   return (await loadOutletsData()).roomsByOutlet[outletId] ?? [];
 }

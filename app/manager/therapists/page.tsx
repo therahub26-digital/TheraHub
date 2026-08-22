@@ -3,6 +3,7 @@ import { PageHead, Card, CardHead, StatCard, Badge, PersonCell } from "@/compone
 import { getCurrentOutlet } from "@/lib/data/outlets";
 import { getEmployees, getTherapistsForOutlet } from "@/lib/data/employees";
 import { getCommissionsForOutlet, getEffectivePeriod } from "@/lib/data/commissions";
+import { EmployeeReferralEditor } from "@/components/EmployeeReferralEditor";
 import { rp, monthLabel } from "@/lib/format";
 
 // ---------------------------------------------------------------------
@@ -30,6 +31,15 @@ import { rp, monthLabel } from "@/lib/format";
 // number to show. A made-up 84% utilization or a 4.7-star rating would
 // look exactly as authoritative as the real figures next to it, which
 // is worse than an honest gap.
+//
+// UPDATE 2026-08-22: added a "Referral" column, reusing the same
+// EmployeeReferralEditor component already wired into /admin/users.
+// User feedback: referral relationships should be editable by the
+// outlet's own manager too, not just Admin. `employees_write` (RLS,
+// 0002) already lets a manager write employees at their own outlet
+// (`_is_manager_here(outlet_id)`) — updateEmployeeReferral() was always
+// callable from here, this page just never rendered the editor. Same
+// component, same action, second location.
 // ---------------------------------------------------------------------
 
 export default async function TherapistsPage() {
@@ -82,7 +92,7 @@ export default async function TherapistsPage() {
             <thead>
               <tr>
                 <th>Terapis</th><th>Grade</th><th>Skills</th><th>Treatment</th><th>Revenue</th>
-                <th>Komisi</th><th>Status</th>
+                <th>Komisi</th><th>Referral</th><th>Status</th>
               </tr>
             </thead>
             <tbody>
@@ -104,13 +114,24 @@ export default async function TherapistsPage() {
                     <td className="num small">{stats?.count ?? 0}</td>
                     <td className="num small">{rp(stats?.revenue ?? 0, { short: true })}</td>
                     <td className="num small muted">{rp(stats?.commission ?? 0, { short: true })}</td>
+                    <td>
+                      <EmployeeReferralEditor
+                        employeeId={t.id}
+                        candidates={therapists
+                          .filter((c) => c.id !== t.id)
+                          .map((c) => ({ id: c.id, name: c.name }))}
+                        referredByEmployeeId={t.referredByEmployeeId}
+                        referralFeeType={t.referralFeeType}
+                        referralFeeValue={t.referralFeeValue}
+                      />
+                    </td>
                     <td><Badge tone={t.status === "ACTIVE" ? "success" : "danger"} dot>{t.status}</Badge></td>
                   </tr>
                 );
               })}
               {rankedTherapists.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="dim small" style={{ textAlign: "center", padding: "20px 0" }}>
+                  <td colSpan={8} className="dim small" style={{ textAlign: "center", padding: "20px 0" }}>
                     Tidak ada terapis aktif di outlet ini.
                   </td>
                 </tr>

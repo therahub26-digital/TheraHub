@@ -92,8 +92,14 @@ export default async function ManagerTodayPage() {
                 <div className="tiny dim">Tersedia</div>
               </div>
             </div>
-            <div className="stack g2">
-              {activeTherapists.slice(0, 6).map((t) => {
+            {/* Was capped at 6 with a "Lihat semua" link to /manager/therapists — but that
+                page is about managing therapist records (edit/status), not this card's
+                live busy/available view, so it wasn't a real substitute for seeing the
+                rest of today's list. Now shows all active therapists in a scrollable
+                area instead, so the card doesn't blow out the dashboard layout while
+                everyone stays reachable without leaving the page. */}
+            <div className="stack g2" style={{ maxHeight: 230, overflowY: "auto", paddingRight: 4 }}>
+              {activeTherapists.map((t) => {
                 const busy = busyTherapistIds.has(t.id);
                 return (
                   <div key={t.id} className="row between small" style={{ padding: "6px 0" }}>

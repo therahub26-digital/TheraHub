@@ -1,7 +1,7 @@
 import Icon from "@/components/Icon";
 import { Badge, Progress } from "@/components/ui";
 import MobileShell from "@/components/MobileShell";
-import { CompleteSessionButton, StartSessionButton, RequestExtensionButton } from "@/components/SessionActions";
+import { CompleteSessionButton, StartSessionButton, RequestExtensionButton, EmergencyAlertButton } from "@/components/SessionActions";
 import { ME_THERAPIST, sessionsOf, bookingsOf, EXTENSION_REQUESTS, TODAY, NOW_HHMM } from "@/lib/mock";
 import { getSignedInTherapist } from "@/lib/data/commissions";
 import { getCurrentOutlet } from "@/lib/data/outlets";
@@ -103,6 +103,7 @@ export default async function SessionControlPage() {
           <div className="stack g2">
             <CompleteSessionButton sessionId={active.id} block />
             <RequestExtensionButton sessionId={active.id} extensions={extensions.filter((e) => e.active)} />
+            <EmergencyAlertButton bookingId={active.bookingId} />
           </div>
 
           {myExtensions.length > 0 && (

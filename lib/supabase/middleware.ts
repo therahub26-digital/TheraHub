@@ -36,5 +36,9 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  return { supabaseResponse, user };
+  // Also hand back the request-scoped client itself: middleware.ts's
+  // route guard (lib/route-guard.ts) needs to read this signed-in
+  // user's own app_users/customers row under their own RLS context —
+  // same pattern already used client-side in app/login/page.tsx.
+  return { supabaseResponse, user, supabase };
 }

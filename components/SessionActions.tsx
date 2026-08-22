@@ -12,6 +12,7 @@ import {
   type ActionResult,
 } from "@/lib/actions/sessions";
 import { payForSession, type PaymentMethod } from "@/lib/actions/transactions";
+import { triggerRoomAlert } from "@/lib/actions/alerts";
 
 // ---------------------------------------------------------------------
 // The buttons that actually move a booking through its lifecycle:
@@ -334,6 +335,41 @@ export function ExtensionDecisionButtons({ requestId }: { requestId: string }) {
           <Icon name="x" size={13} /> Tolak
         </button>
       </div>
+      <ErrorNote error={error} />
+    </div>
+  );
+}
+
+/**
+ * "Panggil Bantuan" — therapist calls for help mid-session (guest being
+ * disruptive, needs someone to step in). Pushes an OPEN row to
+ * room_alerts; manager + kasir at this outlet see it within a second via
+ * Supabase Realtime (components/RoomAlertBanner.tsx), not on next
+ * refresh. Turns into a confirmed "Terkirim" state rather than
+ * resetting, so a therapist mid-crisis isn't left wondering whether a
+ * second tap is needed.
+ */
+export function EmergencyAlertButton({ bookingId }: { bookingId: string }) {
+  const { isPending, error, run } = useAction();
+  const [sent, setSent] = useState(false);
+
+  function press() {
+    run(async () => {
+      const result = await triggerRoomAlert(bookingId);
+      if (result.ok) setSent(true);
+      return result;
+    });
+  }
+
+  return (
+    <div>
+      <button
+        className={`m-btn ${sent ? "m-btn-ghost" : "m-btn-danger"}`}
+        disabled={isPending || sent}
+        onClick={press}
+      >
+        <Icon name="hand" size={15} /> {isPending ? "Mengirim…" : sent ? "Bantuan Diminta — Terkirim" : "Panggil Bantuan"}
+      </button>
       <ErrorNote error={error} />
     </div>
   );

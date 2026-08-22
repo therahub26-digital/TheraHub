@@ -1,9 +1,57 @@
-import { type NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
+import { ROLE_HOME, roleForPath } from "@/lib/route-guard";
 
 export async function middleware(request: NextRequest) {
-  const { supabaseResponse } = await updateSession(request);
-  return supabaseResponse;
+  const { supabaseResponse, user, supabase } = await updateSession(request);
+
+  const { pathname } = request.nextUrl;
+  const requiredRole = roleForPath(pathname);
+
+  // Not one of the seven role-portal sections (landing page, /login,
+  // /api/*, etc.) — nothing to guard here, just the refreshed session.
+  if (!requiredRole) return supabaseResponse;
+
+  if (!user) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    url.searchParams.set("next", pathname);
+    return NextResponse.redirect(url);
+  }
+
+  // Resolve which portal this signed-in identity actually belongs to.
+  // Mirrors the lookup already done client-side in app/login/page.tsx
+  // right after sign-in — RLS lets each user read only their own
+  // app_users/customers row, so this is safe under the request's own
+  // auth context (never the service-role key).
+  let actualRole: string | null = null;
+
+  const { data: staffRow } = await supabase
+    .from("app_users")
+    .select("role")
+    .eq("auth_user_id", user.id)
+    .maybeSingle();
+
+  if (staffRow?.role) {
+    actualRole = staffRow.role as string;
+  } else {
+    const { data: customerRow } = await supabase
+      .from("customers")
+      .select("id")
+      .eq("auth_user_id", user.id)
+      .maybeSingle();
+    if (customerRow) actualRole = "customer";
+  }
+
+  if (actualRole === requiredRole) return supabaseResponse;
+
+  // Signed in, but wrong portal (or an identity with no role/customer
+  // link at all) — send them to their own home instead of letting the
+  // page render under a role it doesn't belong to.
+  const url = request.nextUrl.clone();
+  url.pathname = actualRole ? ROLE_HOME[actualRole] : "/login";
+  url.search = "";
+  return NextResponse.redirect(url);
 }
 
 export const config = {

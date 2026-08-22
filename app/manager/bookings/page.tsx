@@ -190,8 +190,15 @@ function BookingBlock({ b }: { b: Booking }) {
   const top = ((start - OPEN) / SPAN) * 100;
   const height = ((end - start) / SPAN) * 100;
   return (
-    <div
-      title={`${b.customerName} · ${b.packageName} · ${fmtTime(b.scheduledStart)}-${fmtTime(b.scheduledEnd)}`}
+    // Was a plain <div> with cursor:pointer and no handler — looked
+    // clickable, did nothing. Now a real link into the list view for this
+    // booking's own date, where BookingRowActions (Check-in / Mulai Sesi)
+    // actually lives — the calendar grid itself has no room to fit those
+    // controls, so "click a block -> go check it in" has to mean "go to
+    // the list", not an action inline on the block.
+    <Link
+      href={`/manager/bookings?date=${b.date}&view=list`}
+      title={`${b.customerName} · ${b.packageName} · ${fmtTime(b.scheduledStart)}-${fmtTime(b.scheduledEnd)} — klik untuk lihat di Daftar`}
       style={{
         position: "absolute",
         top: `${top}%`,
@@ -204,10 +211,11 @@ function BookingBlock({ b }: { b: Booking }) {
         padding: "3px 6px",
         overflow: "hidden",
         cursor: "pointer",
+        display: "block",
       }}
     >
       <div className="tiny bold truncate" style={{ color: "var(--text-1)" }}>{b.customerName}</div>
       <div className="tiny dim truncate">{b.packageName}</div>
-    </div>
+    </Link>
   );
 }

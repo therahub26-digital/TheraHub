@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import type { Customer } from "@/lib/types";
+import { getBookingsForOutlet } from "@/lib/data/bookings";
 
 // ---------------------------------------------------------------------
 // Dual-mode data-access layer for "customers" — same pattern as the
@@ -15,6 +16,17 @@ import type { Customer } from "@/lib/types";
 // needs them (e.g. app/manager/customers/page.tsx) stays on
 // lib/mock/people.ts's CUSTOMERS until the booking/transaction modules
 // are migrated and those numbers can be computed for real.
+//
+// UPDATE 2026-08-22: bookings ARE migrated now (lib/data/bookings.ts),
+// so getCustomersForOutlet() below computes the visit-history fields
+// from real PAID bookings instead of leaving the whole page on mock.
+// `segment`/`membership` themselves are NOT recomputed from that
+// history — they're real stored columns on `customers` (presumably set
+// by an admin/CRM process), independent of what this outlet's own
+// booking history shows. That can genuinely disagree — a customer
+// flagged VIP tenant-wide might show 0 visits at THIS outlet if they
+// mostly visit a different one — which is correct, not a bug: this page
+// is scoped to one outlet's activity, segment is a tenant-wide label.
 // ---------------------------------------------------------------------
 
 type CustomerRow = {
@@ -87,4 +99,76 @@ export async function getLiveCustomers(): Promise<LiveCustomer[] | null> {
 
 export async function isLiveCustomersData(): Promise<boolean> {
   return (await loadCustomersData()).live;
+}
+
+/** Most-frequent key in a tally map; "" if the map is empty (no favorite yet). */
+function topKey(counts: Map<string, number>): string {
+  let best = "";
+  let bestCount = 0;
+  for (const [key, count] of counts) {
+    if (count > bestCount) {
+      best = key;
+      bestCount = count;
+    }
+  }
+  return best;
+}
+
+/**
+ * Full Customer records (identity + real stored segment/membership +
+ * visit-history computed from this outlet's own PAID bookings). Returns
+ * null when there's no real customer data at all (demo/"Ganti Role"
+ * viewer) — callers fall back to the mock CUSTOMERS fixture, same
+ * convention as every other lib/data/*.ts module.
+ *
+ * A customer with no PAID booking at this outlet still appears (0
+ * visits, empty spend/favorite fields) rather than being dropped — an
+ * honest "no history here yet" rather than hiding a real customer row.
+ */
+export async function getCustomersForOutlet(outletId: string): Promise<Customer[] | null> {
+  const live = await getLiveCustomers();
+  if (live === null) return null;
+
+  const bookings = await getBookingsForOutlet(outletId);
+  const paid = bookings.filter((b) => b.status === "PAID");
+
+  type Agg = {
+    visitCount: number;
+    lifetimeSpend: number;
+    firstVisit: string;
+    lastVisit: string;
+    therapistCounts: Map<string, number>;
+    serviceCounts: Map<string, number>;
+  };
+  const byCustomer = new Map<string, Agg>();
+
+  for (const b of paid) {
+    let agg = byCustomer.get(b.customerId);
+    if (!agg) {
+      agg = { visitCount: 0, lifetimeSpend: 0, firstVisit: b.date, lastVisit: b.date, therapistCounts: new Map(), serviceCounts: new Map() };
+      byCustomer.set(b.customerId, agg);
+    }
+    agg.visitCount += 1;
+    agg.lifetimeSpend += b.price;
+    if (b.date < agg.firstVisit) agg.firstVisit = b.date;
+    if (b.date > agg.lastVisit) agg.lastVisit = b.date;
+    if (b.therapistName) agg.therapistCounts.set(b.therapistName, (agg.therapistCounts.get(b.therapistName) ?? 0) + 1);
+    if (b.packageName) agg.serviceCounts.set(b.packageName, (agg.serviceCounts.get(b.packageName) ?? 0) + 1);
+  }
+
+  return live.map((c): Customer => {
+    const agg = byCustomer.get(c.id);
+    const visitCount = agg?.visitCount ?? 0;
+    const lifetimeSpend = agg?.lifetimeSpend ?? 0;
+    return {
+      ...c,
+      visitCount,
+      lifetimeSpend,
+      avgTicket: visitCount > 0 ? Math.round(lifetimeSpend / visitCount) : 0,
+      firstVisit: agg?.firstVisit ?? "",
+      lastVisit: agg?.lastVisit ?? "",
+      favoriteTherapist: agg ? topKey(agg.therapistCounts) : "",
+      favoriteService: agg ? topKey(agg.serviceCounts) : "",
+    };
+  });
 }

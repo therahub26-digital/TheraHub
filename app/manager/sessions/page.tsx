@@ -1,6 +1,7 @@
 import Icon from "@/components/Icon";
 import { PageHead, Card, CardHead, StatCard, Badge, PersonCell, Progress } from "@/components/ui";
 import { CompleteSessionButton, ExtensionDecisionButtons } from "@/components/SessionActions";
+import ExtensionRequestAlert from "@/components/ExtensionRequestAlert";
 import { getCurrentOutlet } from "@/lib/data/outlets";
 import { getSessionsForOutlet, getExtensionRequestsForOutlet } from "@/lib/data/sessions";
 import { getEffectiveToday, getEffectiveNow } from "@/lib/data/bookings";
@@ -22,6 +23,11 @@ export default async function SessionsPage() {
     getSessionsForOutlet(outlet.id, today),
     getExtensionRequestsForOutlet(outlet.id),
   ]);
+  const pendingExtensions = requests.filter((r) => r.status === "PENDING");
+  // Same-day history: decided requests (approved/rejected) from today —
+  // split apart from the pending list below per the user's request, same
+  // change as app/kasir/sessions/page.tsx.
+  const todaysHistory = requests.filter((r) => r.status !== "PENDING" && r.requestedAt.slice(0, 10) === today);
 
   const running = sessions.filter((s) => s.status === "ACTIVE" || s.status === "ENDING_SOON");
   const endingSoon = sessions.filter((s) => s.status === "ENDING_SOON");
@@ -37,11 +43,13 @@ export default async function SessionsPage() {
         desc={`${outlet.name} · ${today} · Pukul ${now} · Monitor sesi berjalan dan permintaan extension`}
       />
 
+      <ExtensionRequestAlert outletId={outlet.id} pendingCount={pendingExtensions.length} />
+
       <div className="grid grid-4" style={{ marginBottom: 20 }}>
         <StatCard label="Sesi Aktif" value={running.length} icon="timer" toneKey="teal" deltaLabel="Berjalan saat ini" />
         <StatCard label="Akan Berakhir" value={endingSoon.length} icon="hourglass" toneKey="amber" deltaLabel="≤ 10 menit lagi" />
         <StatCard label="Selesai Hari Ini" value={completed.length} icon="check-circle" toneKey="sky" deltaLabel="Sesi tercatat" />
-        <StatCard label="Extension Pending" value={requests.filter((r) => r.status === "PENDING").length} icon="clock" toneKey="danger" deltaLabel={`${requests.filter((r) => r.conflictCheck !== "CLEAR").length} dengan konflik`} />
+        <StatCard label="Extension Pending" value={pendingExtensions.length} icon="clock" toneKey="danger" deltaLabel={`${requests.filter((r) => r.conflictCheck !== "CLEAR").length} dengan konflik`} />
       </div>
 
       <div className="grid grid-3" style={{ alignItems: "start", marginBottom: 20 }}>
@@ -78,36 +86,58 @@ export default async function SessionsPage() {
         </Card>
 
         <Card>
-          <CardHead title="Permintaan Extension" sub={`${requests.filter((r) => r.status === "PENDING").length} menunggu keputusan`} />
-          <div className="card-body stack g3">
-            {requests.length === 0 && <div className="small dim">Tidak ada permintaan extension.</div>}
-            {requests.map((r) => (
-              <div key={r.id} className="stack g2" style={{ paddingBottom: 12, borderBottom: "1px solid var(--border)" }}>
-                <div className="between">
-                  <div style={{ minWidth: 0 }}>
-                    <div className="small strong truncate" style={{ color: "var(--text-1)" }}>{r.customerName}</div>
-                    <div className="tiny dim truncate">{r.bookingCode} · {r.therapistName} · {r.roomName}</div>
+          <CardHead title="Permintaan Extension" sub={`${pendingExtensions.length} menunggu keputusan · ${todaysHistory.length} riwayat hari ini`} />
+          <div className="card-body stack g4">
+            <div className="stack g3">
+              {requests.length === 0 && <div className="small dim">Tidak ada permintaan extension.</div>}
+              {requests.length > 0 && pendingExtensions.length === 0 && (
+                <div className="small dim">Tidak ada permintaan yang menunggu keputusan.</div>
+              )}
+              {pendingExtensions.map((r) => (
+                <div key={r.id} className="stack g2" style={{ paddingBottom: 12, borderBottom: "1px solid var(--border)" }}>
+                  <div className="between">
+                    <div style={{ minWidth: 0 }}>
+                      <div className="small strong truncate" style={{ color: "var(--text-1)" }}>{r.customerName}</div>
+                      <div className="tiny dim truncate">{r.bookingCode} · {r.therapistName} · {r.roomName}</div>
+                    </div>
+                    <Badge tone="warning">{r.status}</Badge>
                   </div>
-                  <Badge tone={r.status === "PENDING" ? "warning" : r.status === "APPROVED" ? "success" : "danger"}>{r.status}</Badge>
+                  <div className="row between small">
+                    <span className="muted">{r.extensionName} ({r.durationMin}m)</span>
+                    <span className="strong" style={{ color: "var(--text-1)" }}>{rp(r.price)}</span>
+                  </div>
+                  {r.conflictCheck !== "CLEAR" ? (
+                    <div className="row g2 tiny" style={{ color: "var(--danger)" }}>
+                      <Icon name="alert-triangle" size={12} />
+                      {CONFLICT_LABEL[r.conflictCheck]}{r.reason ? ` — ${r.reason}` : ""}
+                    </div>
+                  ) : (
+                    <div className="row g2 tiny dim">
+                      <Icon name="check-circle" size={12} />
+                      {CONFLICT_LABEL[r.conflictCheck]}
+                    </div>
+                  )}
+                  <ExtensionDecisionButtons requestId={r.id} />
                 </div>
-                <div className="row between small">
-                  <span className="muted">{r.extensionName} ({r.durationMin}m)</span>
-                  <span className="strong" style={{ color: "var(--text-1)" }}>{rp(r.price)}</span>
+              ))}
+            </div>
+
+            {todaysHistory.length > 0 && (
+              <div>
+                <div className="m-section" style={{ marginBottom: 8 }}>Riwayat Hari Ini</div>
+                <div className="stack g2">
+                  {todaysHistory.map((r) => (
+                    <div key={r.id} className="row between small" style={{ padding: "8px 0", borderBottom: "1px solid var(--border)", opacity: 0.75 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div className="tiny strong truncate" style={{ color: "var(--text-1)" }}>{r.customerName}</div>
+                        <div className="tiny dim truncate">{r.bookingCode} · {r.therapistName} · {r.extensionName} ({r.durationMin}m)</div>
+                      </div>
+                      <Badge tone={r.status === "APPROVED" ? "success" : "danger"}>{r.status}</Badge>
+                    </div>
+                  ))}
                 </div>
-                {r.conflictCheck !== "CLEAR" ? (
-                  <div className="row g2 tiny" style={{ color: "var(--danger)" }}>
-                    <Icon name="alert-triangle" size={12} />
-                    {CONFLICT_LABEL[r.conflictCheck]}{r.reason ? ` — ${r.reason}` : ""}
-                  </div>
-                ) : (
-                  <div className="row g2 tiny dim">
-                    <Icon name="check-circle" size={12} />
-                    {CONFLICT_LABEL[r.conflictCheck]}
-                  </div>
-                )}
-                {r.status === "PENDING" && <ExtensionDecisionButtons requestId={r.id} />}
               </div>
-            ))}
+            )}
           </div>
         </Card>
       </div>

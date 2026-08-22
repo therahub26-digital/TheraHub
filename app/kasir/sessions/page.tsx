@@ -1,6 +1,7 @@
 import Icon from "@/components/Icon";
 import { PageHead, Card, CardHead, StatCard, Badge, PersonCell, Progress } from "@/components/ui";
 import { PaySessionButton, ExtensionDecisionButtons } from "@/components/SessionActions";
+import ExtensionRequestAlert from "@/components/ExtensionRequestAlert";
 import { getCurrentOutlet } from "@/lib/data/outlets";
 import { getSessionsForOutlet, getExtensionRequestsForOutlet } from "@/lib/data/sessions";
 import { getEffectiveToday, getEffectiveNow } from "@/lib/data/bookings";
@@ -22,6 +23,11 @@ export default async function SessionMonitorPage() {
     getExtensionRequestsForOutlet(outlet.id),
   ]);
   const pendingExtensions = requests.filter((r) => r.status === "PENDING");
+  // Same-day history: decided requests (approved/rejected) from today —
+  // requested per the user, split apart from the pending list below
+  // instead of the previous single mixed list ("dibagi 2: yg belum
+  // diapprove, dibagian bawahnya history pada hari itu").
+  const todaysHistory = requests.filter((r) => r.status !== "PENDING" && r.requestedAt.slice(0, 10) === today);
 
   const running = sessions.filter((s) => s.status === "ACTIVE" || s.status === "ENDING_SOON");
   const endingSoon = sessions.filter((s) => s.status === "ENDING_SOON");
@@ -42,6 +48,8 @@ export default async function SessionMonitorPage() {
         desc={`${outlet.name} · ${today} · Pukul ${now} · Pantau sesi berjalan untuk persiapan pembayaran.`}
       />
 
+      <ExtensionRequestAlert outletId={outlet.id} pendingCount={pendingExtensions.length} />
+
       <div className="grid grid-4" style={{ marginBottom: 20 }}>
         <StatCard label="Sesi Aktif" value={running.length} icon="timer" toneKey="teal" deltaLabel="Sedang berjalan" />
         <StatCard label="Akan Selesai" value={endingSoon.length} icon="hourglass" toneKey="amber" deltaLabel="Siapkan struk ≤ 10 menit" />
@@ -51,35 +59,55 @@ export default async function SessionMonitorPage() {
 
       {requests.length > 0 && (
         <Card style={{ marginBottom: 20 }}>
-          <CardHead title="Permintaan Extension" sub={`${pendingExtensions.length} menunggu keputusan`} />
-          <div className="card-body stack g3">
-            {requests.map((r) => (
-              <div key={r.id} className="stack g2" style={{ paddingBottom: 12, borderBottom: "1px solid var(--border)" }}>
-                <div className="between">
-                  <div style={{ minWidth: 0 }}>
-                    <div className="small strong truncate" style={{ color: "var(--text-1)" }}>{r.customerName}</div>
-                    <div className="tiny dim truncate">{r.bookingCode} · {r.therapistName} · {r.roomName}</div>
+          <CardHead title="Permintaan Extension" sub={`${pendingExtensions.length} menunggu keputusan · ${todaysHistory.length} riwayat hari ini`} />
+          <div className="card-body stack g4">
+            <div className="stack g3">
+              {pendingExtensions.length === 0 && <div className="small dim">Tidak ada permintaan yang menunggu keputusan.</div>}
+              {pendingExtensions.map((r) => (
+                <div key={r.id} className="stack g2" style={{ paddingBottom: 12, borderBottom: "1px solid var(--border)" }}>
+                  <div className="between">
+                    <div style={{ minWidth: 0 }}>
+                      <div className="small strong truncate" style={{ color: "var(--text-1)" }}>{r.customerName}</div>
+                      <div className="tiny dim truncate">{r.bookingCode} · {r.therapistName} · {r.roomName}</div>
+                    </div>
+                    <Badge tone="warning">{r.status}</Badge>
                   </div>
-                  <Badge tone={r.status === "PENDING" ? "warning" : r.status === "APPROVED" ? "success" : "danger"}>{r.status}</Badge>
+                  <div className="row between small">
+                    <span className="muted">{r.extensionName} ({r.durationMin}m)</span>
+                    <span className="strong" style={{ color: "var(--text-1)" }}>{rp(r.price)}</span>
+                  </div>
+                  {r.conflictCheck !== "CLEAR" ? (
+                    <div className="row g2 tiny" style={{ color: "var(--danger)" }}>
+                      <Icon name="alert-triangle" size={12} />
+                      {CONFLICT_LABEL[r.conflictCheck]}{r.reason ? ` — ${r.reason}` : ""}
+                    </div>
+                  ) : (
+                    <div className="row g2 tiny dim">
+                      <Icon name="check-circle" size={12} />
+                      {CONFLICT_LABEL[r.conflictCheck]}{r.reason ? ` — ${r.reason}` : ""}
+                    </div>
+                  )}
+                  <ExtensionDecisionButtons requestId={r.id} />
                 </div>
-                <div className="row between small">
-                  <span className="muted">{r.extensionName} ({r.durationMin}m)</span>
-                  <span className="strong" style={{ color: "var(--text-1)" }}>{rp(r.price)}</span>
+              ))}
+            </div>
+
+            {todaysHistory.length > 0 && (
+              <div>
+                <div className="m-section" style={{ marginBottom: 8 }}>Riwayat Hari Ini</div>
+                <div className="stack g2">
+                  {todaysHistory.map((r) => (
+                    <div key={r.id} className="row between small" style={{ padding: "8px 0", borderBottom: "1px solid var(--border)", opacity: 0.75 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div className="tiny strong truncate" style={{ color: "var(--text-1)" }}>{r.customerName}</div>
+                        <div className="tiny dim truncate">{r.bookingCode} · {r.therapistName} · {r.extensionName} ({r.durationMin}m)</div>
+                      </div>
+                      <Badge tone={r.status === "APPROVED" ? "success" : "danger"}>{r.status}</Badge>
+                    </div>
+                  ))}
                 </div>
-                {r.conflictCheck !== "CLEAR" ? (
-                  <div className="row g2 tiny" style={{ color: "var(--danger)" }}>
-                    <Icon name="alert-triangle" size={12} />
-                    {CONFLICT_LABEL[r.conflictCheck]}{r.reason ? ` — ${r.reason}` : ""}
-                  </div>
-                ) : (
-                  <div className="row g2 tiny dim">
-                    <Icon name="check-circle" size={12} />
-                    {CONFLICT_LABEL[r.conflictCheck]}{r.reason ? ` — ${r.reason}` : ""}
-                  </div>
-                )}
-                {r.status === "PENDING" && <ExtensionDecisionButtons requestId={r.id} />}
               </div>
-            ))}
+            )}
           </div>
         </Card>
       )}

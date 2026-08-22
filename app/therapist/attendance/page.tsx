@@ -7,7 +7,7 @@ import { getSignedInTherapist } from "@/lib/data/commissions";
 import { getCurrentOutlet } from "@/lib/data/outlets";
 import { getAttendanceHistoryForTherapist } from "@/lib/data/attendance";
 import { getEffectiveToday } from "@/lib/data/bookings";
-import { fmtTime, fmtDateShort } from "@/lib/format";
+import { fmtTime, fmtDateShort, minutesToHm } from "@/lib/format";
 
 const STATUS_LABEL: Record<string, string> = {
   VALID: "Lokasi Valid", OUTSIDE: "Di Luar Geofence", LOW_ACCURACY: "Akurasi Rendah", SUSPICIOUS: "Mencurigakan",
@@ -125,7 +125,7 @@ export default async function AttendancePage() {
                     <div className="small bold" style={{ color: "var(--text-1)" }}>{fmtDateShort(a.date)}</div>
                     <div className="tiny dim">
                       {a.checkInAt ? `${fmtTime(a.checkInAt)} – ${a.checkOutAt ? fmtTime(a.checkOutAt) : "..."}` : "Tidak hadir"}
-                      {a.lateMinutes > 0 ? ` · terlambat ${a.lateMinutes}m` : ""}
+                      {a.lateMinutes > 0 ? ` · terlambat ${minutesToHm(a.lateMinutes)}` : ""}
                     </div>
                   </div>
                   <Badge tone={a.status === "SUSPICIOUS" ? "danger" : a.status === "LATE" ? "warning" : a.status === "ABSENT" ? "danger" : "success"} dot>

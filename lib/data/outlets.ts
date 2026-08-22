@@ -50,6 +50,7 @@ type OutletRow = {
   deposit_refundable: boolean;
   deposit_applies_to: DepositPolicy["appliesTo"] | null;
   deposit_note: string | null;
+  alarm_sound_url: string | null;
 };
 
 type OutletProfileRow = {
@@ -116,6 +117,7 @@ function mapOutlet(
       appliesTo: row.deposit_applies_to ?? [],
       note: row.deposit_note ?? "",
     },
+    alarmSoundUrl: row.alarm_sound_url,
     profile: {
       published: profile?.published ?? false,
       tagline: profile?.tagline ?? "",

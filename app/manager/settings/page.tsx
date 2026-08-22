@@ -1,12 +1,27 @@
 import Icon from "@/components/Icon";
 import { PageHead, Card, CardHead, Field, Switch, InfoNote } from "@/components/ui";
+import AlarmSoundSetting from "@/components/AlarmSoundSetting";
 import { PRIMARY_OUTLET, depositFor } from "@/lib/mock";
+import { getCurrentOutlet } from "@/lib/data/outlets";
 import { rp } from "@/lib/format";
 
 /** Nilai transaksi contoh untuk mendemokan perhitungan deposit. */
 const SIMULASI = [120_000, 200_000, 495_000];
 
-export default function OutletSettingsPage() {
+// ---------------------------------------------------------------------
+// This page is still almost entirely mock/read-only (Bug 8's remaining
+// scope — see the project progress doc; migrating the rest is a
+// separate, larger job). The one exception, added 2026-08-22: the
+// "Suara Alarm Sesi" card below is real, wired to the signed-in
+// manager's actual outlet — the user explicitly asked for this control,
+// and it doesn't depend on anything else on this page being real too.
+// `realOutlet` is deliberately separate from `outlet` (still
+// PRIMARY_OUTLET, mock) below, so the rest of the page's display is
+// unaffected.
+// ---------------------------------------------------------------------
+
+export default async function OutletSettingsPage() {
+  const realOutlet = await getCurrentOutlet();
   const outlet = PRIMARY_OUTLET;
   const dep = outlet.deposit;
 
@@ -182,6 +197,15 @@ export default function OutletSettingsPage() {
                 <Switch on={row.on} />
               </div>
             ))}
+          </div>
+        </Card>
+      </div>
+
+      <div className="grid grid-2" style={{ alignItems: "start", marginTop: 20 }}>
+        <Card>
+          <CardHead title="Suara Alarm Sesi" sub="Bunyi yang terdengar terapis saat waktu sesi habis" />
+          <div className="card-body">
+            <AlarmSoundSetting outletId={realOutlet.id} currentUrl={realOutlet.alarmSoundUrl ?? null} />
           </div>
         </Card>
       </div>

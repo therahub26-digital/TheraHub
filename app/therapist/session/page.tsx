@@ -2,6 +2,7 @@ import Icon from "@/components/Icon";
 import { Badge, Progress } from "@/components/ui";
 import MobileShell from "@/components/MobileShell";
 import { CompleteSessionButton, StartSessionButton, RequestExtensionButton, EmergencyAlertButton } from "@/components/SessionActions";
+import SessionAlarm from "@/components/SessionAlarm";
 import { ME_THERAPIST, sessionsOf, bookingsOf, EXTENSION_REQUESTS, TODAY, NOW_HHMM } from "@/lib/mock";
 import { getSignedInTherapist } from "@/lib/data/commissions";
 import { getCurrentOutlet } from "@/lib/data/outlets";
@@ -75,6 +76,8 @@ export default async function SessionControlPage() {
     return (
       <MobileShell role="therapist" title="Sesi Aktif" subtitle={active.bookingCode} avatarName={me.name} avatarTone={avatarTone}>
         <div className="stack g4">
+          <SessionAlarm key={active.id} expectedEndIso={active.expectedEndIso} alarmSoundUrl={outlet.alarmSoundUrl} />
+
           <div className="m-card" style={{ textAlign: "center", background: "var(--accent-soft)", border: "1px solid var(--accent)" }}>
             <Badge tone={active.status === "ENDING_SOON" ? "warning" : "accent"} dot lg>
               {active.status === "ENDING_SOON" ? "Akan Berakhir" : "Sesi Berjalan"}

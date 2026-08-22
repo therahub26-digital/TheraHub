@@ -102,6 +102,15 @@ export interface Outlet {
   deposit: DepositPolicy;
   /** Halaman profil publik outlet — dikonfigurasi Admin Tenant, dilihat calon tamu. */
   profile: OutletProfile;
+  /**
+   * URL suara alarm kustom yang diunggah manager outlet ini (Supabase
+   * Storage bucket `alarm-sounds`) — dipakai components/SessionAlarm.tsx
+   * di halaman sesi terapis saat waktu sesi habis. `null`/`undefined`
+   * berarti pakai bunyi default (Web Audio beep bawaan). Optional supaya
+   * data mock (lib/mock/org.ts) tidak perlu diubah — field ini cuma
+   * relevan untuk outlet sungguhan.
+   */
+  alarmSoundUrl?: string | null;
 }
 
 /**
@@ -391,6 +400,16 @@ export interface SessionRec {
   date: string;
   actualStart: string;
   expectedEnd: string;
+  /**
+   * Raw `expected_end` timestamp (this app's wall-clock-as-UTC convention,
+   * see lib/wallclock.ts), unformatted — unlike `expectedEnd` above which
+   * is already sliced down to "HH:mm" for display. components/SessionAlarm.tsx
+   * needs the full timestamp client-side to run its own independent
+   * countdown (the server-rendered `minutesRemaining` below is only a
+   * snapshot as of page render, it doesn't tick). `null`/`undefined` for
+   * the mock/demo viewer, which never wires up the alarm.
+   */
+  expectedEndIso?: string | null;
   actualEnd: string | null;
   extensionMinutes: number;
   /**

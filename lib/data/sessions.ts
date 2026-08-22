@@ -100,6 +100,7 @@ function mapSessionRow(row: SessionRow, lookups: SessionLookups, now: string): S
     date: row.actual_start ? row.actual_start.slice(0, 10) : "",
     actualStart: toHHMM(row.actual_start),
     expectedEnd: toHHMM(row.expected_end),
+    expectedEndIso: running ? row.expected_end : null,
     actualEnd: row.actual_end ? toHHMM(row.actual_end) : null,
     extensionMinutes: row.extension_minutes,
     // Billed-ness lives on the booking, not the session — see the

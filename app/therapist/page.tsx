@@ -7,6 +7,7 @@ import { getSignedInTherapist } from "@/lib/data/commissions";
 import { getCurrentOutlet } from "@/lib/data/outlets";
 import { getSessionForTherapist } from "@/lib/data/sessions";
 import { getNotificationsForTherapist } from "@/lib/data/notifications";
+import { getTodayAttendanceForTherapist } from "@/lib/data/attendance";
 import { getBookingsForOutlet, getEffectiveToday, getEffectiveNow } from "@/lib/data/bookings";
 import { rp, fmtTime } from "@/lib/format";
 
@@ -16,22 +17,18 @@ import { rp, fmtTime } from "@/lib/format";
 // sudah aktif tapi di dashboard masih ada sesi berjalan, dan ini
 // sepertinya masih mockup". Same dual-mode convention as every other
 // page: a signed-in therapist sees their own real bookings/session/
-// notifications; the demo "Ganti Role" viewer still sees ME_THERAPIST +
-// mock fixtures, untouched below.
+// notifications/attendance; the demo "Ganti Role" viewer still sees
+// ME_THERAPIST + mock fixtures, untouched below.
 //
-// TWO STATS DELIBERATELY NOT MADE "REAL" HERE, on purpose rather than by
-// oversight:
-//   - "Rating": no real per-employee rating exists anywhere in
-//     lib/data/*.ts (only an optional mock-only field on the Employee
-//     type). Replaced with "Job Menunggu" (upcoming.length) for the real
-//     branch instead of showing a fabricated number.
-//   - "Absensi" card: there is no attendance/GPS check-in data layer at
-//     all yet (no lib/data/attendance.ts, no real table read anywhere) —
-//     a wholly separate feature. Showing this card wired to
-//     attendanceToday() for a real therapist would repeat the exact bug
-//     just reported (mock data presented as if live), so the real branch
-//     shows an honest "belum tersedia" note instead of a fake status or
-//     a link into a still-mock attendance page.
+// "Rating": no real per-employee rating exists anywhere in
+// lib/data/*.ts (only an optional mock-only field on the Employee type).
+// Replaced with "Job Menunggu" (upcoming.length) for the real branch
+// instead of showing a fabricated number.
+//
+// "Absensi" card: now real (lib/data/attendance.ts, added after this
+// page's first migration pass) — links to /therapist/attendance, which
+// owns the actual GPS check-in/check-out button; this card is just
+// today's status at a glance, same as the demo card below it.
 // ---------------------------------------------------------------------
 
 export default async function TherapistHomePage() {
@@ -48,6 +45,7 @@ export default async function TherapistHomePage() {
       getSessionForTherapist(me.id),
       getNotificationsForTherapist(me.id, outlet.id),
     ]);
+    const todayAttendance = await getTodayAttendanceForTherapist(me.id, me.name, today);
 
     const jobs = todaysBookings.filter((b) => b.therapistId === me.id && b.date === today && b.status !== "CANCELLED");
     const upcoming = jobs.filter((b) => ["BOOKED", "CONFIRMED", "ARRIVED", "CHECKED_IN"].includes(b.status));
@@ -70,12 +68,25 @@ export default async function TherapistHomePage() {
         }
       >
         <div className="stack g4">
-          <div className="m-card" style={{ background: "var(--bg-surface-2)", border: "1px solid var(--border)" }}>
+          <div
+            className="m-card"
+            style={{
+              background: todayAttendance?.checkInAt ? "var(--accent-soft)" : "var(--bg-surface-2)",
+              border: `1px solid ${todayAttendance?.checkInAt ? "var(--accent)" : "var(--border)"}`,
+            }}
+          >
             <div className="row g2" style={{ marginBottom: 6 }}>
-              <Icon name="map-pin-check" size={16} style={{ color: "var(--text-3)" }} />
-              <span className="small bold" style={{ color: "var(--text-1)" }}>Absensi</span>
+              <Icon name="map-pin-check" size={16} style={{ color: todayAttendance?.checkInAt ? "var(--accent)" : "var(--text-3)" }} />
+              <span className="small bold" style={{ color: "var(--text-1)" }}>
+                {todayAttendance?.checkOutAt ? "Absensi Selesai" : todayAttendance?.checkInAt ? "Sudah Check-in" : "Belum Check-in"}
+              </span>
             </div>
-            <div className="tiny dim">Fitur absensi real-time belum tersedia — menunggu pengembangan berikutnya.</div>
+            <div className="tiny dim" style={{ marginBottom: 10 }}>
+              {todayAttendance?.checkInAt ? `Check-in ${fmtTime(todayAttendance.checkInAt)} · ${todayAttendance.distanceFromGeofence}m dari outlet` : "Absen sekarang untuk memulai shift hari ini."}
+            </div>
+            <Link href="/therapist/attendance" className="m-btn m-btn-primary">
+              <Icon name="map-pin-check" size={15} /> {todayAttendance?.checkInAt ? "Lihat Absensi" : "Absen Sekarang"}
+            </Link>
           </div>
 
           <div className="row g2">

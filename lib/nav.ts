@@ -94,6 +94,7 @@ export const ROLES: RoleDef[] = [
     nav: [
       { href: "/manager", label: "Today", icon: "sun", section: "Operasional" },
       { href: "/manager/bookings", label: "Bookings", icon: "calendar-days", section: "Operasional" },
+      { href: "/manager/schedule-check", label: "Cek Jadwal Terapis", icon: "calendar-check", section: "Operasional" },
       { href: "/manager/sessions", label: "Sessions", icon: "timer", badge: 3, section: "Operasional" },
       { href: "/manager/rooms", label: "Rooms", icon: "door-open", section: "Operasional" },
       { href: "/manager/catalog", label: "Catalog", icon: "book-open", section: "Master" },
@@ -121,6 +122,7 @@ export const ROLES: RoleDef[] = [
     persona: { name: "Nurul Fadhilah", sub: "Kasir · Amethyst Cikawao" },
     nav: [
       { href: "/kasir", label: "Today / Booking", icon: "calendar-clock", section: "Front Office" },
+      { href: "/kasir/schedule-check", label: "Cek Jadwal Terapis", icon: "calendar-check", section: "Front Office" },
       { href: "/kasir/checkin", label: "Customer Check-in", icon: "user-check", section: "Front Office" },
       { href: "/kasir/sessions", label: "Session Monitor", icon: "timer", section: "Front Office" },
       { href: "/kasir/pos", label: "POS Cart", icon: "shopping-cart", section: "Transaksi" },

@@ -170,3 +170,103 @@ export async function createBooking(input: CreateBookingInput): Promise<CreateBo
 
   return { ok: true, bookingId: booking.id };
 }
+
+// ---------------------------------------------------------------------
+// Staff-side cancel/reassign — added 2026-08-22 for the daily off/leave
+// reconciliation workflow (components/ScheduleCheckPage.tsx): a manager
+// or kasir marks a therapist OFF/LEAVE for today, sees which of that
+// therapist's own bookings today are affected, and for each one either
+// reassigns it to a different available therapist or cancels it
+// outright. Distinct from cancelCustomerBooking() (lib/actions/
+// customerBookings.ts) — this is a STAFF action, not gated to "the
+// booking's own customer," and reuses the same conflict-check shape as
+// createBooking() above for the reassign case.
+// ---------------------------------------------------------------------
+
+const STAFF_CANCELLABLE_STATUSES = ["BOOKED", "CONFIRMED", "ARRIVED"];
+
+export type ActionResultBooking = { ok: true } | { ok: false; error: string };
+
+export async function cancelBookingStaff(bookingId: string): Promise<ActionResultBooking> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Sesi tidak ditemukan — silakan login ulang." };
+
+  const { data: booking, error: fetchErr } = await supabase.from("bookings").select("id, status").eq("id", bookingId).maybeSingle();
+  if (fetchErr || !booking) return { ok: false, error: "Booking tidak ditemukan." };
+  if (!STAFF_CANCELLABLE_STATUSES.includes(booking.status)) {
+    return { ok: false, error: "Booking ini sudah tidak bisa dibatalkan (sudah check-in/selesai)." };
+  }
+
+  // RLS's bookings_staff policy already scopes this UPDATE to the staff
+  // member's own outlet/tenant — nothing more to check here.
+  const { error: updateErr } = await supabase.from("bookings").update({ status: "CANCELLED" }).eq("id", bookingId);
+  if (updateErr) return { ok: false, error: "Gagal membatalkan booking — coba lagi." };
+
+  revalidatePath("/manager/bookings");
+  revalidatePath("/manager/schedule-check");
+  revalidatePath("/kasir");
+  revalidatePath("/kasir/schedule-check");
+  revalidatePath("/customer/history");
+  return { ok: true };
+}
+
+export async function reassignBookingTherapist(bookingId: string, newTherapistId: string): Promise<ActionResultBooking> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Sesi tidak ditemukan — silakan login ulang." };
+
+  const { data: booking, error: fetchErr } = await supabase
+    .from("bookings")
+    .select("id, outlet_id, date, scheduled_start, scheduled_end, status")
+    .eq("id", bookingId)
+    .maybeSingle();
+  if (fetchErr || !booking) return { ok: false, error: "Booking tidak ditemukan." };
+  if (!STAFF_CANCELLABLE_STATUSES.includes(booking.status)) {
+    return { ok: false, error: "Booking ini sudah tidak bisa diubah (sudah check-in/selesai)." };
+  }
+
+  const { data: newTherapist, error: therapistErr } = await supabase
+    .from("employees")
+    .select("id, outlet_id, is_therapist, status")
+    .eq("id", newTherapistId)
+    .maybeSingle();
+  if (
+    therapistErr ||
+    !newTherapist ||
+    !newTherapist.is_therapist ||
+    newTherapist.outlet_id !== booking.outlet_id ||
+    newTherapist.status !== "ACTIVE"
+  ) {
+    return { ok: false, error: "Terapis pengganti tidak tersedia di outlet ini." };
+  }
+
+  const { data: sameDayBookings, error: sameDayErr } = await supabase
+    .from("bookings")
+    .select("id, therapist_id, scheduled_start, scheduled_end")
+    .eq("outlet_id", booking.outlet_id)
+    .eq("date", booking.date)
+    .eq("therapist_id", newTherapistId)
+    .neq("id", bookingId)
+    .in("status", ACTIVE_STATUSES);
+  if (sameDayErr) return { ok: false, error: "Gagal memeriksa jadwal terapis pengganti — coba lagi." };
+
+  const conflict = (sameDayBookings ?? []).find((b) => overlaps(booking.scheduled_start, booking.scheduled_end, b.scheduled_start, b.scheduled_end));
+  if (conflict) {
+    return { ok: false, error: "Terapis pengganti sudah punya booking lain di jam yang sama." };
+  }
+
+  const { error: updateErr } = await supabase.from("bookings").update({ therapist_id: newTherapistId }).eq("id", bookingId);
+  if (updateErr) return { ok: false, error: "Gagal mengganti terapis — coba lagi." };
+
+  revalidatePath("/manager/bookings");
+  revalidatePath("/manager/schedule-check");
+  revalidatePath("/kasir");
+  revalidatePath("/kasir/schedule-check");
+  revalidatePath("/customer/history");
+  return { ok: true };
+}

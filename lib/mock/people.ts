@@ -158,6 +158,7 @@ export const EMPLOYEES: Employee[] = PEOPLE.map((p, i) => {
     featured: isTherapist && FEATURED[name] !== undefined,
     featuredBadge: isTherapist ? FEATURED[name]?.badge : undefined,
     bio: isTherapist ? FEATURED[name]?.bio : undefined,
+    galleryUrls: [],
   };
 });
 

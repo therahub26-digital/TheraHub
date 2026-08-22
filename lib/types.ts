@@ -111,6 +111,14 @@ export interface Outlet {
    * relevan untuk outlet sungguhan.
    */
   alarmSoundUrl?: string | null;
+  /**
+   * Berapa hari ke depan (dari hari ini) tamu boleh booking lewat
+   * Customer App — 0 = hanya hari-H (default, sama seperti perilaku
+   * sebelum fitur ini ada), maksimal 3. Dikonfigurasi manager/admin di
+   * Outlet Settings. Optional supaya data mock (lib/mock/org.ts) tidak
+   * perlu diubah — default ke 0 lewat `?? 0` di titik pemakaian.
+   */
+  bookingWindowDays?: number;
 }
 
 /**
@@ -194,6 +202,13 @@ export interface Employee {
   therapistGrade?: "Junior" | "Senior" | "Master";
   /** Real staff headshot path (e.g. "/img/therapists/CKW/amelia.jpg"). Undefined for mock/demo employees — UI falls back to the initials avatar. */
   photoUrl?: string;
+  /**
+   * Small photo album (max 3) shown on the therapist profile popup —
+   * separate from `photoUrl` (the single avatar/headshot used everywhere
+   * else). Empty array for mock/demo employees and real employees who
+   * haven't had photos uploaded yet (components/EmployeePhotoGallery.tsx).
+   */
+  galleryUrls: string[];
   maxSessionsPerDay?: number;
   rating?: number;
   requestedCount?: number;

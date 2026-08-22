@@ -47,6 +47,7 @@ export default async function BookPage({ searchParams }: { searchParams: Promise
       city: o.city,
       openHours: o.openHours.split("· ")[1] ?? o.openHours,
       deposit: o.deposit,
+      bookingWindowDays: o.bookingWindowDays ?? 0,
     }));
     const perOutletPackages = await Promise.all(liveOutlets.map((o) => getPackagesForOutlet(o.id)));
     packages = perOutletPackages.flat().filter((p) => p.status === "ACTIVE").map((p) => ({
@@ -69,6 +70,7 @@ export default async function BookPage({ searchParams }: { searchParams: Promise
       featured: t.featured,
       featuredBadge: t.featuredBadge,
       bio: t.bio,
+      galleryUrls: t.galleryUrls,
     }));
     today = await getEffectiveToday();
   } else {
@@ -78,6 +80,7 @@ export default async function BookPage({ searchParams }: { searchParams: Promise
       city: o.city,
       openHours: o.openHours.split("· ")[1] ?? o.openHours,
       deposit: o.deposit,
+      bookingWindowDays: o.bookingWindowDays ?? 0,
     }));
     packages = MOCK_OUTLETS.flatMap((o) =>
       packagesOf(o.id)

@@ -145,3 +145,46 @@ export async function updateEmployeeReferral(input: UpdateEmployeeReferralInput)
 
   return { ok: true };
 }
+
+// ---------------------------------------------------------------------
+// Therapist photo album — "kalau di klik di kotak therapis maka akan
+// muncul profil dan album foto therapis, isi maksimal 3 foto", user
+// request 2026-08-22. See 0017_therapist_gallery_booking_window_
+// schedule.sql's header for the `therapist-photos` Storage bucket + RLS
+// (`_is_manager_here(outlet_id) or _is_admin_or_owner()`).
+//
+// Same split as setAlarmSoundUrl(): the actual file upload happens
+// client-side straight to Storage using the manager's own session (see
+// components/EmployeePhotoGallery.tsx) — this action only ever persists
+// the resulting list of public URLs onto employees.gallery_urls.
+// `employees_write` RLS is the real gate; the length check here is just
+// a readable message instead of a raw constraint error (the DB column
+// has no CHECK on array length, so this is the only enforcement of "max
+// 3" for a manager going through the UI — a very determined caller with
+// direct DB access could still write more, which is an acceptable gap
+// given the UI never invites it).
+// ---------------------------------------------------------------------
+
+export async function setEmployeeGalleryUrls(employeeId: string, urls: string[]): Promise<ActionResult> {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Sesi tidak ditemukan — silakan login ulang." };
+
+  if (urls.length > 3) {
+    return { ok: false, error: "Maksimal 3 foto per terapis." };
+  }
+
+  const { error } = await supabase.from("employees").update({ gallery_urls: urls }).eq("id", employeeId);
+  if (error) {
+    return { ok: false, error: "Gagal menyimpan foto — pastikan akun Anda punya hak ubah data karyawan." };
+  }
+
+  revalidatePath("/manager/therapists");
+  revalidatePath("/customer/book");
+  revalidatePath("/customer/outlets");
+
+  return { ok: true };
+}

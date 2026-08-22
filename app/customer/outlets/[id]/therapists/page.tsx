@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import Icon from "@/components/Icon";
 import { Badge, Avatar, InfoNote } from "@/components/ui";
 import MobileShell from "@/components/MobileShell";
+import TherapistGalleryGrid from "@/components/TherapistGalleryGrid";
 import { getOutletById, getOutlets } from "@/lib/data/outlets";
 import { getTherapistsForOutlet } from "@/lib/data/employees";
 import { getCurrentCustomer } from "@/lib/data/customers";
@@ -50,30 +51,19 @@ export default async function OutletTherapistGalleryPage({
         <div className="stack g5">
           <div className="m-section">Terapis · {therapists.length}</div>
           {therapists.length > 0 ? (
-            <div className="grid grid-2" style={{ gap: 8 }}>
-              {therapists.map((t) => (
-                <div key={t.id} className="stack g2" style={{ padding: 12, borderRadius: "var(--r-md)", background: "var(--bg-surface-2)", border: "1px solid var(--border)" }}>
-                  {t.featured && (
-                    <div style={{ alignSelf: "flex-start" }}>
-                      <Badge tone="gold" icon="star">{t.featuredBadge ?? "Unggulan"}</Badge>
-                    </div>
-                  )}
-                  <div className="row g2">
-                    <Avatar name={t.name} photoUrl={t.photoUrl} size={44} rect />
-                    <div style={{ minWidth: 0 }}>
-                      <div className="tiny bold truncate" style={{ color: "var(--text-1)" }}>{t.name}</div>
-                      {t.therapistGrade && <div className="tiny dim">{t.therapistGrade}</div>}
-                    </div>
-                  </div>
-                  <div className="row g1 wrap">
-                    {t.skills.slice(0, 2).map((s) => (
-                      <span key={s} className="chip" style={{ height: 20, padding: "0 8px", fontSize: 10 }}>{s}</span>
-                    ))}
-                  </div>
-                  {t.featured && t.bio && <div className="tiny muted" style={{ lineHeight: 1.55 }}>{t.bio}</div>}
-                </div>
-              ))}
-            </div>
+            <TherapistGalleryGrid
+              therapists={therapists.map((t) => ({
+                id: t.id,
+                name: t.name,
+                grade: t.therapistGrade,
+                skills: t.skills,
+                photoUrl: t.photoUrl,
+                galleryUrls: t.galleryUrls,
+                bio: t.bio,
+                featured: t.featured,
+                featuredBadge: t.featuredBadge,
+              }))}
+            />
           ) : (
             <div className="small dim" style={{ textAlign: "center", padding: "12px 0" }}>Belum ada terapis di outlet ini.</div>
           )}

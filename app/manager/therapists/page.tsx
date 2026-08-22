@@ -4,6 +4,7 @@ import { getCurrentOutlet } from "@/lib/data/outlets";
 import { getEmployees, getTherapistsForOutlet } from "@/lib/data/employees";
 import { getCommissionsForOutlet, getEffectivePeriod } from "@/lib/data/commissions";
 import { EmployeeReferralEditor } from "@/components/EmployeeReferralEditor";
+import EmployeePhotoGallery from "@/components/EmployeePhotoGallery";
 import { rp, monthLabel } from "@/lib/format";
 
 // ---------------------------------------------------------------------
@@ -92,7 +93,7 @@ export default async function TherapistsPage() {
             <thead>
               <tr>
                 <th>Terapis</th><th>Grade</th><th>Skills</th><th>Treatment</th><th>Revenue</th>
-                <th>Komisi</th><th>Referral</th><th>Status</th>
+                <th>Komisi</th><th>Referral</th><th>Foto</th><th>Status</th>
               </tr>
             </thead>
             <tbody>
@@ -125,13 +126,14 @@ export default async function TherapistsPage() {
                         referralFeeValue={t.referralFeeValue}
                       />
                     </td>
+                    <td><EmployeePhotoGallery employeeId={t.id} initialUrls={t.galleryUrls} /></td>
                     <td><Badge tone={t.status === "ACTIVE" ? "success" : "danger"} dot>{t.status}</Badge></td>
                   </tr>
                 );
               })}
               {rankedTherapists.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="dim small" style={{ textAlign: "center", padding: "20px 0" }}>
+                  <td colSpan={9} className="dim small" style={{ textAlign: "center", padding: "20px 0" }}>
                     Tidak ada terapis aktif di outlet ini.
                   </td>
                 </tr>

@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState, useTransition, type FormEvent } from "react";
+import { useEffect, useMemo, useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Icon from "@/components/Icon";
 import { Badge, Avatar } from "@/components/ui";
-import { rp, minutesToHm } from "@/lib/format";
+import { rp, minutesToHm, addDays } from "@/lib/format";
 import { createCustomerBooking } from "@/lib/actions/customerBookings";
+import TherapistProfileModal from "@/components/TherapistProfileModal";
 
 // ---------------------------------------------------------------------
 // Customer-facing booking form — added 2026-08-22, the live-data
@@ -50,6 +51,8 @@ export type OutletOption = {
   city: string;
   openHours: string;
   deposit: DepositPolicyLite;
+  /** 0 = hari-H saja (default), maks 3 — lihat lib/actions/outlets.ts::setBookingWindowDays. */
+  bookingWindowDays: number;
 };
 
 export type PackageOption = {
@@ -69,6 +72,7 @@ export type TherapistOption = {
   grade?: string;
   skills: string[];
   photoUrl?: string;
+  galleryUrls?: string[];
   featured?: boolean;
   featuredBadge?: string;
   bio?: string;
@@ -109,10 +113,21 @@ export default function CustomerBookingForm({
   const [date, setDate] = useState(today);
   const [startTime, setStartTime] = useState("10:00");
   const [notes, setNotes] = useState("");
+  const [profileTherapist, setProfileTherapist] = useState<TherapistOption | null>(null);
 
   const outlet = outlets.find((o) => o.id === outletId);
+  const maxDate = addDays(today, outlet?.bookingWindowDays ?? 0);
   const price = selectedPackage ? (isMember ? selectedPackage.memberPrice : selectedPackage.listPrice) : 0;
   const deposit = outlet && selectedPackage ? calcDeposit(outlet.deposit, price) : 0;
+
+  // Clamp the picked date whenever it falls outside the (possibly new,
+  // possibly narrower) selected outlet's booking window — e.g. switching
+  // from an outlet allowing H-3 to one that's hari-H-only shouldn't leave
+  // a now-invalid date silently selected.
+  useEffect(() => {
+    if (date < today || date > maxDate) setDate(today);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [maxDate]);
 
   function onSelectOutlet(id: string) {
     setOutletId(id);
@@ -165,6 +180,7 @@ export default function CustomerBookingForm({
   }
 
   return (
+    <>
     <form onSubmit={onSubmit} className="stack g5">
       <div>
         <div className="row g2" style={{ marginBottom: 8 }}>
@@ -244,35 +260,47 @@ export default function CustomerBookingForm({
         ) : (
           <div className="grid grid-2" style={{ gap: 8 }}>
             {outletTherapists.map((t) => (
-              <button
-                type="button"
+              <div
                 key={t.id}
-                onClick={() => setTherapistId(t.id)}
-                className="stack g2"
                 style={{
-                  padding: 12, borderRadius: "var(--r-md)", background: "var(--bg-surface-2)", border: "1px solid var(--border)",
-                  cursor: "pointer", textAlign: "left",
+                  position: "relative", padding: 12, borderRadius: "var(--r-md)", background: "var(--bg-surface-2)", border: "1px solid var(--border)",
                   ...(t.id === therapistId ? { border: "1.5px solid var(--accent)", background: "var(--accent-soft)" } : {}),
                 }}
               >
-                {t.featured && (
-                  <div style={{ alignSelf: "flex-start" }}>
-                    <Badge tone="gold" icon="star">{t.featuredBadge ?? "Unggulan"}</Badge>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setProfileTherapist(t);
+                  }}
+                  title="Lihat profil"
+                  style={{
+                    position: "absolute", top: 8, right: 8, width: 22, height: 22, borderRadius: "50%",
+                    display: "grid", placeItems: "center", background: "var(--bg-surface-1)", border: "1px solid var(--border)", cursor: "pointer",
+                  }}
+                >
+                  <Icon name="info" size={12} style={{ color: "var(--text-3)" }} />
+                </button>
+                <button type="button" onClick={() => setTherapistId(t.id)} className="stack g2" style={{ width: "100%", textAlign: "left", cursor: "pointer" }}>
+                  {t.featured && (
+                    <div style={{ alignSelf: "flex-start" }}>
+                      <Badge tone="gold" icon="star">{t.featuredBadge ?? "Unggulan"}</Badge>
+                    </div>
+                  )}
+                  <div className="row g2" style={{ paddingRight: 20 }}>
+                    <Avatar name={t.name} photoUrl={t.photoUrl} size={44} rect />
+                    <div style={{ minWidth: 0 }}>
+                      <div className="tiny bold truncate" style={{ color: "var(--text-1)" }}>{t.name}</div>
+                      {t.grade && <div className="tiny dim">{t.grade}</div>}
+                    </div>
                   </div>
-                )}
-                <div className="row g2">
-                  <Avatar name={t.name} photoUrl={t.photoUrl} size={44} rect />
-                  <div style={{ minWidth: 0 }}>
-                    <div className="tiny bold truncate" style={{ color: "var(--text-1)" }}>{t.name}</div>
-                    {t.grade && <div className="tiny dim">{t.grade}</div>}
+                  <div className="row g1 wrap">
+                    {t.skills.slice(0, 2).map((s) => (
+                      <span key={s} className="chip" style={{ height: 20, padding: "0 8px", fontSize: 10 }}>{s}</span>
+                    ))}
                   </div>
-                </div>
-                <div className="row g1 wrap">
-                  {t.skills.slice(0, 2).map((s) => (
-                    <span key={s} className="chip" style={{ height: 20, padding: "0 8px", fontSize: 10 }}>{s}</span>
-                  ))}
-                </div>
-              </button>
+                </button>
+              </div>
             ))}
           </div>
         )}
@@ -284,9 +312,14 @@ export default function CustomerBookingForm({
           <span className="m-section" style={{ marginBottom: 0 }}>Tanggal &amp; Waktu</span>
         </div>
         <div className="row g2">
-          <input className="input" type="date" required min={today} value={date} onChange={(e) => setDate(e.target.value)} style={{ flex: 1 }} />
+          <input className="input" type="date" required min={today} max={maxDate} value={date} onChange={(e) => setDate(e.target.value)} style={{ flex: 1 }} />
           <input className="input" type="time" required value={startTime} onChange={(e) => setStartTime(e.target.value)} style={{ flex: 1 }} />
         </div>
+        {maxDate === today ? (
+          <div className="tiny dim" style={{ marginTop: 6 }}>Outlet ini hanya menerima booking untuk hari ini.</div>
+        ) : (
+          <div className="tiny dim" style={{ marginTop: 6 }}>Booking bisa dijadwalkan sampai {maxDate.slice(8)}/{maxDate.slice(5, 7)}.</div>
+        )}
       </div>
 
       <div className="field">
@@ -354,5 +387,7 @@ export default function CustomerBookingForm({
         </div>
       )}
     </form>
+    {profileTherapist && <TherapistProfileModal therapist={profileTherapist} onClose={() => setProfileTherapist(null)} />}
+    </>
   );
 }

@@ -51,6 +51,7 @@ type OutletRow = {
   deposit_applies_to: DepositPolicy["appliesTo"] | null;
   deposit_note: string | null;
   alarm_sound_url: string | null;
+  booking_window_days: number | null;
 };
 
 type OutletProfileRow = {
@@ -118,6 +119,7 @@ function mapOutlet(
       note: row.deposit_note ?? "",
     },
     alarmSoundUrl: row.alarm_sound_url,
+    bookingWindowDays: row.booking_window_days ?? 0,
     profile: {
       published: profile?.published ?? false,
       tagline: profile?.tagline ?? "",

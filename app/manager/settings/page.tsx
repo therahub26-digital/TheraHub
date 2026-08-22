@@ -1,6 +1,7 @@
 import Icon from "@/components/Icon";
 import { PageHead, Card, CardHead, Field, Switch, InfoNote } from "@/components/ui";
 import AlarmSoundSetting from "@/components/AlarmSoundSetting";
+import BookingWindowSetting from "@/components/BookingWindowSetting";
 import { PRIMARY_OUTLET, depositFor } from "@/lib/mock";
 import { getCurrentOutlet } from "@/lib/data/outlets";
 import { rp } from "@/lib/format";
@@ -206,6 +207,13 @@ export default async function OutletSettingsPage() {
           <CardHead title="Suara Alarm Sesi" sub="Bunyi yang terdengar terapis saat waktu sesi habis" />
           <div className="card-body">
             <AlarmSoundSetting outletId={realOutlet.id} currentUrl={realOutlet.alarmSoundUrl ?? null} />
+          </div>
+        </Card>
+
+        <Card>
+          <CardHead title="Jendela Booking Customer App" sub="Berapa hari ke depan tamu boleh booking sendiri" />
+          <div className="card-body">
+            <BookingWindowSetting outletId={realOutlet.id} currentDays={realOutlet.bookingWindowDays ?? 0} />
           </div>
         </Card>
       </div>

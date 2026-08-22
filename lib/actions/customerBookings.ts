@@ -68,9 +68,33 @@ export async function createCustomerBooking(input: CreateCustomerBookingInput): 
     return { ok: false, error: "Layanan dan terapis wajib dipilih." };
   }
 
-  const { data: outletRow } = await supabase.from("outlets").select("id, tenant_id").eq("id", input.outletId).maybeSingle();
+  const { data: outletRow } = await supabase
+    .from("outlets")
+    .select("id, tenant_id, booking_window_days")
+    .eq("id", input.outletId)
+    .maybeSingle();
   if (!outletRow || outletRow.tenant_id !== customerRow.tenant_id) {
     return { ok: false, error: "Outlet tidak ditemukan." };
+  }
+
+  // "booking bisa diatur admin H minus berapa, maksimal 3 hari kedepan,
+  // defaultnya hanya bisa dipesan hari H" — client-side <input max> in
+  // CustomerBookingForm already keeps a well-behaved browser inside this
+  // window, but that's trivially bypassable (devtools, direct action call),
+  // so the actual guarantee has to live here.
+  const windowDays = outletRow.booking_window_days ?? 0;
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const maxDateObj = new Date(now.getFullYear(), now.getMonth(), now.getDate() + windowDays);
+  const maxDateStr = `${maxDateObj.getFullYear()}-${String(maxDateObj.getMonth() + 1).padStart(2, "0")}-${String(maxDateObj.getDate()).padStart(2, "0")}`;
+  if (input.date < todayStr || input.date > maxDateStr) {
+    return {
+      ok: false,
+      error:
+        windowDays === 0
+          ? "Outlet ini hanya menerima booking untuk hari ini."
+          : `Booking hanya bisa dijadwalkan antara hari ini dan ${maxDateStr}.`,
+    };
   }
 
   const { data: pkg, error: pkgErr } = await supabase

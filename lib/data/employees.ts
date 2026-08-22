@@ -41,6 +41,7 @@ type EmployeeRow = {
   featured_badge: string | null;
   bio: string | null;
   photo_url: string | null;
+  gallery_urls: string[] | null;
   referred_by_employee_id: string | null;
   referral_fee_type: string | null;
   referral_fee_value: number | string | null;
@@ -72,6 +73,7 @@ function mapEmployee(row: EmployeeRow): Employee {
     featuredBadge: row.featured_badge ?? undefined,
     bio: row.bio ?? undefined,
     photoUrl: row.photo_url ?? undefined,
+    galleryUrls: row.gallery_urls ?? [],
     // "Belum diatur ≠ nol" — null means no referral relationship, not a
     // fee of zero. See lib/types.ts and supabase/migrations/0008_referral_fee.sql.
     referredByEmployeeId: row.referred_by_employee_id ?? undefined,

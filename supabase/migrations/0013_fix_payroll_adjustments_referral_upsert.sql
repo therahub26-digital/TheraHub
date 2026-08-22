@@ -1,0 +1,58 @@
+-- ---------------------------------------------------------------------
+-- 0013_fix_payroll_adjustments_referral_upsert.sql
+--
+-- BUG 6 (MOST SERIOUS FINDING OF THIS TEST CYCLE) found while running
+-- Langkah 4 (payroll) of Fase 16/17 end-to-end testing (2026-08-22):
+--
+-- The referral fee feature (Fase 16 — the entire point of this test
+-- cycle: Zahra refers, Lusi recruits, Rp5.000/session fee) has NEVER
+-- actually written anything to production. runPayroll()
+-- (lib/actions/payroll.ts) computes the referral deduction/earning
+-- rows correctly and calls:
+--
+--   await supabase.from("payroll_adjustments")
+--     .upsert(referralRows, { onConflict: "employee_id,ref" });
+--
+-- But `payroll_adjustments` has NO unique or exclusion constraint on
+-- (employee_id, ref) — only a primary key on `id`. Postgres rejects
+-- every such upsert outright:
+--
+--   ERROR: there is no unique or exclusion constraint matching the
+--   ON CONFLICT specification
+--
+-- Confirmed directly in the Postgres logs at the exact timestamp of a
+-- real "Hitung Payroll" click as manager (Sinta Maharani), and
+-- confirmed by querying payroll_adjustments for period 2026-08 /
+-- 2026-09 afterwards: 0 rows with ref ilike 'referral%' exist, despite
+-- Zahra (referred_by Lusi, fixed Rp5.000/session) having 120 qualifying
+-- commission slots this period — she should have a ~Rp600.000
+-- deduction and Lusi a matching ~Rp600.000 bonus.
+--
+-- The error is silently swallowed by design (the code doesn't check
+-- the upsert's result) so payroll "succeeds" and generates 12 payslips
+-- with a wrong total — nobody sees any error, the referral fee line
+-- just never appears, ever, for any period, since this table was
+-- created (verified: 0 existing duplicate (employee_id, ref) pairs, so
+-- this was never a "worked once, broke later" regression — it has
+-- likely never worked).
+--
+-- Fix: add the unique constraint the application code has always
+-- assumed exists. NULLs (every manually-entered adjustment row, which
+-- never sets `ref`) are unaffected — Postgres treats each NULL as
+-- distinct for uniqueness purposes, so this does not constrain manual
+-- rows at all, only the referral upsert's own (employee_id, ref) pairs.
+-- ---------------------------------------------------------------------
+
+alter table payroll_adjustments
+  add constraint payroll_adjustments_employee_ref_key unique (employee_id, ref);
+
+-- Verification (run after applying):
+--   1. Re-run "Hitung Payroll" for Agustus 2026 as manager.
+--   2. select e.name, pa.component, pa.kind, pa.amount, pa.ref
+--      from payroll_adjustments pa join employees e on e.id = pa.employee_id
+--      where pa.ref ilike 'referral%';
+--      -> should now show 2 rows: Zahra DEDUCTION ~Rp600.000 (OTHER_DEDUCTIONS),
+--         Lusi EARNING ~Rp600.000 (BONUS), matching amounts.
+--   3. Re-run "Hitung Payroll" a SECOND time for the same period and repeat
+--      query 2 — row count must stay the same (idempotency, the entire
+--      reason the code used upsert with onConflict in the first place).

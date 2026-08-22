@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Icon from "@/components/Icon";
-import { updatePackagePricing, updateExtensionPricing, type ActionResult } from "@/lib/actions/catalog";
+import { updatePackagePricing, updateExtensionPricing, createAddon, updateAddon, type ActionResult } from "@/lib/actions/catalog";
 import { commissionAmount, formatCommissionRule, type CommissionType } from "@/lib/commission";
 import { rp } from "@/lib/format";
 
@@ -202,5 +202,221 @@ export function ExtensionPricingEditor({
         updateExtensionPricing({ extensionId, price: newPrice, commissionType: type, commission: value })
       }
     />
+  );
+}
+
+// ---------------------------------------------------------------------
+// Add-ons (hot stone, oil/nuru massage, dll) — added 2026-08-22. Unlike
+// packages/extensions, add-ons had ZERO rows and no create path at all
+// when the user asked for this, so this needs both an edit form (for
+// rows that exist) AND a create form (for the first ones) — the plain
+// PricingEditor above doesn't cover name/duration/active, so this is a
+// separate small form rather than a variant of it.
+// ---------------------------------------------------------------------
+
+type AddonFormValues = {
+  name: string;
+  price: string;
+  commissionType: CommissionType;
+  commissionValue: string;
+  durationMin: string;
+  active: boolean;
+};
+
+function AddonFormFields({
+  values,
+  disabled,
+  onChange,
+}: {
+  values: AddonFormValues;
+  disabled: boolean;
+  onChange: (patch: Partial<AddonFormValues>) => void;
+}) {
+  const priceNum = Number(values.price);
+  const valueNum = Number(values.commissionValue);
+  const previewValid = Number.isFinite(priceNum) && Number.isFinite(valueNum) && valueNum > 0;
+  const preview = previewValid ? commissionAmount({ type: values.commissionType, value: valueNum }, priceNum) : 0;
+
+  return (
+    <>
+      <label className="stack g1">
+        <span className="tiny dim">Nama add-on</span>
+        <input className="input" value={values.name} disabled={disabled} placeholder="mis. Hot Stone" onChange={(e) => onChange({ name: e.target.value })} />
+      </label>
+
+      <label className="stack g1">
+        <span className="tiny dim">Harga (Rp)</span>
+        <input className="input" type="number" min={0} value={values.price} disabled={disabled} onChange={(e) => onChange({ price: e.target.value })} />
+      </label>
+
+      <label className="stack g1">
+        <span className="tiny dim">Komisi terapis</span>
+        <div className="row g2">
+          <select
+            className="select"
+            value={values.commissionType}
+            disabled={disabled}
+            onChange={(e) => onChange({ commissionType: e.target.value as CommissionType })}
+            style={{ maxWidth: 110 }}
+          >
+            <option value="fixed">Rupiah</option>
+            <option value="percent">Persen</option>
+          </select>
+          <input
+            className="input"
+            type="number"
+            min={0}
+            max={values.commissionType === "percent" ? 100 : undefined}
+            value={values.commissionValue}
+            disabled={disabled}
+            onChange={(e) => onChange({ commissionValue: e.target.value })}
+            style={{ flex: 1 }}
+          />
+        </div>
+      </label>
+
+      <label className="stack g1">
+        <span className="tiny dim">Tambahan durasi (menit — 0 kalau tidak menambah waktu sesi)</span>
+        <input className="input" type="number" min={0} value={values.durationMin} disabled={disabled} onChange={(e) => onChange({ durationMin: e.target.value })} />
+      </label>
+
+      {previewValid ? (
+        <div className="tiny" style={{ color: "var(--text-2)" }}>
+          {formatCommissionRule({ type: values.commissionType, value: valueNum })} → terapis dapat{" "}
+          <span className="strong" style={{ color: "var(--text-1)" }}>{rp(preview)}</span> per treatment
+        </div>
+      ) : (
+        <div className="tiny dim">Komisi belum diisi — terapis tidak akan dapat komisi dari item ini.</div>
+      )}
+
+      <label className="row g2" style={{ alignItems: "center" }}>
+        <input type="checkbox" checked={values.active} disabled={disabled} onChange={(e) => onChange({ active: e.target.checked })} />
+        <span className="small">Aktif — tampil sebagai pilihan add-on saat booking/checkout</span>
+      </label>
+    </>
+  );
+}
+
+/** Inline "Atur" editor for one existing add-on row (price/komisi/durasi/aktif). */
+export function AddonEditor({
+  addonId,
+  name,
+  price,
+  commissionType,
+  commission,
+  durationMin,
+  active,
+}: {
+  addonId: string;
+  name: string;
+  price: number;
+  commissionType: CommissionType;
+  commission: number;
+  durationMin: number;
+  active: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const initial: AddonFormValues = {
+    name, price: String(price), commissionType, commissionValue: String(commission), durationMin: String(durationMin), active,
+  };
+  const [values, setValues] = useState<AddonFormValues>(initial);
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  if (!open) {
+    return (
+      <button className="btn btn-ghost btn-sm" onClick={() => { setValues(initial); setError(null); setOpen(true); }}>
+        <Icon name="edit" size={12} /> Atur
+      </button>
+    );
+  }
+
+  return (
+    <div className="stack g2" style={{ padding: "12px 14px", borderRadius: "var(--r-md)", background: "var(--bg-deep)", border: "1px solid var(--border)", minWidth: 280 }}>
+      <AddonFormFields values={values} disabled={isPending} onChange={(patch) => setValues((v) => ({ ...v, ...patch }))} />
+
+      <ErrorNote error={error} />
+
+      <div className="row g2">
+        <button
+          className="btn btn-primary btn-sm"
+          disabled={isPending}
+          onClick={() => {
+            setError(null);
+            startTransition(async () => {
+              const r = await updateAddon({
+                addonId,
+                name: values.name,
+                price: Number(values.price),
+                commissionType: values.commissionType,
+                commissionValue: Number(values.commissionValue),
+                durationMin: Number(values.durationMin),
+                active: values.active,
+              });
+              if (r.ok) setOpen(false);
+              else setError(r.error);
+            });
+          }}
+        >
+          <Icon name="check" size={13} /> {isPending ? "Menyimpan…" : "Simpan"}
+        </button>
+        <button className="btn btn-ghost btn-sm" disabled={isPending} onClick={() => setOpen(false)}>
+          Batal
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** "Add-on Baru" — inline create form, opened from the Add-on Layanan card header. */
+export function NewAddonForm({ outletId }: { outletId: string }) {
+  const [open, setOpen] = useState(false);
+  const empty: AddonFormValues = { name: "", price: "0", commissionType: "fixed", commissionValue: "0", durationMin: "0", active: true };
+  const [values, setValues] = useState<AddonFormValues>(empty);
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  if (!open) {
+    return (
+      <button className="btn btn-ghost btn-sm" onClick={() => { setValues(empty); setError(null); setOpen(true); }}>
+        <Icon name="plus" size={12} /> Add-on Baru
+      </button>
+    );
+  }
+
+  return (
+    <div className="stack g2" style={{ padding: "12px 14px", borderRadius: "var(--r-md)", background: "var(--bg-deep)", border: "1px solid var(--border)", marginBottom: 4 }}>
+      <AddonFormFields values={values} disabled={isPending} onChange={(patch) => setValues((v) => ({ ...v, ...patch }))} />
+
+      <ErrorNote error={error} />
+
+      <div className="row g2">
+        <button
+          className="btn btn-primary btn-sm"
+          disabled={isPending}
+          onClick={() => {
+            setError(null);
+            startTransition(async () => {
+              const r = await createAddon({
+                outletId,
+                name: values.name,
+                price: Number(values.price),
+                commissionType: values.commissionType,
+                commissionValue: Number(values.commissionValue),
+                durationMin: Number(values.durationMin),
+                active: values.active,
+              });
+              if (r.ok) { setValues(empty); setOpen(false); }
+              else setError(r.error);
+            });
+          }}
+        >
+          <Icon name="check" size={13} /> {isPending ? "Menyimpan…" : "Simpan Add-on"}
+        </button>
+        <button className="btn btn-ghost btn-sm" disabled={isPending} onClick={() => setOpen(false)}>
+          Batal
+        </button>
+      </div>
+    </div>
   );
 }

@@ -1,7 +1,8 @@
 import Icon from "@/components/Icon";
 import { PageHead, Card, CardHead, StatCard, Badge, StatusBadge } from "@/components/ui";
-import { PromotionEditor } from "@/components/PromotionEditor";
+import { PromotionEditor, NewPromotionForm } from "@/components/PromotionEditor";
 import { getCurrentOutlet } from "@/lib/data/outlets";
+import { getEffectiveToday } from "@/lib/data/bookings";
 import { getPromotionsForOutlet, isLivePromotionsData } from "@/lib/data/promotions";
 import { fmtDateShort, num } from "@/lib/format";
 
@@ -14,7 +15,7 @@ const TYPE_TONE: Record<string, "success" | "info" | "gold" | "purple" | "warnin
 
 export default async function PromotionsPage() {
   const outlet = await getCurrentOutlet();
-  const [promos, live] = await Promise.all([getPromotionsForOutlet(outlet.id), isLivePromotionsData()]);
+  const [promos, live, today] = await Promise.all([getPromotionsForOutlet(outlet.id), isLivePromotionsData(), getEffectiveToday()]);
   const active = promos.filter((p) => p.status === "ACTIVE");
   const scheduled = promos.filter((p) => p.status === "SCHEDULED");
   const totalUsage = promos.reduce((s, p) => s + p.usageCount, 0);
@@ -24,7 +25,6 @@ export default async function PromotionsPage() {
       <PageHead
         title="Promo & Membership"
         desc={`${outlet.name} · Voucher, diskon, prepaid package, membership, dan loyalty point.`}
-        actions={<button className="btn btn-primary btn-sm"><Icon name="plus" size={14} /> Promo Baru</button>}
       />
 
       <div className="grid grid-4" style={{ marginBottom: 20 }}>
@@ -35,7 +35,19 @@ export default async function PromotionsPage() {
       </div>
 
       <Card>
-        <CardHead title="Daftar Promo & Membership" sub={`${promos.length} program di outlet ini`} />
+        <CardHead
+          title="Daftar Promo & Membership"
+          sub={`${promos.length} program di outlet ini`}
+          action={
+            live ? (
+              <NewPromotionForm outletId={outlet.id} today={today} />
+            ) : (
+              <button className="btn btn-primary btn-sm" disabled title="Buat promo baru butuh sesi login sungguhan (bukan viewer demo).">
+                <Icon name="plus" size={14} /> Promo Baru
+              </button>
+            )
+          }
+        />
         <div className="table-wrap">
           <table className="tbl">
             <thead>

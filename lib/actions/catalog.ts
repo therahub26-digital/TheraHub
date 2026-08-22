@@ -118,6 +118,123 @@ export async function updateExtensionPricing(input: UpdateExtensionPricingInput)
   return { ok: true };
 }
 
+// ---------------------------------------------------------------------
+// Add-ons (hot stone, oil/nuru massage, etc.) — added 2026-08-22, user
+// feedback: "add on layanan biasanya ada tambahan misal: hot stone, oil
+// (nuru massage), dll". The `add_ons` table + RLS (add_ons_write —
+// manager for their own outlet, or admin/owner tenant-wide, identical
+// shape to service_packages_write/extension_options_write above) already
+// existed since the baseline migration; what was missing was any write
+// path at all — getAddonsForOutlet() (lib/data/catalog.ts) could only
+// ever show 0 rows because nothing could create one. This is a manager-
+// facing action living on /manager/catalog, same page as package/
+// extension pricing, for the same reason: an add-on's price and
+// commission are outlet-specific (an outlet may not even offer hot
+// stone), so the manager who runs that outlet is the natural owner —
+// admin/owner can still write here too since the RLS allows it, but
+// there's no separate admin-only add-on screen, matching how packages
+// and extensions already work.
+// ---------------------------------------------------------------------
+
+function validateAddonName(name: string): string | null {
+  if (!name.trim()) return "Nama add-on tidak boleh kosong.";
+  return null;
+}
+
+export type CreateAddonInput = {
+  outletId: string;
+  name: string;
+  price: number;
+  commissionType: CommissionType;
+  commissionValue: number;
+  durationMin: number;
+  active: boolean;
+};
+
+export async function createAddon(input: CreateAddonInput): Promise<ActionResult> {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Sesi tidak ditemukan — silakan login ulang." };
+
+  const nameErr = validateAddonName(input.name);
+  if (nameErr) return { ok: false, error: nameErr };
+  const priceErr = validatePrice(input.price);
+  if (priceErr) return { ok: false, error: priceErr };
+  const commErr = validateCommission(input.commissionType, input.commissionValue);
+  if (commErr) return { ok: false, error: commErr };
+  if (!Number.isFinite(input.durationMin) || input.durationMin < 0) {
+    return { ok: false, error: "Durasi tambahan harus angka dan tidak boleh negatif." };
+  }
+
+  const { error } = await supabase.from("add_ons").insert({
+    outlet_id: input.outletId,
+    name: input.name.trim(),
+    price: input.price,
+    commission_type: input.commissionType,
+    commission: input.commissionValue,
+    duration_min: input.durationMin,
+    active: input.active,
+  });
+
+  if (error) {
+    return { ok: false, error: "Gagal menyimpan — pastikan akun Anda punya hak ubah katalog." };
+  }
+
+  revalidateCatalog();
+  return { ok: true };
+}
+
+export type UpdateAddonInput = {
+  addonId: string;
+  name: string;
+  price: number;
+  commissionType: CommissionType;
+  commissionValue: number;
+  durationMin: number;
+  active: boolean;
+};
+
+export async function updateAddon(input: UpdateAddonInput): Promise<ActionResult> {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Sesi tidak ditemukan — silakan login ulang." };
+
+  const nameErr = validateAddonName(input.name);
+  if (nameErr) return { ok: false, error: nameErr };
+  const priceErr = validatePrice(input.price);
+  if (priceErr) return { ok: false, error: priceErr };
+  const commErr = validateCommission(input.commissionType, input.commissionValue);
+  if (commErr) return { ok: false, error: commErr };
+  if (!Number.isFinite(input.durationMin) || input.durationMin < 0) {
+    return { ok: false, error: "Durasi tambahan harus angka dan tidak boleh negatif." };
+  }
+
+  const { error } = await supabase
+    .from("add_ons")
+    .update({
+      name: input.name.trim(),
+      price: input.price,
+      commission_type: input.commissionType,
+      commission: input.commissionValue,
+      duration_min: input.durationMin,
+      active: input.active,
+    })
+    .eq("id", input.addonId);
+
+  if (error) {
+    return { ok: false, error: "Gagal menyimpan — pastikan akun Anda punya hak ubah katalog." };
+  }
+
+  revalidateCatalog();
+  return { ok: true };
+}
+
 function revalidateCatalog() {
   revalidatePath("/manager/catalog");
   revalidatePath("/admin/master");

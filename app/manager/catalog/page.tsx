@@ -4,7 +4,7 @@ import { getCurrentOutlet } from "@/lib/data/outlets";
 import { getCategories, getServiceTypes, getPackagesForOutlet, getExtensionsForOutlet, getAddonsForOutlet } from "@/lib/data/catalog";
 import { rp, minutesToHm } from "@/lib/format";
 import { formatCommissionRule, commissionAmount } from "@/lib/commission";
-import { PackagePricingEditor, ExtensionPricingEditor } from "@/components/CommissionEditor";
+import { PackagePricingEditor, ExtensionPricingEditor, AddonEditor, NewAddonForm } from "@/components/CommissionEditor";
 
 export default async function CatalogPage() {
   const outlet = await getCurrentOutlet();
@@ -145,7 +145,11 @@ export default async function CatalogPage() {
         </Card>
 
         <Card>
-          <CardHead title="Add-on Layanan" sub="Layanan tambahan opsional" />
+          <CardHead
+            title="Add-on Layanan"
+            sub="Layanan tambahan opsional — mis. hot stone, oil/nuru massage"
+            action={<NewAddonForm outletId={outlet.id} />}
+          />
           <div className="card-body stack g2">
             {addons.map((a) => (
               <div key={a.id} className="row between small" style={{ padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
@@ -161,9 +165,19 @@ export default async function CatalogPage() {
                 <div className="row g3">
                   <span className="strong" style={{ color: "var(--text-1)" }}>{rp(a.price)}</span>
                   <Badge tone={a.active ? "success" : "neutral"} dot>{a.active ? "Aktif" : "Nonaktif"}</Badge>
+                  <AddonEditor
+                    addonId={a.id}
+                    name={a.name}
+                    price={a.price}
+                    commissionType={a.commissionType}
+                    commission={a.commission}
+                    durationMin={a.durationMin}
+                    active={a.active}
+                  />
                 </div>
               </div>
             ))}
+            {addons.length === 0 && <div className="small dim">Belum ada add-on. Tekan "Add-on Baru" untuk menambahkan.</div>}
           </div>
         </Card>
       </div>

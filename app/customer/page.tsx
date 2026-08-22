@@ -2,14 +2,47 @@ import Link from "next/link";
 import Icon from "@/components/Icon";
 import { Badge } from "@/components/ui";
 import MobileShell from "@/components/MobileShell";
-import { ME_CUSTOMER, BOOKINGS, PROMOTIONS, PRIMARY_OUTLET, OUTLETS, TODAY } from "@/lib/mock";
+import { getCurrentCustomer } from "@/lib/data/customers";
+import { getBookingsForCustomer, getEffectiveToday } from "@/lib/data/bookings";
+import { getOutlets } from "@/lib/data/outlets";
+import { getPromotionsForOutlet } from "@/lib/data/promotions";
+import { ME_CUSTOMER, BOOKINGS as MOCK_BOOKINGS, PROMOTIONS as MOCK_PROMOTIONS, PRIMARY_OUTLET, OUTLETS as MOCK_OUTLETS, TODAY as MOCK_TODAY } from "@/lib/mock";
 import { rp, fmtTime, fmtDateLong } from "@/lib/format";
 
-export default function CustomerHomePage() {
-  const me = ME_CUSTOMER;
-  const myBookings = BOOKINGS.filter((b) => b.customerId === me.id).sort((a, b) => a.date.localeCompare(b.date));
-  const upcoming = myBookings.find((b) => b.date >= TODAY && ["BOOKED", "CONFIRMED", "ARRIVED", "CHECKED_IN"].includes(b.status));
-  const promos = PROMOTIONS.filter((p) => p.status === "ACTIVE" && p.outletId === PRIMARY_OUTLET.id).slice(0, 3);
+// ---------------------------------------------------------------------
+// UPDATE 2026-08-22 — migrated off the hard-coded ME_CUSTOMER/BOOKINGS/
+// PROMOTIONS/PRIMARY_OUTLET/OUTLETS mock fixtures to real Supabase data,
+// per user request "halaman konsumen migrasi ke data real". Same
+// dual-mode convention as every other portal page: getCurrentCustomer()
+// returns null for a demo/"Ganti Role" viewer (no real customer session)
+// -> fall back to the mock fixtures so that showcase experience is
+// unchanged; a real signed-in customer sees their own real data.
+//
+// "Home outlet" for a customer (no outlet_id on `customers`, see
+// lib/data/customers.ts's file header) is resolved as: the outlet of
+// their most recent booking if they have one, else the tenant's first
+// published outlet, else just the first outlet — same fallback chain a
+// brand-new customer with zero bookings needs.
+// ---------------------------------------------------------------------
+
+export default async function CustomerHomePage() {
+  const customer = await getCurrentCustomer();
+  const live = customer !== null;
+
+  const me = customer ?? ME_CUSTOMER;
+  const effectiveToday = live ? await getEffectiveToday() : MOCK_TODAY;
+  const myBookings = live
+    ? (await getBookingsForCustomer(me.id)).sort((a, b) => a.date.localeCompare(b.date))
+    : MOCK_BOOKINGS.filter((b) => b.customerId === me.id).sort((a, b) => a.date.localeCompare(b.date));
+  const upcoming = myBookings.find((b) => b.date >= effectiveToday && ["BOOKED", "CONFIRMED", "ARRIVED", "CHECKED_IN"].includes(b.status));
+
+  const outlets = live ? await getOutlets() : MOCK_OUTLETS;
+  const published = outlets.filter((o) => o.profile.published);
+
+  const homeOutletId = upcoming?.outletId ?? published[0]?.id ?? outlets[0]?.id ?? PRIMARY_OUTLET.id;
+  const promos = live
+    ? (await getPromotionsForOutlet(homeOutletId)).filter((p) => p.status === "ACTIVE").slice(0, 3)
+    : MOCK_PROMOTIONS.filter((p) => p.status === "ACTIVE" && p.outletId === PRIMARY_OUTLET.id).slice(0, 3);
 
   return (
     <MobileShell
@@ -60,8 +93,8 @@ export default function CustomerHomePage() {
                 <Badge tone="info">{upcoming.status.replace(/_/g, " ")}</Badge>
               </div>
               <div className="tiny dim" style={{ marginBottom: 2 }}>{fmtDateLong(upcoming.date)} · {fmtTime(upcoming.scheduledStart)}</div>
-              <div className="tiny dim">{upcoming.therapistName} · {upcoming.roomName}</div>
-              {upcoming.date !== TODAY && (
+              <div className="tiny dim">{upcoming.therapistName || "—"} · {upcoming.roomName || "Room ditentukan saat check-in"}</div>
+              {upcoming.date !== effectiveToday && (
                 <div
                   className="row g2"
                   style={{
@@ -84,7 +117,7 @@ export default function CustomerHomePage() {
         <div>
           <div className="m-section">Pilih Outlet Favorit Anda</div>
           <div className="row g2" style={{ overflowX: "auto", paddingBottom: 4 }}>
-            {OUTLETS.filter((o) => o.profile.published).map((o) => (
+            {published.map((o) => (
               <Link
                 key={o.id}
                 href={`/customer/outlets/${o.id}`}
@@ -104,41 +137,46 @@ export default function CustomerHomePage() {
                 </span>
               </Link>
             ))}
+            {published.length === 0 && <div className="small dim">Belum ada outlet yang dipublikasikan.</div>}
           </div>
         </div>
 
-        <div>
-          <div className="m-section">Promo Untuk Anda</div>
-          <div className="stack g2">
-            {promos.map((p) => (
-              <div key={p.id} className="m-list-link">
-                <span className="stat-icon" style={{ width: 34, height: 34, borderRadius: 9, flexShrink: 0 }}>
-                  <Icon name="ticket" size={15} />
-                </span>
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div className="small bold truncate" style={{ color: "var(--text-1)" }}>{p.name}</div>
-                  <div className="tiny dim truncate">{p.value}</div>
+        {promos.length > 0 && (
+          <div>
+            <div className="m-section">Promo Untuk Anda</div>
+            <div className="stack g2">
+              {promos.map((p) => (
+                <div key={p.id} className="m-list-link">
+                  <span className="stat-icon" style={{ width: 34, height: 34, borderRadius: 9, flexShrink: 0 }}>
+                    <Icon name="ticket" size={15} />
+                  </span>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div className="small bold truncate" style={{ color: "var(--text-1)" }}>{p.name}</div>
+                    <div className="tiny dim truncate">{p.value}</div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
-        <div>
-          <div className="m-section">Favorit Anda</div>
-          <div className="row g2">
-            <div className="m-stat">
-              <Icon name="hand-heart" size={16} style={{ color: "var(--accent)", marginBottom: 6 }} />
-              <div className="tiny bold truncate" style={{ color: "var(--text-1)" }}>{me.favoriteTherapist}</div>
-              <div className="tiny dim">Terapis favorit</div>
-            </div>
-            <div className="m-stat">
-              <Icon name="sparkles" size={16} style={{ color: "var(--accent)", marginBottom: 6 }} />
-              <div className="tiny bold truncate" style={{ color: "var(--text-1)" }}>{me.favoriteService}</div>
-              <div className="tiny dim">Layanan favorit</div>
+        {(me.favoriteTherapist || me.favoriteService) && (
+          <div>
+            <div className="m-section">Favorit Anda</div>
+            <div className="row g2">
+              <div className="m-stat">
+                <Icon name="hand-heart" size={16} style={{ color: "var(--accent)", marginBottom: 6 }} />
+                <div className="tiny bold truncate" style={{ color: "var(--text-1)" }}>{me.favoriteTherapist || "—"}</div>
+                <div className="tiny dim">Terapis favorit</div>
+              </div>
+              <div className="m-stat">
+                <Icon name="sparkles" size={16} style={{ color: "var(--accent)", marginBottom: 6 }} />
+                <div className="tiny bold truncate" style={{ color: "var(--text-1)" }}>{me.favoriteService || "—"}</div>
+                <div className="tiny dim">Layanan favorit</div>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </MobileShell>
   );

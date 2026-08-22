@@ -3,14 +3,31 @@ import { notFound } from "next/navigation";
 import Icon from "@/components/Icon";
 import { Badge, Avatar } from "@/components/ui";
 import MobileShell from "@/components/MobileShell";
-import { OUTLETS, outletOf, featuredTherapistsOf } from "@/lib/mock";
+import { getOutletById, getOutlets } from "@/lib/data/outlets";
+import { getTherapistsForOutlet } from "@/lib/data/employees";
+import { getCurrentCustomer } from "@/lib/data/customers";
+import { OUTLETS as MOCK_OUTLETS, outletOf, featuredTherapistsOf } from "@/lib/mock";
+
+// ---------------------------------------------------------------------
+// UPDATE 2026-08-22 — migrated off the OUTLETS/outletOf/featuredTherapistsOf
+// mock fixtures to real Supabase data (same dual-mode convention as the
+// rest of /customer/*). getOutletById()/getTherapistsForOutlet() were
+// already dual-mode (lib/data/outlets.ts, lib/data/employees.ts, built in
+// earlier phases for the staff portals) — this page is simply the first
+// customer-facing page to actually call them with a real session.
+// ---------------------------------------------------------------------
 
 export default async function OutletPublicProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  if (!OUTLETS.some((o) => o.id === id)) notFound();
-  const outlet = outletOf(id);
+  const customer = await getCurrentCustomer();
+  const live = customer !== null;
+
+  const outlets = live ? await getOutlets() : MOCK_OUTLETS;
+  if (!outlets.some((o) => o.id === id)) notFound();
+  const outlet = live ? await getOutletById(id) : outletOf(id);
+  if (!outlet) notFound();
   const p = outlet.profile;
-  const featured = featuredTherapistsOf(outlet.id);
+  const featured = live ? (await getTherapistsForOutlet(outlet.id)).filter((t) => t.featured) : featuredTherapistsOf(outlet.id);
 
   return (
     <MobileShell
@@ -113,7 +130,7 @@ export default async function OutletPublicProfilePage({ params }: { params: Prom
         <div className="row g2">
           <div className="m-stat">
             <Icon name="clock" size={15} style={{ color: "var(--accent)", marginBottom: 6 }} />
-            <div className="tiny bold truncate" style={{ color: "var(--text-1)" }}>{outlet.openHours.split("· ")[1]}</div>
+            <div className="tiny bold truncate" style={{ color: "var(--text-1)" }}>{outlet.openHours.split("· ")[1] ?? outlet.openHours}</div>
             <div className="tiny dim">Jam Operasional</div>
           </div>
           <div className="m-stat">
@@ -128,57 +145,61 @@ export default async function OutletPublicProfilePage({ params }: { params: Prom
           </Link>
         </div>
 
-        <div>
-          <div className="m-section">Fasilitas</div>
-          <div className="stack g2">
-            {p.facilities.map((f) => (
-              <div key={f.name} className="m-list-link">
-                <span className="stat-icon" style={{ width: 34, height: 34, borderRadius: 9, flexShrink: 0 }}>
-                  <Icon name={f.icon} size={15} />
-                </span>
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div className="small bold truncate" style={{ color: "var(--text-1)" }}>{f.name}</div>
-                  <div className="tiny dim">{f.desc}</div>
+        {p.facilities.length > 0 && (
+          <div>
+            <div className="m-section">Fasilitas</div>
+            <div className="stack g2">
+              {p.facilities.map((f) => (
+                <div key={f.name} className="m-list-link">
+                  <span className="stat-icon" style={{ width: 34, height: 34, borderRadius: 9, flexShrink: 0 }}>
+                    <Icon name={f.icon} size={15} />
+                  </span>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div className="small bold truncate" style={{ color: "var(--text-1)" }}>{f.name}</div>
+                    <div className="tiny dim">{f.desc}</div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
-        <div>
-          <div className="m-section">Galeri</div>
-          <div className="grid grid-2" style={{ gap: 8 }}>
-            {p.gallery.map((g, i) => (
-              <div
-                key={i}
-                style={{
-                  position: "relative", height: 96, borderRadius: "var(--r-md)", overflow: "hidden",
-                  border: "1px solid var(--border)", background: "var(--bg-surface-2)",
-                }}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={g.src}
-                  alt={g.label}
-                  style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
-                />
+        {p.gallery.length > 0 && (
+          <div>
+            <div className="m-section">Galeri</div>
+            <div className="grid grid-2" style={{ gap: 8 }}>
+              {p.gallery.map((g, i) => (
                 <div
-                  aria-hidden
+                  key={i}
                   style={{
-                    position: "absolute", inset: 0,
-                    background: "linear-gradient(180deg, transparent 40%, rgba(3,7,12,0.82) 100%)",
+                    position: "relative", height: 96, borderRadius: "var(--r-md)", overflow: "hidden",
+                    border: "1px solid var(--border)", background: "var(--bg-surface-2)",
                   }}
-                />
-                <span
-                  className="tiny bold truncate"
-                  style={{ position: "absolute", left: 8, right: 8, bottom: 7, color: "#fff" }}
                 >
-                  {g.label}
-                </span>
-              </div>
-            ))}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={g.src}
+                    alt={g.label}
+                    style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
+                  />
+                  <div
+                    aria-hidden
+                    style={{
+                      position: "absolute", inset: 0,
+                      background: "linear-gradient(180deg, transparent 40%, rgba(3,7,12,0.82) 100%)",
+                    }}
+                  />
+                  <span
+                    className="tiny bold truncate"
+                    style={{ position: "absolute", left: 8, right: 8, bottom: 7, color: "#fff" }}
+                  >
+                    {g.label}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {featured.length > 0 && (
           <div>
@@ -192,16 +213,16 @@ export default async function OutletPublicProfilePage({ params }: { params: Prom
               {featured.map((t) => (
                 <div key={t.id} className="m-card m-card-tight">
                   <div className="row g3">
-                    <Avatar name={t.name} toneKey={t.avatarTone} size={42} />
+                    <Avatar name={t.name} toneKey={t.avatarTone} photoUrl={t.photoUrl} size={42} />
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div className="row g2 wrap" style={{ marginBottom: 2 }}>
                         <span className="small bold truncate" style={{ color: "var(--text-1)" }}>{t.name}</span>
-                        <Badge tone="gold" icon="star">{t.featuredBadge}</Badge>
+                        {t.featuredBadge && <Badge tone="gold" icon="star">{t.featuredBadge}</Badge>}
                       </div>
-                      <div className="tiny dim">{t.therapistGrade} · ★ {t.rating}</div>
+                      {t.therapistGrade && <div className="tiny dim">{t.therapistGrade}</div>}
                     </div>
                   </div>
-                  <div className="tiny muted" style={{ marginTop: 8, lineHeight: 1.65 }}>{t.bio}</div>
+                  {t.bio && <div className="tiny muted" style={{ marginTop: 8, lineHeight: 1.65 }}>{t.bio}</div>}
                   <div className="row g2 wrap" style={{ marginTop: 8 }}>
                     {t.skills.slice(0, 3).map((s) => (
                       <span key={s} className="chip">{s}</span>
@@ -213,7 +234,7 @@ export default async function OutletPublicProfilePage({ params }: { params: Prom
           </div>
         )}
 
-        <Link href="/customer/book" className="m-btn m-btn-primary">
+        <Link href={`/customer/book?outlet=${outlet.id}`} className="m-btn m-btn-primary">
           <Icon name="calendar-plus" size={15} /> Booking di Outlet Ini
         </Link>
       </div>

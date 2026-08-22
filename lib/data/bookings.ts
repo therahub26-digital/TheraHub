@@ -190,6 +190,25 @@ export async function getBookingsForOutlet(outletId: string, date?: string): Pro
   return bookings.filter((b) => b.outletId === outletId && (!date || b.date === date));
 }
 
+/**
+ * A single customer's own bookings, across EVERY outlet they've visited —
+ * unlike getBookingsForOutlet(), not scoped to one outlet, because
+ * `customers` (and therefore a customer's own history) isn't tied to one
+ * outlet either (see lib/data/customers.ts's file header). Added
+ * 2026-08-22 for the customer portal (/customer/history, /customer/page
+ * "upcoming booking" card, getCurrentCustomer()'s visit-history math).
+ *
+ * Same live/mock split as every other getter here: in live mode this is
+ * already RLS-scoped to the signed-in customer's own rows
+ * (bookings_customer policy), so filtering by customerId here is a
+ * belt-and-suspenders no-op for the live case — it matters for mock mode,
+ * where MOCK_BOOKINGS has every demo customer's rows mixed together.
+ */
+export async function getBookingsForCustomer(customerId: string): Promise<Booking[]> {
+  const { bookings } = await loadBookingsData();
+  return bookings.filter((b) => b.customerId === customerId);
+}
+
 export async function getBookingsToday(outletId: string): Promise<Booking[]> {
   const today = await getEffectiveToday();
   return getBookingsForOutlet(outletId, today);

@@ -304,12 +304,21 @@ table { border-collapse: collapse; width: 100%; }
 .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .grid-auto { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
 
+/* Room cards (Rooms page) — user feedback (2026-08-22): 3-per-row cards
+   were too tall/wide for a 12-room outlet, most of it whitespace. Packs
+   more per row on desktop; card-pad's own padding/spacing is tightened
+   inline in app/manager/rooms/page.tsx, not here (that's content, not
+   grid shape). */
+.grid-rooms { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s-3); }
+
 @media (max-width: 1180px) {
   .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid-rooms { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 720px) {
   .grid-2, .grid-3, .grid-4 { grid-template-columns: minmax(0, 1fr); }
+  .grid-rooms { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 /* ============================ ANIMATIONS ============================ */

@@ -50,7 +50,11 @@ export default async function BookingsPage({
   const outlet = await getCurrentOutlet();
   const today = await getEffectiveToday();
   const date = sp.date ?? today;
-  const view = sp.view ?? "calendar";
+  // Default view is "list", not "calendar" — user feedback (2026-08-22):
+  // the daily grid rarely fits a manager's actual workflow (scan today's
+  // bookings, click into check-in), the list view already serves that
+  // better. "Kalender" tab is still one click away for the day-shape view.
+  const view = sp.view ?? "list";
   const [rawBookings, rawTherapists, availableRooms] = await Promise.all([
     getBookingsForOutlet(outlet.id, date),
     getTherapistsForOutlet(outlet.id),

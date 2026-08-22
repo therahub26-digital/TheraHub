@@ -92,8 +92,8 @@ export default async function RoomsPage() {
                     <Icon name={alerted ? "hand" : (TYPE_ICON[r.type] ?? "door-open")} size={14} />
                   </span>
                   <div>
-                    <div className="strong truncate" style={{ color: "var(--text-1)", fontSize: 13, maxWidth: 110 }}>{r.name}</div>
-                    <div className="tiny dim truncate" style={{ maxWidth: 110 }}>{alerted ? "Minta bantuan!" : `${r.code} · ${r.type}`}</div>
+                    <div className="strong truncate" style={{ color: "var(--text-1)", fontSize: 13, maxWidth: 160 }}>{r.name}</div>
+                    <div className="tiny dim truncate" style={{ maxWidth: 160 }}>{alerted ? "Minta bantuan!" : `${r.code} · ${r.type}`}</div>
                   </div>
                 </div>
                 <Badge tone={alerted ? "danger" : (tone as "warning" | "accent" | "success" | "neutral")} dot>{alerted ? "Bantuan" : status}</Badge>

@@ -10,14 +10,16 @@ import { commissionAmount, commissionRuleSnapshot, type CommissionType } from "@
 // module (5th in the Fase 5 order: outlets -> employees -> booking ->
 // sesi -> TRANSAKSI -> komisi -> payroll).
 //
-// Scope for this round: bill a single COMPLETED session as one
-// transaction with one line item (the service package), matching the
-// "Bayar" button already present in /kasir/sessions. This deliberately
-// does NOT cover the full multi-item cart with product add-ons/discounts/
-// vouchers shown in /kasir/pos's presentational mock — that is a much
-// bigger feature (line-item editing, discount authorization, split
-// payment) and is left out of scope, same "sengaja belum dipindah"
-// pattern used for other partially-migrated pages. See the roadmap doc.
+// Bills a single COMPLETED session as one transaction. Always includes
+// the service package; adds any APPROVED extensions; and, since
+// 2026-08-23, any add-on / retail product the kasir rang up at the
+// counter via /kasir/pos (the `extraItems` argument below).
+//
+// The one-line "Bayar" button in /kasir/sessions calls this with no
+// extraItems, which is exactly the old behaviour — the cart is additive,
+// not a second code path. Still deliberately OUT of scope: split
+// payment across methods, and free-form discount authorization (only
+// promo CODES, validated server-side, can move the price).
 //
 // Runs as the signed-in kasir's own Supabase client (never the
 // service-role client), so 0002_rls_policies.sql's `transactions_staff` /
@@ -37,7 +39,21 @@ function receiptNo(prefix: string, date: string): string {
 
 export type PaymentMethod = "Cash" | "QRIS" | "Debit Card" | "Credit Card" | "Transfer" | "E-Wallet";
 
-export async function payForSession(sessionId: string, paymentMethod: PaymentMethod, promoCode?: string): Promise<ActionResult> {
+/**
+ * One extra line the kasir added at the POS counter, on top of the
+ * treatment itself. Carries only an id and a quantity ON PURPOSE — the
+ * price is ALWAYS re-read from the database below, never taken from the
+ * client. A cart posted from a tampered browser can ask to buy things;
+ * it can never say what they cost.
+ */
+export type PosExtraItem = { kind: "ADD_ON" | "PRODUCT"; id: string; qty: number };
+
+export async function payForSession(
+  sessionId: string,
+  paymentMethod: PaymentMethod,
+  promoCode?: string,
+  extraItems?: PosExtraItem[]
+): Promise<ActionResult> {
   const supabase = await createClient();
 
   const {
@@ -138,7 +154,127 @@ export async function payForSession(sessionId: string, paymentMethod: PaymentMet
   }
   const extensionTotal = billedExtensions.reduce((s, e) => s + e.price, 0);
 
-  const subtotal = packagePrice + extensionTotal;
+  // ---------------------------------------------------------------
+  // POS cart extras (2026-08-23) — add-ons and retail products the
+  // kasir rang up alongside the treatment.
+  //
+  // Every price here is re-read from the database, and every row is
+  // re-checked for being sellable at THIS outlet right now. The client
+  // only ever names an id and a quantity (see PosExtraItem). Products
+  // that track stock are also checked for sufficient balance BEFORE the
+  // transaction row is written, so a sale that would drive stock
+  // negative is refused while refusing is still free — after the insert
+  // the guest has paid and refusing is no longer an option.
+  // ---------------------------------------------------------------
+  type BilledExtra = {
+    kind: "ADD_ON" | "PRODUCT";
+    productId: string | null;
+    name: string;
+    qty: number;
+    unitPrice: number;
+    /** Per-unit therapist commission. Products earn none. */
+    commissionPerUnit: number;
+    tracksStock: boolean;
+    unitCost: number;
+  };
+  const billedExtras: BilledExtra[] = [];
+
+  // Quantities are normalised, not trusted: floored to whole units (you
+  // cannot sell 1.5 bottles over the counter) and capped, so a crafted
+  // request cannot ring up a nine-figure line. The cap is deliberately
+  // generous for a single counter sale rather than a guess at inventory —
+  // stock-tracked products are separately held to their real balance below.
+  const MAX_LINE_QTY = 99;
+  const cleanExtras = (extraItems ?? [])
+    .map((e) => ({ ...e, qty: Math.floor(e.qty) }))
+    .filter((e) => Number.isFinite(e.qty) && e.qty > 0)
+    .map((e) => ({ ...e, qty: Math.min(e.qty, MAX_LINE_QTY) }));
+  if (cleanExtras.length > 0) {
+    const addOnIds = [...new Set(cleanExtras.filter((e) => e.kind === "ADD_ON").map((e) => e.id))];
+    const productIds = [...new Set(cleanExtras.filter((e) => e.kind === "PRODUCT").map((e) => e.id))];
+
+    const [{ data: addOnRows }, { data: productRows }] = await Promise.all([
+      addOnIds.length
+        ? supabase
+            .from("add_ons")
+            .select("id, name, price, commission_type, commission, active")
+            .eq("outlet_id", session.outlet_id)
+            .in("id", addOnIds)
+        : Promise.resolve({ data: [] as { id: string; name: string; price: number | string; commission_type: string | null; commission: number | string | null; active: boolean }[] }),
+      productIds.length
+        ? supabase.from("products").select("id, name, sell_price, cost_price, track_stock").in("id", productIds)
+        : Promise.resolve({ data: [] as { id: string; name: string; sell_price: number | string | null; cost_price: number | string | null; track_stock: boolean }[] }),
+    ]);
+
+    const addOnById = new Map((addOnRows ?? []).map((a) => [a.id, a]));
+    const productById = new Map((productRows ?? []).map((pr) => [pr.id, pr]));
+
+    for (const item of cleanExtras) {
+      if (item.kind === "ADD_ON") {
+        const addOn = addOnById.get(item.id);
+        if (!addOn) return { ok: false, error: "Ada add-on di keranjang yang tidak tersedia di outlet ini — muat ulang halaman." };
+        if (!addOn.active) return { ok: false, error: `Add-on "${addOn.name}" sedang tidak aktif — hapus dari keranjang.` };
+        const price = Number(addOn.price);
+        const rule = { type: (addOn.commission_type ?? "fixed") as CommissionType, value: Number(addOn.commission ?? 0) };
+        billedExtras.push({
+          kind: "ADD_ON",
+          productId: null,
+          name: addOn.name,
+          qty: item.qty,
+          unitPrice: price,
+          commissionPerUnit: commissionAmount(rule, price),
+          tracksStock: false,
+          unitCost: 0,
+        });
+      } else {
+        const product = productById.get(item.id);
+        if (!product) return { ok: false, error: "Ada produk di keranjang yang tidak ditemukan — muat ulang halaman." };
+        // "Belum diatur ≠ nol": a product with no sell_price has never
+        // been priced for sale, which is not the same as being free.
+        if (product.sell_price === null) {
+          return { ok: false, error: `Produk "${product.name}" belum punya harga jual — atur dulu di menu Inventori.` };
+        }
+        billedExtras.push({
+          kind: "PRODUCT",
+          productId: product.id,
+          name: product.name,
+          qty: item.qty,
+          unitPrice: Number(product.sell_price),
+          commissionPerUnit: 0,
+          tracksStock: !!product.track_stock,
+          unitCost: Number(product.cost_price ?? 0),
+        });
+      }
+    }
+
+    // Stock sufficiency, checked once per product across the whole cart
+    // (the same product can legitimately appear on two lines).
+    const trackedNeed = new Map<string, number>();
+    for (const e of billedExtras) {
+      if (e.kind === "PRODUCT" && e.tracksStock && e.productId) {
+        trackedNeed.set(e.productId, (trackedNeed.get(e.productId) ?? 0) + e.qty);
+      }
+    }
+    if (trackedNeed.size > 0) {
+      const { data: stockRows } = await supabase
+        .from("product_stocks")
+        .select("product_id, qty")
+        .eq("outlet_id", session.outlet_id)
+        .in("product_id", [...trackedNeed.keys()]);
+      const onHand = new Map((stockRows ?? []).map((r) => [r.product_id as string, Number(r.qty)]));
+      for (const [productId, need] of trackedNeed) {
+        const have = onHand.get(productId) ?? 0;
+        if (have < need) {
+          const name = billedExtras.find((e) => e.productId === productId)?.name ?? "Produk";
+          return { ok: false, error: `Stok "${name}" tidak cukup di outlet ini (tersisa ${have}, diminta ${need}).` };
+        }
+      }
+    }
+  }
+
+  const extrasTotal = billedExtras.reduce((sum, e) => sum + e.unitPrice * e.qty, 0);
+
+  const subtotal = packagePrice + extensionTotal + extrasTotal;
   const serviceCharge = Math.round((subtotal * Number(outlet.service_charge_pct)) / 100);
   const tax = Math.round(((subtotal + serviceCharge) * Number(outlet.tax_pct)) / 100);
 
@@ -215,6 +351,25 @@ export async function payForSession(sessionId: string, paymentMethod: PaymentMet
     .single();
   if (txErr || !tx) return { ok: false, error: "Gagal menyimpan transaksi — coba lagi." };
 
+  // Line items are written AFTER the transaction row exists (they need
+  // its id), which opens a window where a failed item insert would leave
+  // a transaction with no lines — and, worse, one that the
+  // double-billing guard at the top of this function would then treat as
+  // proof the session was already paid, locking the guest out of paying
+  // at all. So an item failure unwinds the whole thing instead of
+  // leaving it half-written. Same rollback discipline as
+  // createAndCompleteStockTransfer() in lib/actions/inventory.ts, added
+  // there after a half-written transfer silently destroyed real stock.
+  //
+  // Note this is deliberately unlike the commission / stock writes
+  // further down, which stay non-fatal: those happen after the money is
+  // committed and the guest is holding a receipt. Here nothing has been
+  // promised yet, so unwinding is still free.
+  async function rollbackTransaction() {
+    await supabase.from("transaction_items").delete().eq("transaction_id", tx!.id);
+    await supabase.from("transactions").delete().eq("id", tx!.id);
+  }
+
   const { error: itemErr } = await supabase.from("transaction_items").insert({
     transaction_id: tx.id,
     item_type: "SERVICE",
@@ -223,7 +378,10 @@ export async function payForSession(sessionId: string, paymentMethod: PaymentMet
     unit_price: packagePrice,
     therapist_id: session.therapist_id,
   });
-  if (itemErr) return { ok: false, error: "Transaksi tersimpan tapi item gagal disimpan — hubungi admin." };
+  if (itemErr) {
+    await rollbackTransaction();
+    return { ok: false, error: "Gagal menyimpan item transaksi — pembayaran dibatalkan, silakan coba lagi." };
+  }
 
   if (billedExtensions.length > 0) {
     const { error: extItemErr } = await supabase.from("transaction_items").insert(
@@ -236,7 +394,31 @@ export async function payForSession(sessionId: string, paymentMethod: PaymentMet
         therapist_id: session.therapist_id,
       }))
     );
-    if (extItemErr) return { ok: false, error: "Transaksi tersimpan tapi item extension gagal disimpan — hubungi admin." };
+    if (extItemErr) {
+      await rollbackTransaction();
+      return { ok: false, error: "Gagal menyimpan item extension — pembayaran dibatalkan, silakan coba lagi." };
+    }
+  }
+
+  if (billedExtras.length > 0) {
+    const { error: extraItemErr } = await supabase.from("transaction_items").insert(
+      billedExtras.map((e) => ({
+        transaction_id: tx.id,
+        item_type: e.kind,
+        name: e.name,
+        qty: e.qty,
+        unit_price: e.unitPrice,
+        // An add-on is performed by whoever did the treatment, so it is
+        // attributed to them. A retail product is just sold over the
+        // counter — attributing it to the therapist would put a service
+        // line's worth of credit on a bottle of oil.
+        therapist_id: e.kind === "ADD_ON" ? session.therapist_id : null,
+      }))
+    );
+    if (extraItemErr) {
+      await rollbackTransaction();
+      return { ok: false, error: "Gagal menyimpan item keranjang — pembayaran dibatalkan, silakan coba lagi." };
+    }
   }
 
   // Non-fatal on purpose, same reasoning as the commission-write below:
@@ -338,6 +520,89 @@ export async function payForSession(sessionId: string, paymentMethod: PaymentMet
     }
   }
 
+  // Add-on commission — same rules as the package and extension
+  // commissions above (earned at payment, frozen rule snapshot, written
+  // non-fatally). Its own row again, so a therapist reading their
+  // history can tell add-on earnings apart from the treatment itself.
+  if (session.therapist_id && billedExtras.length > 0) {
+    const addOnCommissionTotal = billedExtras.reduce((sum, e) => sum + e.commissionPerUnit * e.qty, 0);
+    if (addOnCommissionTotal > 0) {
+      const addOnLines = billedExtras.filter((e) => e.kind === "ADD_ON");
+      const label = addOnLines.length === 1 ? addOnLines[0].name : `${addOnLines.length}x Add-on`;
+      const addOnBasis = addOnLines.reduce((sum, e) => sum + e.unitPrice * e.qty, 0);
+      const { error: addOnCommissionErr } = await supabase.from("commission_entries").insert({
+        therapist_id: session.therapist_id,
+        outlet_id: session.outlet_id,
+        date,
+        booking_id: booking.id,
+        package_name: label,
+        rule_snapshot: `${label}: Rp${addOnCommissionTotal.toLocaleString("id-ID")} (add-on)`,
+        basis_amount: addOnBasis,
+        amount: addOnCommissionTotal,
+        status: "PENDING",
+      });
+      if (addOnCommissionErr) {
+        return { ok: false, error: "Pembayaran BERHASIL, tapi komisi add-on gagal dicatat — laporkan ke admin (transaksi tidak perlu diulang)." };
+      }
+    }
+  }
+
+  // Retail stock — a sold bottle has to leave the shelf. Written as the
+  // same PAIR the inventory module always writes (a stock_movements row
+  // for the audit trail AND a product_stocks balance update), never one
+  // without the other; see lib/actions/inventory.ts for why that pairing
+  // is non-negotiable here (babak ketiga belas: a half-written transfer
+  // lost real stock silently).
+  //
+  // Session client, not the admin client: a kasir selling at their own
+  // outlet is squarely inside what _is_outlet_staff already allows, so
+  // there is no RLS boundary to cross and no reason to reach for the
+  // service-role key.
+  const soldStockLines = billedExtras.filter((e) => e.kind === "PRODUCT" && e.tracksStock && e.productId);
+  if (soldStockLines.length > 0) {
+    const { data: appUserRow } = await supabase.from("app_users").select("id").eq("auth_user_id", user.id).maybeSingle();
+    let stockFailed = false;
+    for (const line of soldStockLines) {
+      const { error: moveErr } = await supabase.from("stock_movements").insert({
+        outlet_id: session.outlet_id,
+        product_id: line.productId,
+        type: "SALE",
+        qty: -line.qty, // negative: stock leaving the outlet
+        unit_cost: line.unitCost,
+        ref_type: "TRANSACTION",
+        ref_id: tx.id,
+        posted_at: paidAt,
+        posted_by: appUserRow?.id ?? null,
+      });
+      if (moveErr) {
+        stockFailed = true;
+        continue;
+      }
+      const { data: stockRow } = await supabase
+        .from("product_stocks")
+        .select("qty")
+        .eq("outlet_id", session.outlet_id)
+        .eq("product_id", line.productId)
+        .maybeSingle();
+      const { error: balanceErr } = await supabase
+        .from("product_stocks")
+        .upsert(
+          { outlet_id: session.outlet_id, product_id: line.productId, qty: Number(stockRow?.qty ?? 0) - line.qty },
+          { onConflict: "outlet_id,product_id" }
+        );
+      if (balanceErr) stockFailed = true;
+    }
+    if (stockFailed) {
+      // Non-fatal for the same reason as the commission writes: the
+      // guest has paid and the receipt is real. Surfaced loudly instead
+      // of swallowed, because a stock count that quietly drifts is
+      // exactly the bug that cost this project a day in babak 13.
+      return { ok: false, error: "Pembayaran BERHASIL, tapi stok produk gagal dikurangi — laporkan ke admin agar stok dikoreksi (transaksi tidak perlu diulang)." };
+    }
+  }
+
+  revalidatePath("/kasir/pos");
+  revalidatePath("/manager/inventory");
   revalidatePath("/kasir/sessions");
   revalidatePath("/manager/sessions");
   revalidatePath("/kasir/receipts");

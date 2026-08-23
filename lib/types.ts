@@ -459,6 +459,36 @@ export interface ExtensionRequest {
 
 export type ItemType = "SERVICE" | "EXTENSION" | "ADD_ON" | "PRODUCT" | "FOOD" | "BEVERAGE";
 
+/**
+ * One treatment sitting in the cashier's "ready to bill" queue, with the
+ * amount already owed for it (locked-in booking price + every approved
+ * extension). Built by lib/data/pos.ts.
+ *
+ * Lives HERE rather than next to its query on purpose: components/PosCart.tsx
+ * is a "use client" component and needs this shape, and lib/data/pos.ts pulls
+ * in lib/supabase/server -> next/headers, which is server-only. Next bundles a
+ * client component's whole import graph for the browser, so importing the type
+ * from there would risk dragging a server module into the client build — the
+ * same failure that took /manager/expenses down entirely in babak ketiga belas
+ * (fixed then by splitting the shared constant into a client-safe file).
+ * A type-only import is erased today, but keeping the shape in a file that has
+ * no server imports at all means this can never regress into that bug.
+ */
+export type PayableExtension = { name: string; price: number };
+
+export interface PayableSession {
+  sessionId: string;
+  bookingId: string;
+  customerName: string;
+  therapistName: string;
+  roomName: string;
+  packageName: string;
+  packagePrice: number;
+  extensions: PayableExtension[];
+  /** packagePrice + every approved extension. Pre-discount, pre-tax. */
+  baseTotal: number;
+}
+
 export interface TransactionItem {
   id: string;
   itemType: ItemType;

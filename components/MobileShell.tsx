@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Icon from "./Icon";
 import { Avatar } from "./ui";
 import ThemeToggle from "./ThemeToggle";
@@ -10,6 +10,7 @@ import { ROLES, roleByKey } from "@/lib/nav";
 import { themeVars } from "@/lib/brand";
 import { useBrandOverride } from "@/lib/brandOverride";
 import { ACTIVE_TENANT } from "@/lib/mock";
+import { createClient } from "@/lib/supabase/client";
 import type { Role } from "@/lib/types";
 
 /**
@@ -44,8 +45,27 @@ export default function MobileShell({
 }) {
   const def = roleByKey(role);
   const pathname = usePathname();
+  const router = useRouter();
   const [switcher, setSwitcher] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  // UPDATE 2026-08-23 — user caught (via Shell.tsx's manager logout bug
+  // report, then asked to fix the rest) that MobileShell had NO sign-out
+  // control anywhere for a real (non-demo) therapist login: the tab bar
+  // only ever linked to def.nav routes, and the "Kembali ke Pemilih
+  // Peran" link below is desktop-preview-only chrome (hidden below
+  // max-width:1080px, see app/ui.css) so it was never reachable on an
+  // actual phone anyway. Customer already had a real one
+  // (components/LogoutButton.tsx, on /customer/profile) — therapist
+  // never got the equivalent. Same real sign-out pattern as
+  // Shell.tsx/KasirShell now use.
+  const [loggingOut, startLogout] = useTransition();
+  const handleLogout = () =>
+    startLogout(async () => {
+      const supabase = createClient();
+      await supabase.auth.signOut();
+      router.push("/login");
+      router.refresh();
+    });
   const { override } = useBrandOverride();
   const vars = themeVars(
     override.brandKey ?? brandKey ?? ACTIVE_TENANT.logoTone,
@@ -226,6 +246,18 @@ export default function MobileShell({
                     <span className="small" style={{ color: active?.href === n.href ? "var(--accent)" : "var(--text-1)" }}>{n.label}</span>
                   </Link>
                 ))}
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  disabled={loggingOut}
+                  className="m-list-link"
+                  style={{ width: "100%", textAlign: "left" }}
+                >
+                  <span className="stat-icon" style={{ width: 34, height: 34, borderRadius: 9, flexShrink: 0 }}>
+                    <Icon name="log-out" size={16} />
+                  </span>
+                  <span className="small" style={{ color: "var(--danger)" }}>{loggingOut ? "Keluar…" : "Keluar"}</span>
+                </button>
               </div>
             </div>
           )}

@@ -148,10 +148,14 @@ export const ROLES: RoleDef[] = [
     //    MobileShell, rest overflow into "Lainnya"), swapped with
     //    Absensi GPS — attendance is already reachable from the Beranda
     //    dashboard card, so it moved into "Lainnya" instead.
+    // UPDATE 2026-08-23 (later same day) — user asked for "Sesi" right
+    // next to "Beranda", ahead of "Jadwal & Job" ("kolom sesi digeser
+    // sebelah beranda baru jadwal") — reordered to Beranda -> Sesi Aktif
+    // -> Jadwal & Job -> Notifikasi.
     nav: [
       { href: "/therapist", label: "Beranda", icon: "home", section: "Harian" },
-      { href: "/therapist/shift", label: "Jadwal & Job", icon: "calendar-days", badge: 2, section: "Harian" },
       { href: "/therapist/session", label: "Sesi Aktif", icon: "timer", section: "Harian" },
+      { href: "/therapist/shift", label: "Jadwal & Job", icon: "calendar-days", badge: 2, section: "Harian" },
       { href: "/therapist/notifications", label: "Notifikasi", icon: "bell", badge: 2, section: "Harian" },
       { href: "/therapist/attendance", label: "Absensi GPS", icon: "map-pin-check", section: "Penghasilan" },
       { href: "/therapist/commission", label: "Komisi Saya", icon: "percent", section: "Penghasilan" },

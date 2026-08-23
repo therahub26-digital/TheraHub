@@ -120,20 +120,41 @@ export default async function TherapistHomePage() {
           <div>
             <div className="m-section">Job Hari Ini ({upcoming.length} menunggu)</div>
             <div className="stack g2">
-              {upcoming.slice(0, 4).map((b) => (
-                <div key={b.id} className="m-list-link">
-                  <span className="stat-icon" style={{ width: 34, height: 34, borderRadius: 9, flexShrink: 0 }}>
-                    <Icon name="hand-heart" size={15} />
-                  </span>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div className="small bold truncate" style={{ color: "var(--text-1)" }}>{b.customerName}</div>
-                    <div className="tiny dim truncate">{b.packageName} · {b.roomName}</div>
-                  </div>
-                  <div style={{ textAlign: "right" }}>
-                    <div className="tiny bold" style={{ color: "var(--accent)" }}>{fmtTime(b.scheduledStart)}</div>
-                  </div>
-                </div>
-              ))}
+              {upcoming.slice(0, 4).map((b) => {
+                // "sudah waktunya" (user, 2026-08-23): a job whose scheduled
+                // start has already arrived/passed but the therapist hasn't
+                // started it yet gets a distinct warning treatment instead
+                // of blending in with jobs that are still comfortably ahead.
+                // Links to /therapist/session — that page already knows how
+                // to surface "Job Berikutnya" + the Start Session button
+                // once the guest is checked in, so this is just the fastest
+                // way there rather than a dead informational row.
+                const due = fmtTime(b.scheduledStart) <= now;
+                return (
+                  <Link
+                    key={b.id}
+                    href="/therapist/session"
+                    className="m-list-link"
+                    style={due ? { background: "var(--warning-soft)", border: "1px solid var(--warning)" } : undefined}
+                  >
+                    <span
+                      className="stat-icon"
+                      style={{ width: 34, height: 34, borderRadius: 9, flexShrink: 0, ...(due ? { background: "var(--warning)", color: "#1a1200" } : {}) }}
+                    >
+                      <Icon name={due ? "bell-ring" : "hand-heart"} size={15} />
+                    </span>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div className="small bold truncate" style={{ color: "var(--text-1)" }}>{b.customerName}</div>
+                      <div className="tiny dim truncate">{b.packageName} · {b.roomName}</div>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div className="tiny bold" style={{ color: due ? "var(--warning)" : "var(--accent)" }}>
+                        {due ? "Sudah waktunya" : fmtTime(b.scheduledStart)}
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
               {upcoming.length === 0 && <div className="small dim">Tidak ada job tersisa hari ini.</div>}
             </div>
           </div>
@@ -243,20 +264,33 @@ export default async function TherapistHomePage() {
         <div>
           <div className="m-section">Job Hari Ini ({upcoming.length} menunggu)</div>
           <div className="stack g2">
-            {upcoming.slice(0, 4).map((b) => (
-              <div key={b.id} className="m-list-link">
-                <span className="stat-icon" style={{ width: 34, height: 34, borderRadius: 9, flexShrink: 0 }}>
-                  <Icon name="hand-heart" size={15} />
-                </span>
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div className="small bold truncate" style={{ color: "var(--text-1)" }}>{b.customerName}</div>
-                  <div className="tiny dim truncate">{b.packageName} · {b.roomName}</div>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div className="tiny bold" style={{ color: "var(--accent)" }}>{fmtTime(b.scheduledStart)}</div>
-                </div>
-              </div>
-            ))}
+            {upcoming.slice(0, 4).map((b) => {
+              const due = fmtTime(b.scheduledStart) <= NOW_HHMM;
+              return (
+                <Link
+                  key={b.id}
+                  href="/therapist/session"
+                  className="m-list-link"
+                  style={due ? { background: "var(--warning-soft)", border: "1px solid var(--warning)" } : undefined}
+                >
+                  <span
+                    className="stat-icon"
+                    style={{ width: 34, height: 34, borderRadius: 9, flexShrink: 0, ...(due ? { background: "var(--warning)", color: "#1a1200" } : {}) }}
+                  >
+                    <Icon name={due ? "bell-ring" : "hand-heart"} size={15} />
+                  </span>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div className="small bold truncate" style={{ color: "var(--text-1)" }}>{b.customerName}</div>
+                    <div className="tiny dim truncate">{b.packageName} · {b.roomName}</div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div className="tiny bold" style={{ color: due ? "var(--warning)" : "var(--accent)" }}>
+                      {due ? "Sudah waktunya" : fmtTime(b.scheduledStart)}
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
             {upcoming.length === 0 && <div className="small dim">Tidak ada job tersisa hari ini.</div>}
           </div>
         </div>

@@ -2,6 +2,7 @@ import Icon from "@/components/Icon";
 import { PageHead, Card, CardHead, StatCard, Badge, PersonCell, Progress } from "@/components/ui";
 import { PaySessionButton, ExtensionDecisionButtons } from "@/components/SessionActions";
 import ExtensionRequestAlert from "@/components/ExtensionRequestAlert";
+import SessionOverrunAlert from "@/components/SessionOverrunAlert";
 import { getCurrentOutlet } from "@/lib/data/outlets";
 import { getSessionsForOutlet, getExtensionRequestsForOutlet } from "@/lib/data/sessions";
 import { getEffectiveToday, getEffectiveNow } from "@/lib/data/bookings";
@@ -58,6 +59,7 @@ export default async function SessionMonitorPage() {
         desc={`${outlet.name} · ${today} · Pukul ${now} · Pantau sesi berjalan untuk persiapan pembayaran.`}
       />
 
+      <SessionOverrunAlert sessions={running} />
       <ExtensionRequestAlert outletId={outlet.id} pendingCount={pendingExtensions.length} />
 
       <div className="grid grid-4" style={{ marginBottom: 20 }}>

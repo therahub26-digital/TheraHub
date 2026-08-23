@@ -147,6 +147,9 @@ export const SESSIONS: SessionRec[] = BOOKINGS.filter(
     isPaid: b.status === "PAID",
     status,
     minutesRemaining: active ? remaining : 0,
+    // Mirrors lib/data/sessions.ts's real computation for consistency,
+    // though the demo clock rarely runs a session this late.
+    overdueMin: active ? Math.max(NOW - expectedEnd, 0) : 0,
     progressPct: active
       ? Math.min(100, Math.round(((NOW - actualStart) / (expectedEnd - actualStart)) * 100))
       : 100,

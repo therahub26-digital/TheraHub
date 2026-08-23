@@ -436,8 +436,29 @@ export interface SessionRec {
    */
   isPaid: boolean;
   status: SessionStatus;
+  /**
+   * Minutes remaining until expected_end, clamped to 0 — never negative.
+   * Once a session runs past its expected end, this reads 0 forever and
+   * can no longer tell "just wrapping up" apart from "forgotten for an
+   * hour". Use overdueMin below for that distinction.
+   */
   minutesRemaining: number;
   progressPct: number;
+  /**
+   * Minutes PAST expected_end for a still-ACTIVE session, unclamped —
+   * 0 while on time or not yet due, growing without bound after that.
+   * Session overrun rule (2026-08-23, user: "kalau tidak diclose
+   * menggantung terus... kalau sudah lewat 10 menit alert ke kasir...
+   * lewat 15 menit otomatis closed kalau tidak ada extend"): the kasir
+   * screens use this to show an overdue banner at 10+, and
+   * lib/data/sessionOverrunSweep.ts auto-completes the session at 15+
+   * (unless a PENDING extension request exists — see that file's
+   * header). By the time a page ever reads overdueMin >= 15 without a
+   * pending request, the sweep that just ran ahead of this mapping
+   * should already have closed it — a lingering high value here means
+   * exactly that: a PENDING request is holding the session open.
+   */
+  overdueMin: number;
 }
 
 export interface ExtensionRequest {

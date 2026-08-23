@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { SESSIONS as MOCK_SESSIONS, EXTENSION_REQUESTS as MOCK_EXTENSION_REQUESTS } from "@/lib/mock/ops";
 import { toHHMM, nowIso, minutesBetween } from "@/lib/wallclock";
 import type { SessionRec, ExtensionRequest } from "@/lib/types";
+import { sweepOverdueSessions } from "@/lib/data/sessionOverrunSweep";
 
 // ---------------------------------------------------------------------
 // Dual-mode data-access layer for "sessions" — the module after bookings
@@ -73,10 +74,14 @@ function mapSessionRow(row: SessionRow, lookups: SessionLookups, now: string): S
   let progressPct = storedStatus === "COMPLETED" ? 100 : 0;
   let status: SessionRec["status"] = storedStatus;
 
+  let overdueMin = 0;
   if (running) {
     const start = row.actual_start!;
     const end = row.expected_end!;
     minutesRemaining = Math.max(Math.round(minutesBetween(now, end)), 0);
+    // Unclamped, unlike minutesRemaining above — see the field's doc
+    // comment on SessionRec. A session on time or not yet due gets 0.
+    overdueMin = Math.max(Math.round(minutesBetween(end, now)), 0);
     const total = minutesBetween(start, end);
     const elapsed = minutesBetween(start, now);
     progressPct = total > 0 ? Math.min(100, Math.max(0, Math.round((elapsed / total) * 100))) : 0;
@@ -109,6 +114,7 @@ function mapSessionRow(row: SessionRow, lookups: SessionLookups, now: string): S
     status,
     minutesRemaining,
     progressPct,
+    overdueMin,
   };
 }
 
@@ -119,6 +125,12 @@ async function fetchLiveSessions(): Promise<SessionRec[] | null> {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return null; // demo/"Ganti Role" viewer -> mock. See header.
+
+  // Session overrun sweep (2026-08-23) — see lib/data/sessionOverrunSweep.ts
+  // for the full rationale. Same sweep-on-read chokepoint pattern as
+  // sweepNoShowBookings() in lib/data/bookings.ts, run once per request
+  // (this whole function is behind loadSessionsData's cache()).
+  await sweepOverdueSessions(supabase);
 
   const { data: rows, error } = await supabase.from("sessions").select("*").order("actual_start");
   if (error) return null;

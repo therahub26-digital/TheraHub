@@ -1,6 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
 import { EXPENSES as MOCK_EXPENSES, PETTY_CASH as MOCK_PETTY_CASH } from "@/lib/mock/finance";
 import type { ExpenseRec } from "@/lib/types";
+// EXPENSE_CATEGORIES moved to lib/constants/expenseCategories.ts (2026-08-23)
+// — see that file's header for why. Re-exported here so existing server-side
+// importers of this module (app/manager/expenses/page.tsx) don't need to
+// change; components/ExpenseEditor.tsx ("use client") imports the constants
+// file directly instead, since importing it from here would still pull this
+// whole server-only module (next/headers) into the client bundle.
+export { EXPENSE_CATEGORIES } from "@/lib/constants/expenseCategories";
 
 // ---------------------------------------------------------------------
 // UPDATE 2026-08-23 — /manager/expenses was 100% mock. `expenses` table
@@ -12,19 +19,6 @@ import type { ExpenseRec } from "@/lib/types";
 // signed-in staff session sees real data (including a real empty state),
 // the demo "Ganti Role" viewer keeps the mock fixtures untouched.
 // ---------------------------------------------------------------------
-
-export const EXPENSE_CATEGORIES = [
-  { key: "Rent", example: "Sewa outlet", icon: "building" },
-  { key: "Utilities", example: "Listrik, air, internet", icon: "zap" },
-  { key: "Payroll", example: "Gaji dan allowance", icon: "wallet" },
-  { key: "Commission", example: "Komisi terapis", icon: "percent" },
-  { key: "Consumables", example: "Oil, soap, tissue", icon: "droplet" },
-  { key: "Laundry", example: "Laundry linen/towel", icon: "shirt" },
-  { key: "Marketing", example: "Ads, promo, influencer", icon: "megaphone" },
-  { key: "Maintenance", example: "Repair room/equipment", icon: "wrench" },
-  { key: "Petty Cash", example: "Transport, ATK", icon: "coins" },
-  { key: "Other", example: "Kategori custom tenant", icon: "circle-ellipsis" },
-];
 
 type ExpenseRow = {
   id: string;

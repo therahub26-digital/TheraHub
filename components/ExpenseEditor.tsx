@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Icon from "@/components/Icon";
 import { createExpense, approveExpense, rejectExpense, topUpPettyCash, type PaymentMethod } from "@/lib/actions/expenses";
-import { EXPENSE_CATEGORIES } from "@/lib/data/expenses";
+import { EXPENSE_CATEGORIES } from "@/lib/constants/expenseCategories";
 
 // ---------------------------------------------------------------------
 // Write-side UI for /manager/expenses — new 2026-08-23. Same inline

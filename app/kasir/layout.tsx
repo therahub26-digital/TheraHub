@@ -1,4 +1,4 @@
-import Shell from "@/components/Shell";
+import KasirShell from "@/components/KasirShell";
 import RoomAlertBanner from "@/components/RoomAlertBanner";
 import { ACTIVE_TENANT, PRIMARY_OUTLET } from "@/lib/mock";
 import { getCurrentOutlet } from "@/lib/data/outlets";
@@ -20,9 +20,9 @@ export default async function KasirLayout({ children }: { children: React.ReactN
   const pendingExtensions = extensionRequests.filter((r) => r.status === "PENDING").length;
 
   return (
-    <Shell role="kasir" scopeLabel={PRIMARY_OUTLET.name} scopeSub={PRIMARY_OUTLET.city} brandKey={ACTIVE_TENANT.logoTone} notificationCount={pendingExtensions}>
+    <KasirShell scopeLabel={PRIMARY_OUTLET.name} scopeSub={PRIMARY_OUTLET.city} brandKey={ACTIVE_TENANT.logoTone} notificationCount={pendingExtensions}>
       <RoomAlertBanner outletId={outlet.id} alerts={alerts} />
       {children}
-    </Shell>
+    </KasirShell>
   );
 }

@@ -1179,3 +1179,171 @@ table.tbl .strong { color: var(--text-1); font-weight: 600; }
   backdrop-filter: blur(var(--glass-blur));
   border-top: 1px solid var(--glass-border-strong);
 }
+
+/* ============================ KASIR SHELL (tablet, full-bleed) ============================
+   User request 2026-08-23: "kasir sebagian besar akan menggunakan tab bukan
+   komputer" — kasir was reusing the same desktop admin Shell (.app-shell /
+   .sidebar / .topbar / .page) as manager/admin/owner, which only ever
+   collapses its sidebar into an off-canvas drawer below 1024px and never
+   grows touch targets. That is a poor fit for a kasir standing at a
+   counter with a real tablet in landscape or portrait all shift long.
+
+   Unlike .device-stage/.device (MOBILE DEVICE SHELL above), which is a
+   *decorative phone-frame mockup* for the therapist/customer demo preview
+   and only goes full-bleed below max-width:1080px, .kasir-shell is ALWAYS
+   full-viewport — kasir is a real production surface on a real tablet
+   browser, not a sales-demo screen, so there is no frame/notch/fake status
+   bar to hide at any width. Bottom tab bar + "Lainnya" overflow sheet
+   mirrors the same pattern as the therapist/customer MobileShell (proven
+   pattern, see components/MobileShell.tsx's header comment for why
+   >5 screens need an overflow sheet instead of silently dropping items).
+   ========================================================================= */
+
+.kasir-shell {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background-color: var(--app-bg-base, var(--bg-deep));
+  background-image: var(--app-bg-layer), var(--app-bg-photo, none);
+  background-size: auto, cover;
+  background-position: center, center;
+  background-repeat: no-repeat, no-repeat;
+}
+
+.kasir-topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+/* Icon buttons in the kasir topbar/sheet get bumped to a real touch
+   target (44px) — the shared .btn-icon default (36px) and .btn-icon.btn-sm
+   (30px) are sized for mouse pointers, not fingers. */
+.kasir-icon-btn.btn-icon { width: 44px; height: 44px; }
+
+.kasir-notif-dot {
+  position: absolute;
+  top: 8px;
+  right: 9px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--danger);
+  border: 1.5px solid var(--bg-deep);
+}
+
+.kasir-role-switch {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+}
+
+.kasir-body {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.kasir-sheet-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 40;
+}
+
+.kasir-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 41;
+  background: var(--bg-surface-1, var(--bg-deep));
+  border-top: 1px solid var(--border);
+  border-radius: 18px 18px 0 0;
+  padding: 14px 14px calc(20px + env(safe-area-inset-bottom, 0px));
+  max-height: 75vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.kasir-sheet-item { min-height: 52px; }
+
+.kasir-tabs {
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+}
+
+.kasir-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 56px;
+  padding: 6px 2px;
+  color: var(--text-4);
+  border-radius: var(--r-sm);
+  transition: color var(--dur-1);
+}
+.kasir-tab:hover { color: var(--text-2); }
+.kasir-tab.active { color: var(--accent); }
+
+.kasir-tab-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* Wider stat/room grids get one more breakpoint tuned to common tablet
+   widths (Android ~800-853px portrait, iPad 768-834px portrait) — the
+   generic max-width:720px rule alone left a cramped 2-up grid at those
+   widths for cards that read better full-width on a narrower tablet. */
+@media (max-width: 860px) {
+  .kasir-body .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .kasir-body .grid-rooms { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* ---- Touch target scaling, scoped to kasir only ----
+   Every kasir screen shares components/CSS classes with the desktop
+   manager UI (BookingRowActions, ScheduleCheckBoard, SessionActions,
+   PosCart, .tbl, .chip, .select, ...). Rewriting each shared component
+   to take a "big" prop would touch a huge surface for a sizing change;
+   scoping the override to descendants of .kasir-shell instead means
+   manager/admin desktop density is completely unaffected, and every kasir
+   page — including shared components already parametrised (2026-08-23) —
+   automatically gets touch-sized controls with zero per-page changes. */
+.kasir-shell .btn { min-height: 42px; }
+.kasir-shell .btn-sm { height: 40px; padding: 0 14px; font-size: 13px; }
+.kasir-shell .btn-icon { width: 42px; }
+.kasir-shell .btn-icon.btn-sm { width: 40px; }
+.kasir-shell .chip { height: 38px; padding: 0 14px; font-size: 13px; }
+.kasir-shell .input,
+.kasir-shell .select,
+.kasir-shell .textarea { min-height: 44px; font-size: 14.5px; }
+.kasir-shell table.tbl { font-size: 13.5px; }
+.kasir-shell table.tbl thead th { padding: 12px 14px; }
+.kasir-shell table.tbl tbody td { padding: 14px 14px; }
+.kasir-shell .switch { width: 46px; height: 26px; }
+.kasir-shell .switch::after { width: 20px; height: 20px; }

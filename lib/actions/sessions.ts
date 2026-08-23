@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { nowIso, plusMinutes } from "@/lib/wallclock";
+import { notifyTherapist } from "@/lib/notify";
 
 // ---------------------------------------------------------------------
 // Server Actions: the operational loop after a booking exists.
@@ -69,7 +70,7 @@ export async function checkInBooking(bookingId: string, roomId: string): Promise
 
   const { data: booking, error: readErr } = await supabase
     .from("bookings")
-    .select("id, outlet_id, status")
+    .select("id, outlet_id, status, therapist_id, customer_id, package_id")
     .eq("id", bookingId)
     .maybeSingle();
   if (readErr || !booking) return { ok: false, error: "Booking tidak ditemukan." };
@@ -100,6 +101,22 @@ export async function checkInBooking(bookingId: string, roomId: string): Promise
     .update({ status: "CHECKED_IN", room_id: roomId })
     .eq("id", bookingId);
   if (updateErr) return { ok: false, error: "Gagal menyimpan check-in — coba lagi." };
+
+  // "waktu bekerja saat kasir atau manager klik check in untuk siap2" —
+  // user feedback 2026-08-23. Best-effort, two small lookups just for the
+  // message text; see lib/notify.ts's header for why a failure here never
+  // fails the check-in itself.
+  if (booking.therapist_id) {
+    const [{ data: customer }, { data: pkg }] = await Promise.all([
+      supabase.from("customers").select("name").eq("id", booking.customer_id).maybeSingle(),
+      supabase.from("service_packages").select("name").eq("id", booking.package_id).maybeSingle(),
+    ]);
+    await notifyTherapist(supabase, booking.therapist_id, {
+      type: "booking.checked_in",
+      title: "Tamu sudah check-in — bersiap",
+      body: `${customer?.name ?? "Tamu"} sudah tiba di room ${room.name}${pkg?.name ? ` untuk ${pkg.name}` : ""}. Segera bersiap.`,
+    });
+  }
 
   revalidateOps();
   return { ok: true };

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { addMin } from "@/lib/format";
+import { notifyTherapist } from "@/lib/notify";
 
 // ---------------------------------------------------------------------
 // Server Action: createBooking — the write half of the booking module.
@@ -85,7 +86,7 @@ export async function createBooking(input: CreateBookingInput): Promise<CreateBo
 
   const { data: pkg, error: pkgErr } = await supabase
     .from("service_packages")
-    .select("id, duration_min, list_price")
+    .select("id, name, duration_min, list_price")
     .eq("id", input.packageId)
     .single();
   if (pkgErr || !pkg) return { ok: false, error: "Paket layanan tidak ditemukan." };
@@ -164,6 +165,14 @@ export async function createBooking(input: CreateBookingInput): Promise<CreateBo
     .single();
 
   if (insertErr || !booking) return { ok: false, error: "Gagal menyimpan booking — coba lagi." };
+
+  // "ada bookingan baru" — user feedback 2026-08-23. Best-effort; see
+  // lib/notify.ts's header for why this never fails the booking itself.
+  await notifyTherapist(supabase, input.therapistId, {
+    type: "booking.new",
+    title: "Booking baru",
+    body: `${customerName} · ${pkg.name} · ${input.date} ${input.startTime}`,
+  });
 
   revalidatePath("/manager/bookings");
   revalidatePath("/kasir");

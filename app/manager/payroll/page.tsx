@@ -10,6 +10,7 @@ import {
   DeleteBatchButton,
   WithdrawSavingsButton,
 } from "@/components/PayrollControls";
+import { EmployeeSalaryEditor } from "@/components/EmployeeSalaryEditor";
 import { getCurrentOutlet } from "@/lib/data/outlets";
 import { getEmployees } from "@/lib/data/employees";
 import { getPayrollForOutlet, getPayrollSettings, getAdjustmentsForOutlet } from "@/lib/data/payroll";
@@ -171,6 +172,18 @@ export default async function ManagerPayrollPage() {
   }
 
   const usesSavings = components.some((c) => c.key === "SAVINGS");
+  // UPDATE 2026-08-23 — user feedback: "pengaturan gaji karyawan harus
+  // bisa di edit". Gaji Pokok/Tunjangan Tetap are EMPLOYEE-sourced
+  // components (componentValue() above reads employee.baseSalary/
+  // fixedAllowance directly) — they were rendered as plain rp(v) text
+  // with no edit path AT ALL on this page, even though the write path
+  // (updateEmployeeSalary + EmployeeSalaryEditor) already existed and was
+  // already wired into /admin/users. employees_write (RLS, 0002) already
+  // lets a manager write employees at their own outlet, same as the
+  // referral editor before it — this just surfaces the same editor here
+  // too, so a manager doesn't have to go to Admin's Users page to set a
+  // number their own payroll page depends on.
+  const usesEmployeeFixedPay = components.some((c) => c.key === "FIXED" || c.key === "ALLOWANCE");
   const therapistCount = active.filter((e) => e.isTherapist).length;
 
   // UPDATE 2026-08-23 — user feedback: "belum dipisahkan therapis dan
@@ -291,6 +304,15 @@ export default async function ManagerPayrollPage() {
                     <tr key={r.employee.id}>
                       <td>
                         <PersonCell name={r.employee.name} sub={r.employee.jobRole} toneKey="teal" size={28} />
+                        {usesEmployeeFixedPay && (
+                          <div style={{ marginTop: 6 }}>
+                            <EmployeeSalaryEditor
+                              employeeId={r.employee.id}
+                              baseSalary={r.employee.baseSalary}
+                              fixedAllowance={r.employee.fixedAllowance}
+                            />
+                          </div>
+                        )}
                         {/* Manual lines listed under the name so the label the
                             manager typed stays visible — a column total alone
                             would not say WHICH deduction it was. */}

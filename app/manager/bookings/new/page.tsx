@@ -6,6 +6,7 @@ import { getCurrentOutlet } from "@/lib/data/outlets";
 import { getTherapistsForOutlet } from "@/lib/data/employees";
 import { getPackagesForOutlet } from "@/lib/data/catalog";
 import { getEffectiveToday } from "@/lib/data/bookings";
+import { getScheduleExceptions } from "@/lib/data/scheduleExceptions";
 
 export default async function NewBookingPage() {
   const outlet = await getCurrentOutlet();
@@ -14,6 +15,8 @@ export default async function NewBookingPage() {
     getPackagesForOutlet(outlet.id),
     getEffectiveToday(),
   ]);
+  const exceptions = await getScheduleExceptions(outlet.id, today);
+  const unavailableTherapistIds = exceptions.map((e) => e.employeeId);
 
   return (
     <>
@@ -32,6 +35,7 @@ export default async function NewBookingPage() {
           today={today}
           packages={packages.map((p) => ({ id: p.id, name: p.name, durationMin: p.durationMin, listPrice: p.listPrice }))}
           therapists={therapists.map((t) => ({ id: t.id, name: t.name, grade: t.therapistGrade, skills: t.skills }))}
+          unavailableTherapistIds={unavailableTherapistIds}
           source="Kasir"
           backHref="/manager/bookings"
         />

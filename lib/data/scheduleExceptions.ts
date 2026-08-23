@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 // ---------------------------------------------------------------------
 // Read layer for `employee_schedule_exceptions` (see
@@ -54,4 +55,33 @@ export async function getScheduleExceptions(outletId: string, date: string): Pro
     .eq("date", date);
   if (error || !data) return [];
   return (data as ScheduleExceptionRow[]).map(mapRow);
+}
+
+// ---------------------------------------------------------------------
+// Customer-facing read — added 2026-08-23, user report "ayu masih bisa
+// dibooking padahal libur". schedule_exceptions_read's RLS condition
+// resolves the tenant through app_users (`employee_id in (select id
+// from employees where tenant_id = _current_tenant_id())`), and
+// _current_tenant_id() itself only ever looks at app_users — a customer
+// session has no row there at all (customers authenticate through the
+// separate `customers` table, see lib/actions/customerBookings.ts's
+// header), so this table is INVISIBLE to a customer's own session
+// client, full stop. Reading it here through the admin (service-role)
+// client is a deliberate, narrow crossing of that boundary — read-only,
+// and only employee ids are ever returned to the caller (never the
+// `note` column, which can hold a free-text reason like "Cuti/Sakit"
+// that a customer has no business seeing). Same shape as the same-day
+// conflict check in lib/actions/customerBookings.ts, which crosses the
+// identical RLS gap for the identical reason.
+// ---------------------------------------------------------------------
+export async function getUnavailableTherapistIdsForCustomer(outletIds: string[], date: string): Promise<Set<string>> {
+  if (outletIds.length === 0) return new Set();
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("employee_schedule_exceptions")
+    .select("employee_id")
+    .in("outlet_id", outletIds)
+    .eq("date", date);
+  if (error || !data) return new Set();
+  return new Set(data.map((r) => r.employee_id as string));
 }

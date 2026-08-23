@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { addMin } from "@/lib/format";
 import { notifyTherapist } from "@/lib/notify";
 import { isStartInPast } from "@/lib/bookingRules";
+import { getScheduleExceptions } from "@/lib/data/scheduleExceptions";
 
 // ---------------------------------------------------------------------
 // Server Action: createBooking — the write half of the booking module.
@@ -117,6 +118,19 @@ export async function createBooking(input: CreateBookingInput): Promise<CreateBo
   // refused. See lib/bookingRules.ts.
   if (isStartInPast(startIso)) {
     return { ok: false, error: "Jam yang dipilih sudah lewat. Pilih jam setelah waktu sekarang." };
+  }
+
+  // Schedule-exception guard (user repro 2026-08-23: "ayu masih bisa
+  // dibooking padahal libur") — the UI in BookingForm.tsx already filters
+  // OFF/LEAVE therapists out of today's picker, but this is the
+  // authoritative check: without it a stale client, a devtools edit, or a
+  // booking dated for a future day the UI didn't filter would still slip
+  // through. Runs on the normal staff session client — no RLS boundary to
+  // cross here, unlike the customer-facing version in
+  // customerBookings.ts.
+  const exceptions = await getScheduleExceptions(input.outletId, input.date);
+  if (exceptions.some((e) => e.employeeId === input.therapistId)) {
+    return { ok: false, error: "Terapis ini sedang libur/cuti pada tanggal tersebut. Pilih terapis lain." };
   }
 
   // Find an existing customer by phone within this tenant, else create one.
@@ -296,6 +310,13 @@ export async function reassignBookingTherapist(bookingId: string, newTherapistId
     newTherapist.status !== "ACTIVE"
   ) {
     return { ok: false, error: "Terapis pengganti tidak tersedia di outlet ini." };
+  }
+
+  // Same schedule-exception guard as createBooking() above, applied to
+  // the replacement therapist.
+  const reassignExceptions = await getScheduleExceptions(booking.outlet_id, booking.date);
+  if (reassignExceptions.some((e) => e.employeeId === newTherapistId)) {
+    return { ok: false, error: "Terapis pengganti sedang libur/cuti pada tanggal tersebut." };
   }
 
   const { data: sameDayBookings, error: sameDayErr } = await supabase

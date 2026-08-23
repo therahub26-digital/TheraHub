@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { addMin } from "@/lib/format";
 import { GUEST_CHANGE_CUTOFF_MIN, guestCanStillChange, isStartInPast } from "@/lib/bookingRules";
+import { getUnavailableTherapistIdsForCustomer } from "@/lib/data/scheduleExceptions";
 
 // ---------------------------------------------------------------------
 // Server Actions for the CUSTOMER-initiated half of the booking module
@@ -120,6 +121,17 @@ export async function createCustomerBooking(input: CreateCustomerBookingInput): 
     therapistRow.status !== "ACTIVE"
   ) {
     return { ok: false, error: "Terapis tidak tersedia di outlet ini." };
+  }
+
+  // Schedule-exception guard (user repro 2026-08-23: "ayu masih bisa
+  // dibooking padahal libur") — mirrors createBooking()'s guard in
+  // lib/actions/bookings.ts, but reads via the admin client through
+  // getUnavailableTherapistIdsForCustomer() since a customer's own
+  // session client cannot see employee_schedule_exceptions at all (see
+  // that function's header in lib/data/scheduleExceptions.ts for why).
+  const unavailableIds = await getUnavailableTherapistIdsForCustomer([input.outletId], input.date);
+  if (unavailableIds.has(input.therapistId)) {
+    return { ok: false, error: "Terapis ini sedang libur/cuti pada tanggal tersebut. Pilih terapis lain." };
   }
 
   const scheduledEndHHMM = addMin(input.startTime, pkg.duration_min);

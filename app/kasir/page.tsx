@@ -2,6 +2,8 @@ import Link from "next/link";
 import Icon from "@/components/Icon";
 import { PageHead, Card, CardHead, StatCard, Badge, StatusBadge, PersonCell } from "@/components/ui";
 import { getCurrentOutlet } from "@/lib/data/outlets";
+import { getAvailableRoomsForOutlet } from "@/lib/data/rooms";
+import { BookingRowActions } from "@/components/SessionActions";
 import { getBookingsToday, getBookingKpi, getEffectiveToday, getEffectiveNow, isLiveBookingsData } from "@/lib/data/bookings";
 import { rp, fmtTime } from "@/lib/format";
 import { buildFollowUpList } from "@/lib/bookingRules";
@@ -9,14 +11,16 @@ import BookingFollowUpBanner from "@/components/BookingFollowUp";
 
 export default async function KasirTodayPage() {
   const outlet = await getCurrentOutlet();
-  const [rawBookings, kpi, today, NOW_HHMM, live] = await Promise.all([
+  const [rawBookings, kpi, today, NOW_HHMM, live, availableRooms] = await Promise.all([
     getBookingsToday(outlet.id),
     getBookingKpi(outlet.id),
     getEffectiveToday(),
     getEffectiveNow(),
     isLiveBookingsData(),
+    getAvailableRoomsForOutlet(outlet.id),
   ]);
   const bookings = rawBookings.filter((b) => b.status !== "CANCELLED");
+  const roomOptions = availableRooms.map((r) => ({ id: r.id, name: r.name }));
 
   // Rule 2, kasir side (user, 2026-08-23): the guest gets an email at
   // H-1 (not built yet — no mail provider is wired up, see the roadmap),
@@ -67,11 +71,18 @@ export default async function KasirTodayPage() {
                   <td><Badge tone="neutral">{b.source}</Badge></td>
                   <td><StatusBadge status={b.status} /></td>
                   <td className="nowrap">
-                    {["BOOKED", "CONFIRMED"].includes(b.status) && (
-                      <button className="btn btn-primary btn-sm"><Icon name="user-check" size={12} /> Check-in</button>
+                    {/* Was a plain <button> with no onClick — looked
+                        clickable, did nothing (found 2026-08-23, user
+                        report "tombol checkin tidak bisa klik"). Now the
+                        same BookingRowActions used on /manager/bookings'
+                        list view — Check-in picks a room live via
+                        checkInBooking(); a guest already arrived here
+                        goes to /kasir/checkin instead, same as before. */}
+                    {["BOOKED", "CONFIRMED", "ARRIVED"].includes(b.status) && (
+                      <BookingRowActions bookingId={b.id} status={b.status} rooms={roomOptions} />
                     )}
-                    {["ARRIVED", "CHECKED_IN", "IN_SESSION", "COMPLETED"].includes(b.status) && (
-                      <button className="btn btn-ghost btn-sm"><Icon name="eye" size={12} /> Detail</button>
+                    {["CHECKED_IN", "IN_SESSION", "COMPLETED"].includes(b.status) && (
+                      <button className="btn btn-ghost btn-sm" disabled><Icon name="eye" size={12} /> Detail</button>
                     )}
                   </td>
                 </tr>

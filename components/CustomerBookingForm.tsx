@@ -98,6 +98,7 @@ export default function CustomerBookingForm({
   isMember,
   today,
   initialOutletId,
+  unavailableTherapistIds = [],
 }: {
   outlets: OutletOption[];
   packages: PackageOption[];
@@ -105,6 +106,14 @@ export default function CustomerBookingForm({
   isMember: boolean;
   today: string;
   initialOutletId?: string;
+  /**
+   * Therapist ids marked OFF/LEAVE for TODAY (employee_schedule_
+   * exceptions) — see app/customer/book/page.tsx's fetch comment for
+   * why this is today-only and why the server action is the real
+   * guarantee, not this list. Optional/defaulted so the demo/"Ganti
+   * Role" preview (which never fetches this) keeps working unchanged.
+   */
+  unavailableTherapistIds?: string[];
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -116,14 +125,34 @@ export default function CustomerBookingForm({
   const [packageId, setPackageId] = useState(outletPackages[0]?.id ?? "");
   const selectedPackage = outletPackages.find((p) => p.id === packageId) ?? outletPackages[0];
 
-  const outletTherapists = useMemo(
-    () => therapists.filter((t) => t.outletId === outletId && (!selectedPackage || t.skills.includes(selectedPackage.requiredSkill))),
-    [therapists, outletId, selectedPackage]
-  );
-  const [therapistId, setTherapistId] = useState(outletTherapists[0]?.id ?? "");
-  const selectedTherapist = outletTherapists.find((t) => t.id === therapistId) ?? outletTherapists[0];
+  const unavailableIdSet = useMemo(() => new Set(unavailableTherapistIds), [unavailableTherapistIds]);
 
   const [date, setDate] = useState(today);
+
+  // Rule (2026-08-23, user report "ayu masih bisa dibooking padahal
+  // libur"): a therapist marked off for TODAY is dropped from the
+  // pickable list when TODAY is the date being booked — see the prop
+  // doc above for the future-date caveat. offTodayCount only tracks
+  // therapists otherwise eligible by outlet+skill, so the note below
+  // doesn't fire for irrelevant outlets.
+  const outletTherapists = useMemo(() => {
+    const eligible = therapists.filter((t) => t.outletId === outletId && (!selectedPackage || t.skills.includes(selectedPackage.requiredSkill)));
+    if (date !== today) return eligible;
+    return eligible.filter((t) => !unavailableIdSet.has(t.id));
+  }, [therapists, outletId, selectedPackage, date, today, unavailableIdSet]);
+  const offTodayCount = useMemo(() => {
+    if (date !== today) return 0;
+    return therapists.filter((t) => t.outletId === outletId && (!selectedPackage || t.skills.includes(selectedPackage.requiredSkill)) && unavailableIdSet.has(t.id)).length;
+  }, [therapists, outletId, selectedPackage, date, today, unavailableIdSet]);
+  const [therapistId, setTherapistId] = useState(outletTherapists[0]?.id ?? "");
+  const selectedTherapist = outletTherapists.find((t) => t.id === therapistId) ?? outletTherapists[0];
+  useEffect(() => {
+    if (!outletTherapists.some((t) => t.id === therapistId)) {
+      setTherapistId(outletTherapists[0]?.id ?? "");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [outletTherapists]);
+
   const [startTime, setStartTime] = useState("10:00");
 
   // Rule 1 (2026-08-23): a guest must not be able to book a slot that
@@ -293,8 +322,15 @@ export default function CustomerBookingForm({
           <span className="stat-icon" style={{ width: 22, height: 22, borderRadius: 6, fontSize: 10 }}>3</span>
           <span className="m-section" style={{ marginBottom: 0 }}>Pilih Terapis</span>
         </div>
+        {offTodayCount > 0 && (
+          <div className="tiny dim" style={{ marginBottom: 6 }}>
+            {offTodayCount} terapis sedang libur hari ini, tidak ditampilkan.
+          </div>
+        )}
         {outletTherapists.length === 0 ? (
-          <div className="small dim">Belum ada terapis dengan keahlian yang cocok di outlet ini.</div>
+          <div className="small dim">
+            {offTodayCount > 0 ? "Semua terapis yang cocok sedang libur hari ini — coba tanggal lain." : "Belum ada terapis dengan keahlian yang cocok di outlet ini."}
+          </div>
         ) : (
           <div className="grid grid-2" style={{ gap: 8 }}>
             {outletTherapists.map((t) => (

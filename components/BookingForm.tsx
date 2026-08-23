@@ -27,6 +27,7 @@ export default function BookingForm({
   today,
   packages,
   therapists,
+  unavailableTherapistIds = [],
   source,
   backHref,
 }: {
@@ -34,6 +35,12 @@ export default function BookingForm({
   today: string;
   packages: PackageOption[];
   therapists: TherapistOption[];
+  /** Employee ids marked OFF/LEAVE for `today` (employee_schedule_exceptions) —
+   * see the equivalent prop on components/CustomerBookingForm.tsx for the
+   * full rationale. Only applied when the selected date is today; a
+   * future-dated walk-in isn't filtered here since staff can see/handle
+   * that day's exceptions when it actually arrives. */
+  unavailableTherapistIds?: string[];
   source: "Walk-in" | "Kasir";
   backHref: string;
 }) {
@@ -43,8 +50,17 @@ export default function BookingForm({
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [packageId, setPackageId] = useState(packages[0]?.id ?? "");
-  const [therapistId, setTherapistId] = useState(therapists[0]?.id ?? "");
   const [date, setDate] = useState(today);
+  const unavailableIdSet = new Set(unavailableTherapistIds);
+  const availableTherapists = date === today ? therapists.filter((t) => !unavailableIdSet.has(t.id)) : therapists;
+  const [therapistId, setTherapistId] = useState(availableTherapists[0]?.id ?? "");
+  const offTodayCount = date === today ? therapists.length - availableTherapists.length : 0;
+  useEffect(() => {
+    if (therapistId && !availableTherapists.some((t) => t.id === therapistId)) {
+      setTherapistId(availableTherapists[0]?.id ?? "");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date, availableTherapists.map((t) => t.id).join(",")]);
   const [startTime, setStartTime] = useState("10:00");
 
   // Rule 1 (2026-08-23): createBooking() now refuses a start time that
@@ -131,12 +147,15 @@ export default function BookingForm({
         </select>
       </Field>
 
-      <Field label="Terapis">
+      <Field
+        label="Terapis"
+        hint={offTodayCount > 0 ? `${offTodayCount} terapis sedang libur hari ini, tidak ditampilkan.` : undefined}
+      >
         <div className="row g2">
           {selectedTherapist && <Avatar name={selectedTherapist.name} photoUrl={selectedTherapist.photoUrl} size={32} />}
           <select className="select" required value={therapistId} onChange={(e) => setTherapistId(e.target.value)} style={{ flex: 1 }}>
-          {therapists.length === 0 && <option value="">Belum ada terapis di outlet ini</option>}
-          {therapists.map((t) => (
+          {availableTherapists.length === 0 && <option value="">Belum ada terapis tersedia di outlet ini</option>}
+          {availableTherapists.map((t) => (
             <option key={t.id} value={t.id}>
               {t.name}
               {t.grade ? ` (${t.grade})` : ""}
@@ -176,7 +195,7 @@ export default function BookingForm({
       )}
 
       <div className="row g2">
-        <button type="submit" className="btn btn-primary" disabled={isPending || packages.length === 0 || therapists.length === 0}>
+        <button type="submit" className="btn btn-primary" disabled={isPending || packages.length === 0 || availableTherapists.length === 0}>
           <Icon name="calendar-plus" size={14} /> {isPending ? "Menyimpan…" : "Simpan Booking"}
         </button>
         <button type="button" className="btn btn-ghost" onClick={() => router.push(backHref)} disabled={isPending}>

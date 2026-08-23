@@ -11,19 +11,22 @@ import {
   getStockTransfersForOutlet,
 } from "@/lib/data/inventory";
 import { rp, fmtDateTime, num } from "@/lib/format";
-import { PurchaseOrderForm, ReceivePOButton, StockTransferForm, StockOpnameForm } from "@/components/InventoryEditor";
+import { NewProductForm, PurchaseOrderForm, ReceivePOButton, StockTransferForm, StockOpnameForm } from "@/components/InventoryEditor";
 
-// NewProductForm is deliberately NOT wired in here — caught live during
-// self-testing (2026-08-23): `products_write` RLS (0002_rls_policies.sql,
-// pre-existing, not part of this feature's migration) restricts INSERT
-// on `products` to admin/owner only, tenant-wide. A manager submitting
-// the form got a silent "Gagal menyimpan produk." — RLS working exactly
-// as designed, my UI just put the button on the wrong role's page. The
-// component is still exported from InventoryEditor.tsx for reuse once
-// an admin-side "add product" surface exists (none does yet — the
-// closest page, /admin/master, is itself still 100% mock and out of
-// scope here). Until then, a manager can only receive/transfer/opname
-// products an admin already created.
+// NewProductForm — was deliberately unwired (RLS `products_write` in
+// 0002_rls_policies.sql admits only admin/owner, so a manager pressing it
+// got a silent refusal). Wired back in 2026-08-23 after the user chose,
+// when asked, that managers SHOULD be able to add and price products:
+// "buatkan penjualan produk makanan ringan dan minuman" → "Manager outlet
+// juga boleh (butuh migrasi)".
+//
+// The permission itself lives in supabase/migrations/0021_products_manager_write.sql,
+// which is a DRAFT AWAITING THE USER'S APPROVAL and has NOT been applied.
+// Until it is, this button still fails — but it now fails HONESTLY:
+// createProduct() maps Postgres error 42501 to a message naming the real
+// reason, instead of the generic "Gagal menyimpan produk." that made the
+// app look broken. Once 0021 is applied the same button starts working
+// with no code change.
 
 // ---------------------------------------------------------------------
 // UPDATE 2026-08-23 — was 100% lib/mock (PRODUCTS, movementsOf, lowStock,
@@ -70,6 +73,7 @@ export default async function InventoryPage() {
         desc={`${outlet.name} · Stok produk, consumable, purchase order, transfer, dan stock opname.`}
         actions={
           <>
+            <NewProductForm tenantId={outlet.tenantId} />
             <StockTransferForm tenantId={outlet.tenantId} currentOutletId={outlet.id} outlets={outlets.map((o) => ({ id: o.id, name: o.name }))} products={products} />
             <StockOpnameForm outletId={outlet.id} products={products} />
             <PurchaseOrderForm outletId={outlet.id} products={products} />
@@ -101,6 +105,42 @@ export default async function InventoryPage() {
               ))}
               {low.length === 0 && (
                 <tr><td colSpan={5} className="dim small" style={{ textAlign: "center", padding: "20px 0" }}>Semua stok dalam batas aman.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {/* Daftar Produk — ditambahkan 2026-08-23 bersama katalog makanan &
+          minuman. Sebelumnya halaman ini hanya menampilkan produk yang
+          stoknya MENIPIS, jadi katalog yang sehat sama sekali tidak
+          terlihat: manager tidak punya satupun layar untuk memastikan
+          harga jual snack/minuman sudah benar sebelum kasir menagihkannya.
+          Kolom "Dijual" memakai harga jual sebagai penanda, karena itulah
+          yang menentukan apakah produk muncul di POS — produk tanpa harga
+          jual tidak pernah ditawarkan ke tamu. */}
+      <Card style={{ marginBottom: 20 }}>
+        <CardHead
+          title="Daftar Produk"
+          sub={`${products.length} SKU · harga jual menentukan apakah produk muncul di POS kasir`}
+        />
+        <div className="table-wrap">
+          <table className="tbl">
+            <thead><tr><th>Produk</th><th>Kategori</th><th>Stok di outlet ini</th><th>Harga cost</th><th>Harga jual</th></tr></thead>
+            <tbody>
+              {products.map((p) => (
+                <tr key={p.id}>
+                  <td><PersonCell name={p.name} sub={p.sku} toneKey={p.category === "Food & Beverage" ? "gold" : "teal"} size={26} /></td>
+                  <td className="muted small">{p.category}</td>
+                  <td className="num small muted">{p.trackStock ? `${p.stocks[outlet.id] ?? 0} ${p.uom}` : "—"}</td>
+                  <td className="num small muted">{rp(p.costPrice)}</td>
+                  <td className="num small" style={{ color: p.sellPrice === null ? "var(--text-3)" : "var(--accent)" }}>
+                    {p.sellPrice === null ? "tidak dijual" : rp(p.sellPrice)}
+                  </td>
+                </tr>
+              ))}
+              {products.length === 0 && (
+                <tr><td colSpan={5} className="dim small" style={{ textAlign: "center", padding: "20px 0" }}>Belum ada produk.</td></tr>
               )}
             </tbody>
           </table>

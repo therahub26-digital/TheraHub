@@ -108,8 +108,21 @@ export async function createProduct(input: CreateProductInput): Promise<ActionRe
     min_stock: input.minStock,
   });
   if (error) {
-    const dup = error.code === "23505";
-    return { ok: false, error: dup ? "SKU sudah dipakai produk lain." : "Gagal menyimpan produk." };
+    // 23505 = unique violation (SKU already taken).
+    // 42501 = RLS refused the insert. Worth naming explicitly instead of
+    // hiding behind a generic failure: until migration 0021 is applied,
+    // `products_write` only admits admin/owner, so a manager pressing
+    // this button gets a refusal that has nothing to do with what they
+    // typed. Telling them the real reason is the difference between
+    // "the app is broken" and "my role cannot do this yet".
+    if (error.code === "23505") return { ok: false, error: "SKU sudah dipakai produk lain." };
+    if (error.code === "42501") {
+      return {
+        ok: false,
+        error: "Role kamu belum diizinkan menambah produk. Perlu migrasi 0021 diterapkan, atau tambahkan produk lewat akun admin/owner.",
+      };
+    }
+    return { ok: false, error: "Gagal menyimpan produk." };
   }
 
   revalidatePath("/manager/inventory");

@@ -56,6 +56,7 @@ export default async function PosCartPage() {
         price: p.sellPrice as number,
         stock: p.stocks[outlet.id] ?? 0,
         tracksStock: p.trackStock,
+        group: p.category === "Food & Beverage" ? ("F&B" as const) : ("RETAIL" as const),
       }));
 
     return (

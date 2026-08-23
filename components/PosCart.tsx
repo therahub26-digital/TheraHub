@@ -25,7 +25,18 @@ import type { PayableSession } from "@/lib/types";
 // ---------------------------------------------------------------------
 
 export type PosAddOn = { id: string; name: string; price: number };
-export type PosProduct = { id: string; name: string; price: number; stock: number; tracksStock: boolean };
+export type PosProduct = {
+  id: string;
+  name: string;
+  price: number;
+  stock: number;
+  tracksStock: boolean;
+  // "F&B" = makanan ringan & minuman, "RETAIL" = produk retail lain.
+  // Dipisah supaya kasir tidak harus menyisir satu grid campuran untuk
+  // menemukan sebotol air — F&B adalah yang paling sering ditambahkan
+  // dan paling sering terlewat ditagih.
+  group: "F&B" | "RETAIL";
+};
 
 type CartLine = { kind: "ADD_ON" | "PRODUCT"; id: string; name: string; price: number; qty: number; maxQty: number | null };
 
@@ -183,34 +194,21 @@ export default function PosCart({
           </div>
         </Card>
 
-        <Card>
-          <CardHead title="Produk Retail & F&B" sub={products.length > 0 ? "Stok berkurang otomatis saat pembayaran" : undefined} />
-          <div className="card-body">
-            {products.length === 0 && (
-              <div className="small dim">
-                Belum ada produk dengan harga jual di outlet ini. Atur harga jual & stok lewat menu Inventori.
-              </div>
-            )}
-            <div className="grid grid-3">
-              {products.map((p) => {
-                const soldOut = p.tracksStock && p.stock <= 0;
-                return (
-                  <button
-                    key={p.id}
-                    className="btn btn-ghost"
-                    disabled={isPending || !selected || soldOut}
-                    onClick={() => addLine("PRODUCT", p.id, p.name, p.price, p.tracksStock ? p.stock : null)}
-                    style={{ flexDirection: "column", alignItems: "flex-start", height: "auto", padding: "12px 14px", gap: 4, opacity: soldOut ? 0.5 : 1 }}
-                  >
-                    <span className="small strong" style={{ color: "var(--text-1)" }}>{p.name}</span>
-                    <span className="tiny dim">{p.tracksStock ? (soldOut ? "Stok habis" : `Stok ${p.stock}`) : "Tanpa stok"}</span>
-                    <span className="small" style={{ color: "var(--accent)" }}>{rp(p.price)}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </Card>
+        <ProductPickerCard
+          title="Makanan & Minuman"
+          emptyNote="Belum ada makanan/minuman dengan harga jual di outlet ini. Tambahkan lewat menu Inventori."
+          items={products.filter((p) => p.group === "F&B")}
+          disabled={isPending || !selected}
+          onPick={(p) => addLine("PRODUCT", p.id, p.name, p.price, p.tracksStock ? p.stock : null)}
+        />
+
+        <ProductPickerCard
+          title="Produk Retail"
+          emptyNote="Belum ada produk retail dengan harga jual di outlet ini."
+          items={products.filter((p) => p.group === "RETAIL")}
+          disabled={isPending || !selected}
+          onPick={(p) => addLine("PRODUCT", p.id, p.name, p.price, p.tracksStock ? p.stock : null)}
+        />
       </div>
 
       <Card className="card-pad" style={{ position: "sticky", top: "calc(var(--header-h) + 16px)" }}>
@@ -338,5 +336,54 @@ export default function PosCart({
         )}
       </Card>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// One grid of tappable products. Extracted when the single mixed
+// "Produk Retail & F&B" grid was split in two (2026-08-23, user:
+// "buatkan penjualan produk makanan ringan dan minuman") so the two
+// sections cannot drift apart in behaviour — a sold-out item must look
+// and act sold-out identically whether it is a bottle of water or a
+// retail product.
+// ---------------------------------------------------------------------
+function ProductPickerCard({
+  title,
+  emptyNote,
+  items,
+  disabled,
+  onPick,
+}: {
+  title: string;
+  emptyNote: string;
+  items: PosProduct[];
+  disabled: boolean;
+  onPick: (p: PosProduct) => void;
+}) {
+  return (
+    <Card>
+      <CardHead title={title} sub={items.length > 0 ? "Stok berkurang otomatis saat pembayaran" : undefined} />
+      <div className="card-body">
+        {items.length === 0 && <div className="small dim">{emptyNote}</div>}
+        <div className="grid grid-3">
+          {items.map((p) => {
+            const soldOut = p.tracksStock && p.stock <= 0;
+            return (
+              <button
+                key={p.id}
+                className="btn btn-ghost"
+                disabled={disabled || soldOut}
+                onClick={() => onPick(p)}
+                style={{ flexDirection: "column", alignItems: "flex-start", height: "auto", padding: "12px 14px", gap: 4, opacity: soldOut ? 0.5 : 1 }}
+              >
+                <span className="small strong" style={{ color: "var(--text-1)" }}>{p.name}</span>
+                <span className="tiny dim">{p.tracksStock ? (soldOut ? "Stok habis" : `Stok ${p.stock}`) : "Tanpa stok"}</span>
+                <span className="small" style={{ color: "var(--accent)" }}>{rp(p.price)}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </Card>
   );
 }

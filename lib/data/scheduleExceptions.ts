@@ -57,6 +57,26 @@ export async function getScheduleExceptions(outletId: string, date: string): Pro
   return (data as ScheduleExceptionRow[]).map(mapRow);
 }
 
+/**
+ * All OFF/LEAVE rows for this outlet from `fromDate` (inclusive) onward
+ * — the "rencana libur/cuti ke depan" board (user, 2026-08-23: "cek
+ * jadwal terapis, tambahkan keterangan rencana libur/cuti"). Unlike
+ * getScheduleExceptions() above (locked to a single day for the daily
+ * check-the-roster routine), this is for staff planning AHEAD — seeing
+ * what's already been marked for the coming days, not just today.
+ */
+export async function getUpcomingScheduleExceptions(outletId: string, fromDate: string): Promise<ScheduleException[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("employee_schedule_exceptions")
+    .select("*")
+    .eq("outlet_id", outletId)
+    .gte("date", fromDate)
+    .order("date", { ascending: true });
+  if (error || !data) return [];
+  return (data as ScheduleExceptionRow[]).map(mapRow);
+}
+
 // ---------------------------------------------------------------------
 // Customer-facing read — added 2026-08-23, user report "ayu masih bisa
 // dibooking padahal libur". schedule_exceptions_read's RLS condition

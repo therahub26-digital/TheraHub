@@ -2,10 +2,12 @@ import Icon from "@/components/Icon";
 import { Badge } from "@/components/ui";
 import MobileShell from "@/components/MobileShell";
 import AttendanceCheckButton from "@/components/AttendanceCheckButton";
+import TherapistLeaveRequestForm from "@/components/TherapistLeaveRequestForm";
 import { ME_THERAPIST, attendanceOf, outletOf } from "@/lib/mock";
 import { getSignedInTherapist } from "@/lib/data/commissions";
 import { getCurrentOutlet } from "@/lib/data/outlets";
 import { getAttendanceHistoryForTherapist } from "@/lib/data/attendance";
+import { getMyLeaveRequests } from "@/lib/data/leaveRequests";
 import { getEffectiveToday } from "@/lib/data/bookings";
 import { fmtTime, fmtDateShort, minutesToHm } from "@/lib/format";
 
@@ -32,7 +34,10 @@ export default async function AttendancePage() {
 
   if (signedIn) {
     const [outlet, today] = await Promise.all([getCurrentOutlet(), getEffectiveToday()]);
-    const history = await getAttendanceHistoryForTherapist(signedIn.id, signedIn.name, 7);
+    const [history, myLeaveRequests] = await Promise.all([
+      getAttendanceHistoryForTherapist(signedIn.id, signedIn.name, 7),
+      getMyLeaveRequests(signedIn.id),
+    ]);
     const todayRow = history.find((a) => a.date === today);
     const checkedIn = !!todayRow?.checkInAt;
     const checkedOut = !!todayRow?.checkOutAt;
@@ -63,7 +68,7 @@ export default async function AttendancePage() {
               }}
             >
               <span style={{ position: "absolute", inset: 14, borderRadius: "50%", border: "1px dashed var(--border-2)" }} />
-              <Icon name="map-pin-check" size={38} style={{ color: checkedIn ? "var(--accent)" : "var(--text-3)" }} />
+              <Icon name="map-pin-check" size={24} style={{ color: checkedIn ? "var(--accent)" : "var(--text-3)" }} />
             </div>
             <div className="m-title" style={{ marginBottom: 2 }}>
               {checkedOut ? "Absensi Hari Ini Selesai" : checkedIn ? "Anda Sudah Check-in" : "Belum Check-in Hari Ini"}
@@ -114,6 +119,11 @@ export default async function AttendancePage() {
               </span>
             </div>
           </div>
+
+          <TherapistLeaveRequestForm
+            minDate={today}
+            requests={myLeaveRequests.map((r) => ({ id: r.id, date: r.date, note: r.note, status: r.status }))}
+          />
 
           <div>
             <div className="m-section">Riwayat 7 Hari</div>
@@ -180,7 +190,7 @@ export default async function AttendancePage() {
                 border: "1px dashed var(--border-2)",
               }}
             />
-            <Icon name="map-pin-check" size={38} style={{ color: checkedIn ? "var(--accent)" : "var(--text-3)" }} />
+            <Icon name="map-pin-check" size={24} style={{ color: checkedIn ? "var(--accent)" : "var(--text-3)" }} />
           </div>
           <div className="m-title" style={{ marginBottom: 2 }}>
             {checkedIn ? "Anda Sudah Check-in" : "Belum Check-in Hari Ini"}

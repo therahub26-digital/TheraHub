@@ -2,7 +2,8 @@ import { PageHead, Card, CardHead, StatCard, Badge, PersonCell, InfoNote } from 
 import { CheckInControl } from "@/components/SessionActions";
 import { getCurrentOutlet } from "@/lib/data/outlets";
 import { getBookingsToday, getEffectiveNow } from "@/lib/data/bookings";
-import { getAvailableRoomsForOutlet } from "@/lib/data/rooms";
+import { getRoomsForOutlet, getAvailableRoomsForOutlet } from "@/lib/data/rooms";
+import { getActiveSessionsForOutlet } from "@/lib/data/sessions";
 import { fmtTime, toMin } from "@/lib/format";
 
 // ---------------------------------------------------------------------
@@ -21,10 +22,12 @@ import { fmtTime, toMin } from "@/lib/format";
 
 export default async function CheckinPage() {
   const outlet = await getCurrentOutlet();
-  const [bookingsRaw, nowHHMM, availableRooms] = await Promise.all([
+  const [bookingsRaw, nowHHMM, availableRooms, allRooms, activeSessions] = await Promise.all([
     getBookingsToday(outlet.id),
     getEffectiveNow(),
     getAvailableRoomsForOutlet(outlet.id),
+    getRoomsForOutlet(outlet.id),
+    getActiveSessionsForOutlet(outlet.id),
   ]);
   const rooms = availableRooms.map((r) => ({ id: r.id, name: r.name }));
 
@@ -33,10 +36,28 @@ export default async function CheckinPage() {
   const upNow = bookings
     .filter((b) => b.status !== "CHECKED_IN" && Math.abs(toMin(b.scheduledStart) - NOW) <= 30)
     .sort((a, b) => a.scheduledStart.localeCompare(b.scheduledStart));
-  const later = bookings
-    .filter((b) => b.status !== "CHECKED_IN" && toMin(b.scheduledStart) - NOW > 30)
-    .sort((a, b) => a.scheduledStart.localeCompare(b.scheduledStart));
   const checkedIn = bookings.filter((b) => b.status === "CHECKED_IN");
+
+  // User request 2026-08-23: "tampilan customer checkin di kasir berisi
+  // daftar yg booking belum checkin, dan ruangan beserta statusnya
+  // seperti di tampilan room role manager, jadi si kasir tahu status
+  // ruangan dan terapis yang kerja dan waktunya berapa lama lagi
+  // sehingga bisa menempatkan orang berikutnya untuk dilakukan checkin
+  // di room berapa. booking selanjutnya tidak perlu tampil karena sudah
+  // di panel today booking." Reuses the exact same live source
+  // (getActiveSessionsForOutlet) /manager/rooms already reads from, so
+  // "sisa Nm" here can never disagree with what the manager sees.
+  const roomStatus = allRooms.map((r) => {
+    const session = activeSessions.find((s) => s.roomName === r.name);
+    return {
+      id: r.id,
+      name: r.name,
+      code: r.code,
+      maintenance: r.status === "MAINTENANCE",
+      inactive: r.status === "INACTIVE",
+      session,
+    };
+  });
 
   return (
     <>
@@ -47,8 +68,14 @@ export default async function CheckinPage() {
 
       <div className="grid grid-3" style={{ marginBottom: 20 }}>
         <StatCard label="Perlu Check-in Sekarang" value={upNow.length} icon="user-check" toneKey="gold" deltaLabel="± 30 menit dari jadwal" />
-        <StatCard label="Booking Selanjutnya" value={later.length} icon="calendar-clock" toneKey="sky" deltaLabel="Lebih dari 30 menit lagi" />
         <StatCard label="Sudah Check-in" value={checkedIn.length} icon="check-circle" toneKey="teal" deltaLabel="Menunggu mulai sesi" />
+        <StatCard
+          label="Room Tersedia"
+          value={roomStatus.filter((r) => !r.maintenance && !r.inactive && !r.session).length}
+          icon="door-open"
+          toneKey="sky"
+          deltaLabel={`dari ${roomStatus.length} room`}
+        />
       </div>
 
       <Card style={{ marginBottom: 20 }}>
@@ -93,29 +120,34 @@ export default async function CheckinPage() {
       )}
 
       <Card style={{ marginBottom: 20 }}>
-        <CardHead title="Booking Selanjutnya" sub="Belum perlu check-in" />
-        <div className="table-wrap">
-          <table className="tbl">
-            <thead><tr><th>Jam</th><th>Tamu</th><th>Layanan</th><th>Terapis</th><th>Status</th></tr></thead>
-            <tbody>
-              {later.slice(0, 8).map((b) => (
-                <tr key={b.id}>
-                  <td className="mono small">{fmtTime(b.scheduledStart)}</td>
-                  <td className="strong" style={{ color: "var(--text-1)" }}>{b.customerName}</td>
-                  <td className="muted small">{b.packageName}</td>
-                  <td className="muted small">{b.therapistName}</td>
-                  <td><Badge tone="info">{b.status.replace(/_/g, " ")}</Badge></td>
-                </tr>
-              ))}
-              {later.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="dim small" style={{ textAlign: "center", padding: "20px 0" }}>
-                    Tidak ada booking berikutnya hari ini.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+        <CardHead
+          title="Status Room"
+          sub="Room terpakai menampilkan terapis dan sisa waktu — pakai ini untuk menentukan room mana yang siap dipakai tamu berikutnya"
+        />
+        <div className="grid grid-rooms">
+          {roomStatus.map((r) => {
+            const status = r.maintenance ? "Maintenance" : r.session ? "Terpakai" : r.inactive ? "Nonaktif" : "Tersedia";
+            const tone = r.maintenance ? "warning" : r.session ? "warning" : r.inactive ? "neutral" : "success";
+            return (
+              <Card key={r.id} style={{ padding: 12 }}>
+                <div className="between" style={{ marginBottom: 6, alignItems: "flex-start" }}>
+                  <div>
+                    <div className="strong small" style={{ color: "var(--text-1)" }}>{r.name}</div>
+                    <div className="tiny dim">{r.code}</div>
+                  </div>
+                  <Badge tone={tone as "warning" | "success" | "neutral"} dot>{status}</Badge>
+                </div>
+                {r.session ? (
+                  <div className="tiny truncate" style={{ color: "var(--warning)" }}>
+                    {r.session.therapistName} · sisa {r.session.minutesRemaining}m
+                  </div>
+                ) : (
+                  <div className="tiny dim">Siap untuk tamu berikutnya</div>
+                )}
+              </Card>
+            );
+          })}
+          {roomStatus.length === 0 && <div className="small dim">Belum ada room terdaftar di outlet ini.</div>}
         </div>
       </Card>
 

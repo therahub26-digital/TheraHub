@@ -102,3 +102,20 @@ export function plusMinutes(iso: string, mins: number): string {
 export function minutesBetween(aIso: string, bIso: string): number {
   return (new Date(bIso).getTime() - new Date(aIso).getTime()) / 60000;
 }
+
+/**
+ * Add `days` to a plain "YYYY-MM-DD" date string (a Postgres `date`
+ * column, not `timestamptz` — no time-of-day or UTC-offset convention
+ * applies here, this is pure calendar-date arithmetic). Used for
+ * date-only inputs like leave-planning date pickers where "tomorrow" is
+ * needed as a min-selectable bound. Computed in UTC internally purely to
+ * avoid the host machine's local DST rules perturbing the date — the
+ * input and output are both date-only, so there is no time-of-day to
+ * get wrong.
+ */
+export function plusDays(dateIso: string, days: number): string {
+  const d = new Date(dateIso + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + days);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}`;
+}

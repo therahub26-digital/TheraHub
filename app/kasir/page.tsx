@@ -7,7 +7,6 @@ import { BookingRowActions } from "@/components/SessionActions";
 import { getBookingsToday, getBookingKpi, getEffectiveToday, getEffectiveNow, isLiveBookingsData } from "@/lib/data/bookings";
 import { rp, fmtTime } from "@/lib/format";
 import { buildFollowUpList } from "@/lib/bookingRules";
-import type { BookingStatus } from "@/lib/types";
 import BookingFollowUpBanner from "@/components/BookingFollowUp";
 
 export default async function KasirTodayPage() {
@@ -44,17 +43,66 @@ export default async function KasirTodayPage() {
   // each stage. DRAFT is treated as "menunggu kedatangan" too since it
   // hasn't checked in yet; CANCELLED never reaches here (filtered above)
   // but is included for completeness/future-proofing if that filter changes.
-  function stageRank(status: BookingStatus): number {
-    if (["DRAFT", "BOOKED", "CONFIRMED"].includes(status)) return 0; // menunggu kedatangan
-    if (["ARRIVED", "CHECKED_IN"].includes(status)) return 1; // sudah check-in
-    if (status === "IN_SESSION") return 2; // in session
-    return 3; // sudah selesai atau batal (COMPLETED, PAID, NO_SHOW, RESCHEDULED, CANCELLED)
+  // UPDATE 2026-08-23 (user: "tampilan daftar jadwal booking hari ini di
+  // kasir dibagi 3 kelompok/kotak — yang sudah booking belum checkin,
+  // sudah check in dan sedang sesi, dan sudah selesai atau batal"):
+  // the single combined table (grouped-by-sort from babak 16) is now
+  // three separate cards, one per stage. Stage 0/1 from babak 16
+  // (menunggu kedatangan / sudah check-in) turned out to look like ONE
+  // continuous list to a cashier scanning fast — a stage boundary you
+  // have to notice from row color alone is easy to miss during a busy
+  // shift. Splitting into boxes with their own heading makes the
+  // boundary impossible to miss. IN_SESSION now shares a box with
+  // check-in (both are "the guest is here, something is in progress"),
+  // matching the user's own grouping ("sudah check in dan sedang sesi").
+  const waitingArrival = bookings
+    .filter((b) => ["DRAFT", "BOOKED", "CONFIRMED"].includes(b.status))
+    .sort((a, b) => (a.scheduledStart < b.scheduledStart ? -1 : a.scheduledStart > b.scheduledStart ? 1 : 0));
+  const inProgress = bookings
+    .filter((b) => ["ARRIVED", "CHECKED_IN", "IN_SESSION"].includes(b.status))
+    .sort((a, b) => (a.scheduledStart < b.scheduledStart ? -1 : a.scheduledStart > b.scheduledStart ? 1 : 0));
+  const doneOrCancelled = bookings
+    .filter((b) => !["DRAFT", "BOOKED", "CONFIRMED", "ARRIVED", "CHECKED_IN", "IN_SESSION"].includes(b.status))
+    .sort((a, b) => (a.scheduledStart < b.scheduledStart ? -1 : a.scheduledStart > b.scheduledStart ? 1 : 0));
+
+  function BookingBox({ title, sub, rows }: { title: string; sub: string; rows: typeof bookings }) {
+    return (
+      <Card style={{ marginBottom: 20 }}>
+        <CardHead title={title} sub={sub} />
+        <div className="table-wrap">
+          <table className="tbl">
+            <thead>
+              <tr><th>Jam</th><th>Tamu</th><th>Layanan</th><th>Terapis</th><th>Room</th><th>Sumber</th><th>Status</th><th></th></tr>
+            </thead>
+            <tbody>
+              {rows.map((b) => (
+                <tr key={b.id}>
+                  <td className="mono small nowrap">{fmtTime(b.scheduledStart)}</td>
+                  <td><PersonCell name={b.customerName} sub={b.customerPhone} toneKey="teal" size={26} /></td>
+                  <td className="muted small">{b.packageName}</td>
+                  <td className="muted small">{b.therapistName}</td>
+                  <td className="muted small">{b.roomName}</td>
+                  <td><Badge tone="neutral">{b.source}</Badge></td>
+                  <td><StatusBadge status={b.status} /></td>
+                  <td className="nowrap">
+                    {["BOOKED", "CONFIRMED", "ARRIVED", "CHECKED_IN"].includes(b.status) && (
+                      <BookingRowActions bookingId={b.id} status={b.status} rooms={roomOptions} />
+                    )}
+                    {["IN_SESSION", "COMPLETED"].includes(b.status) && (
+                      <button className="btn btn-ghost btn-sm" disabled><Icon name="eye" size={12} /> Detail</button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {rows.length === 0 && (
+                <tr><td colSpan={8} className="dim small" style={{ textAlign: "center", padding: "20px 0" }}>Tidak ada booking di kelompok ini.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    );
   }
-  const sortedBookings = [...bookings].sort((a, b) => {
-    const rankDiff = stageRank(a.status) - stageRank(b.status);
-    if (rankDiff !== 0) return rankDiff;
-    return a.scheduledStart < b.scheduledStart ? -1 : a.scheduledStart > b.scheduledStart ? 1 : 0;
-  });
 
   return (
     <>
@@ -73,63 +121,9 @@ export default async function KasirTodayPage() {
         <StatCard label="Revenue Hari Ini" value={rp(kpi.revenue, { short: true })} icon="circle-dollar" toneKey="violet" deltaLabel={`${kpi.paid} transaksi paid`} />
       </div>
 
-      <Card>
-        <CardHead title="Jadwal Booking Hari Ini" sub={`${bookings.length} booking · dikelompokkan per tahap, diurutkan berdasarkan jam`} />
-        <div className="table-wrap">
-          <table className="tbl">
-            <thead>
-              <tr><th>Jam</th><th>Tamu</th><th>Layanan</th><th>Terapis</th><th>Room</th><th>Sumber</th><th>Status</th><th></th></tr>
-            </thead>
-            <tbody>
-              {sortedBookings.map((b) => (
-                <tr key={b.id}>
-                  <td className="mono small nowrap">{fmtTime(b.scheduledStart)}</td>
-                  <td><PersonCell name={b.customerName} sub={b.customerPhone} toneKey="teal" size={26} /></td>
-                  <td className="muted small">{b.packageName}</td>
-                  <td className="muted small">{b.therapistName}</td>
-                  <td className="muted small">{b.roomName}</td>
-                  <td><Badge tone="neutral">{b.source}</Badge></td>
-                  <td><StatusBadge status={b.status} /></td>
-                  <td className="nowrap">
-                    {/* Was a plain <button> with no onClick — looked
-                        clickable, did nothing (found 2026-08-23, user
-                        report "tombol checkin tidak bisa klik"). Now the
-                        same BookingRowActions used on /manager/bookings'
-                        list view — Check-in picks a room live via
-                        checkInBooking(); Mulai Sesi calls startSession().
-                        BookingRowActions itself decides which button to
-                        show from `status` (canCheckIn / canStart), so
-                        it can be handed every non-final status instead of
-                        being gated a second time here.
-                        FIXED 2026-08-23 (user: "kasir bisa mulai sesi,
-                        tidak harus therapis"): CHECKED_IN used to fall
-                        into the disabled "Detail" branch below, so a
-                        cashier could check a guest in but then had NO WAY
-                        to start their session from this page — even
-                        though RLS (sessions_staff, gated by
-                        _is_outlet_staff) already allows kasir/manager to
-                        do exactly that. startSession() itself never
-                        required a therapist role; the button to reach it
-                        was simply missing here. The dedicated therapist
-                        flow at /therapist/session is unaffected — this
-                        just gives the front desk the same "Mulai Sesi"
-                        button /manager/bookings already had. */}
-                    {["BOOKED", "CONFIRMED", "ARRIVED", "CHECKED_IN"].includes(b.status) && (
-                      <BookingRowActions bookingId={b.id} status={b.status} rooms={roomOptions} />
-                    )}
-                    {["IN_SESSION", "COMPLETED"].includes(b.status) && (
-                      <button className="btn btn-ghost btn-sm" disabled><Icon name="eye" size={12} /> Detail</button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              {bookings.length === 0 && (
-                <tr><td colSpan={8} className="dim small" style={{ textAlign: "center", padding: "20px 0" }}>Tidak ada booking hari ini.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+      <BookingBox title="Menunggu Kedatangan" sub={`${waitingArrival.length} booking · belum check-in, diurutkan berdasarkan jam`} rows={waitingArrival} />
+      <BookingBox title="Check-in & Sesi Berjalan" sub={`${inProgress.length} booking · tamu sudah di outlet`} rows={inProgress} />
+      <BookingBox title="Selesai / Batal" sub={`${doneOrCancelled.length} booking · sudah tuntas hari ini`} rows={doneOrCancelled} />
     </>
   );
 }

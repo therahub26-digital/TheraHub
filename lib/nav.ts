@@ -152,12 +152,26 @@ export const ROLES: RoleDef[] = [
     // next to "Beranda", ahead of "Jadwal & Job" ("kolom sesi digeser
     // sebelah beranda baru jadwal") — reordered to Beranda -> Sesi Aktif
     // -> Jadwal & Job -> Notifikasi.
+    // UPDATE 2026-08-23 (later still) — user: "tombol notifikasi di role
+    // therapis ganti dengan absensi dan didalamnya juga ada pengajuan
+    // libur/cuti, logo gps diperkecil saja". The 4th main tab
+    // (MobileShell renders def.nav.slice(0,4) as the tab bar) is now
+    // Absensi (attendance + the new "Ajukan Cuti" form, see
+    // TherapistLeaveRequestForm) instead of Notifikasi. Notification
+    // access is NOT removed — /therapist's own headerRight already
+    // carries a bell icon with the unread dot (app/therapist/page.tsx),
+    // which is what the user picked when asked where notifications
+    // should live now that they're off the tab bar. /therapist/shift's
+    // badge (2) is unrelated and untouched. Absensi GPS moved out of
+    // "Lainnya" into the main 4; Komisi Saya and Payslip & Tabungan now
+    // overflow into "Lainnya" alongside Notifikasi (still reachable, not
+    // deleted — its route and page are untouched).
     nav: [
       { href: "/therapist", label: "Beranda", icon: "home", section: "Harian" },
       { href: "/therapist/session", label: "Sesi Aktif", icon: "timer", section: "Harian" },
       { href: "/therapist/shift", label: "Jadwal & Job", icon: "calendar-days", badge: 2, section: "Harian" },
-      { href: "/therapist/notifications", label: "Notifikasi", icon: "bell", badge: 2, section: "Harian" },
-      { href: "/therapist/attendance", label: "Absensi GPS", icon: "map-pin-check", section: "Penghasilan" },
+      { href: "/therapist/attendance", label: "Absensi", icon: "map-pin-check", section: "Harian" },
+      { href: "/therapist/notifications", label: "Notifikasi", icon: "bell", badge: 2, section: "Penghasilan" },
       { href: "/therapist/commission", label: "Komisi Saya", icon: "percent", section: "Penghasilan" },
       { href: "/therapist/payslip", label: "Payslip & Tabungan", icon: "wallet", section: "Penghasilan" },
     ],

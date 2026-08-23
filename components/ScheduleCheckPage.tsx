@@ -2,9 +2,13 @@ import { PageHead, Card, CardHead, InfoNote } from "@/components/ui";
 import { getCurrentOutlet } from "@/lib/data/outlets";
 import { getTherapistsForOutlet } from "@/lib/data/employees";
 import { getBookingsForOutlet, getEffectiveToday } from "@/lib/data/bookings";
-import { getScheduleExceptions } from "@/lib/data/scheduleExceptions";
+import { getScheduleExceptions, getUpcomingScheduleExceptions } from "@/lib/data/scheduleExceptions";
+import { getLeaveRequestsForOutlet } from "@/lib/data/leaveRequests";
+import { plusDays } from "@/lib/wallclock";
 import { fmtDateLong } from "@/lib/format";
 import ScheduleCheckBoard from "@/components/ScheduleCheckBoard";
+import LeavePlanBoard from "@/components/LeavePlanBoard";
+import LeaveRequestApprovalBoard from "@/components/LeaveRequestApprovalBoard";
 
 // ---------------------------------------------------------------------
 // Shared page body for /manager/schedule-check and /kasir/schedule-check
@@ -32,11 +36,20 @@ export default async function ScheduleCheckPage() {
   const outlet = await getCurrentOutlet();
   const today = await getEffectiveToday();
 
-  const [therapists, exceptions, bookingsToday] = await Promise.all([
+  const [therapists, exceptions, bookingsToday, upcomingExceptions, leaveRequests] = await Promise.all([
     getTherapistsForOutlet(outlet.id),
     getScheduleExceptions(outlet.id, today),
     getBookingsForOutlet(outlet.id, today),
+    getUpcomingScheduleExceptions(outlet.id, plusDays(today, 1)),
+    getLeaveRequestsForOutlet(outlet.id),
   ]);
+  const therapistBoardProps = therapists.map((t) => ({
+    id: t.id,
+    name: t.name,
+    code: t.code,
+    avatarTone: t.avatarTone,
+    photoUrl: t.photoUrl ?? null,
+  }));
 
   const activeBookingsToday = bookingsToday.filter((b) => ACTIVE_STATUSES.includes(b.status));
 
@@ -53,6 +66,34 @@ export default async function ScheduleCheckPage() {
       </InfoNote>
 
       <div style={{ marginTop: 20 }}>
+        <Card style={{ marginBottom: 20 }}>
+          <CardHead
+            title="Pengajuan Cuti Terapis"
+            sub={`${leaveRequests.filter((r) => r.status === "PENDING").length} menunggu keputusan`}
+          />
+          <div className="card-body">
+            <LeaveRequestApprovalBoard
+              therapists={therapistBoardProps}
+              requests={leaveRequests.map((r) => ({ id: r.id, employeeId: r.employeeId, date: r.date, note: r.note, status: r.status, requestedAt: r.requestedAt }))}
+            />
+          </div>
+        </Card>
+
+        <Card style={{ marginBottom: 20 }}>
+          <CardHead
+            title="Rencana Libur/Cuti ke Depan"
+            sub="Tandai OFF/LIBUR untuk tanggal mendatang — tidak perlu menunggu hari-H"
+          />
+          <div className="card-body">
+            <LeavePlanBoard
+              outletId={outlet.id}
+              minDate={plusDays(today, 1)}
+              therapists={therapistBoardProps}
+              rows={upcomingExceptions.map((e) => ({ id: e.id, employeeId: e.employeeId, date: e.date, type: e.type, note: e.note }))}
+            />
+          </div>
+        </Card>
+
         <Card>
           <CardHead title="Roster Terapis Hari Ini" sub={`${therapists.length} terapis aktif di outlet ini`} />
           <div className="card-body">

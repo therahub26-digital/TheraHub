@@ -4,7 +4,7 @@ import { getCurrentOutlet } from "@/lib/data/outlets";
 import { getCategories, getServiceTypes, getPackagesForOutlet, getExtensionsForOutlet, getAddonsForOutlet } from "@/lib/data/catalog";
 import { rp, minutesToHm } from "@/lib/format";
 import { formatCommissionRule, commissionAmount } from "@/lib/commission";
-import { PackagePricingEditor, ExtensionPricingEditor, AddonEditor, NewAddonForm } from "@/components/CommissionEditor";
+import { PackagePricingEditor, ExtensionPricingEditor, AddonEditor, NewAddonForm, NewPackageForm } from "@/components/CommissionEditor";
 
 export default async function CatalogPage() {
   const outlet = await getCurrentOutlet();
@@ -23,7 +23,6 @@ export default async function CatalogPage() {
       <PageHead
         title="Catalog"
         desc={`${outlet.name} · Kategori, jenis layanan, paket harga, extension, dan add-on.`}
-        actions={<button className="btn btn-primary btn-sm"><Icon name="plus" size={14} /> Paket Baru</button>}
       />
 
       <div className="grid grid-4" style={{ marginBottom: 20 }}>
@@ -55,7 +54,11 @@ export default async function CatalogPage() {
       </div>
 
       <Card style={{ marginBottom: 20 }}>
-        <CardHead title="Daftar Paket" sub={`${packages.length} paket · diurutkan berdasarkan popularitas`} />
+        <CardHead
+          title="Daftar Paket"
+          sub={`${packages.length} paket · diurutkan berdasarkan popularitas`}
+          action={<NewPackageForm outletId={outlet.id} serviceTypes={SERVICE_TYPES.map((t) => ({ id: t.id, name: t.name }))} />}
+        />
         <div className="table-wrap">
           <table className="tbl">
             <thead>

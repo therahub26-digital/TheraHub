@@ -540,6 +540,59 @@ export async function deletePayrollAdjustment(id: string): Promise<ActionResult>
   return { ok: true };
 }
 
+// ---------------------------------------------------------------------
+// UPDATE 2026-08-23 — user feedback: "edit payroll misal ada perubahan
+// gaji atau potongan juga belum ada, hanya ada tambah baris". Until now
+// the only way to correct an existing manual line (wrong amount, wrong
+// label, mis-tagged component) was to delete it and add a new one, which
+// throws away the row's identity (and, for a batch line, its batch_id —
+// see DeleteBatchButton/addBulkAdjustment above). This is the missing
+// in-place edit, same validation as addPayrollAdjustment, restricted to
+// the fields a manager would actually correct — employee/outlet/period
+// are NOT editable here (moving a line to a different person or month is
+// a delete-and-recreate, not an edit).
+// ---------------------------------------------------------------------
+
+export type UpdateAdjustmentInput = {
+  id: string;
+  label: string;
+  kind: "EARNING" | "DEDUCTION";
+  amount: number;
+  component?: PayrollComponent | null;
+};
+
+export async function updatePayrollAdjustment(input: UpdateAdjustmentInput): Promise<ActionResult> {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Sesi tidak ditemukan — silakan login ulang." };
+
+  const label = input.label.trim();
+  if (!label) return { ok: false, error: "Keterangan wajib diisi — potongan tanpa nama tidak bisa dipertanggungjawabkan." };
+  if (!Number.isFinite(input.amount) || input.amount <= 0) {
+    return { ok: false, error: "Nominal harus lebih dari nol." };
+  }
+
+  const { error } = await supabase
+    .from("payroll_adjustments")
+    .update({
+      label,
+      kind: input.kind,
+      amount: input.amount,
+      component: input.component ?? null,
+    })
+    .eq("id", input.id);
+
+  if (error) {
+    return { ok: false, error: "Gagal menyimpan — pastikan akun Anda punya hak ubah payroll outlet ini." };
+  }
+
+  revalidateAdjustments();
+  return { ok: true };
+}
+
 function revalidateAdjustments() {
   revalidatePath("/manager/payroll");
   revalidatePath("/owner/payroll");

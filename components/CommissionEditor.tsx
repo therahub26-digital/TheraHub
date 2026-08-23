@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Icon from "@/components/Icon";
-import { updatePackagePricing, updateExtensionPricing, createAddon, updateAddon, type ActionResult } from "@/lib/actions/catalog";
+import { updatePackagePricing, updateExtensionPricing, createAddon, updateAddon, createPackage, type ActionResult } from "@/lib/actions/catalog";
 import { commissionAmount, formatCommissionRule, type CommissionType } from "@/lib/commission";
 import { rp } from "@/lib/format";
 
@@ -359,6 +359,184 @@ export function AddonEditor({
           }}
         >
           <Icon name="check" size={13} /> {isPending ? "Menyimpan…" : "Simpan"}
+        </button>
+        <button className="btn btn-ghost btn-sm" disabled={isPending} onClick={() => setOpen(false)}>
+          Batal
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// "Paket Baru" — added 2026-08-23, user feedback: "tambah paket baru
+// belum bisa, tombolnya sebaiknya ada di kotak daftar paket". Same
+// inline-open-form pattern as NewAddonForm below, but a package additionally
+// needs a jenis layanan (service type) and a room type — see
+// createPackage's header in lib/actions/catalog.ts for what's defaulted.
+// ---------------------------------------------------------------------
+
+type NewPackageValues = {
+  name: string;
+  serviceTypeId: string;
+  durationMin: string;
+  listPrice: string;
+  memberPrice: string;
+  weekendPrice: string;
+  roomType: string;
+  commissionType: CommissionType;
+  commissionValue: string;
+};
+
+/** "Paket Baru" — inline create form, opened from the Daftar Paket card header. */
+export function NewPackageForm({
+  outletId,
+  serviceTypes,
+}: {
+  outletId: string;
+  serviceTypes: { id: string; name: string }[];
+}) {
+  const [open, setOpen] = useState(false);
+  const empty: NewPackageValues = {
+    name: "",
+    serviceTypeId: serviceTypes[0]?.id ?? "",
+    durationMin: "60",
+    listPrice: "0",
+    memberPrice: "0",
+    weekendPrice: "0",
+    roomType: "Massage",
+    commissionType: "fixed",
+    commissionValue: "0",
+  };
+  const [values, setValues] = useState<NewPackageValues>(empty);
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  const priceNum = Number(values.listPrice);
+  const valueNum = Number(values.commissionValue);
+  const previewValid = Number.isFinite(priceNum) && Number.isFinite(valueNum) && valueNum > 0;
+  const preview = previewValid ? commissionAmount({ type: values.commissionType, value: valueNum }, priceNum) : 0;
+
+  function patch(p: Partial<NewPackageValues>) {
+    setValues((v) => ({ ...v, ...p }));
+  }
+
+  if (!open) {
+    return (
+      <button
+        className="btn btn-primary btn-sm"
+        onClick={() => { setValues({ ...empty, serviceTypeId: serviceTypes[0]?.id ?? "" }); setError(null); setOpen(true); }}
+      >
+        <Icon name="plus" size={12} /> Paket Baru
+      </button>
+    );
+  }
+
+  return (
+    <div className="stack g2" style={{ padding: "12px 14px", borderRadius: "var(--r-md)", background: "var(--bg-deep)", border: "1px solid var(--border)", marginBottom: 4, minWidth: 300 }}>
+      <label className="stack g1">
+        <span className="tiny dim">Nama paket</span>
+        <input className="input" value={values.name} disabled={isPending} placeholder="mis. Deep Tissue 60 Menit" onChange={(e) => patch({ name: e.target.value })} />
+      </label>
+
+      <label className="stack g1">
+        <span className="tiny dim">Jenis layanan</span>
+        <select className="select" value={values.serviceTypeId} disabled={isPending} onChange={(e) => patch({ serviceTypeId: e.target.value })}>
+          {serviceTypes.length === 0 && <option value="">— Belum ada jenis layanan —</option>}
+          {serviceTypes.map((t) => (
+            <option key={t.id} value={t.id}>{t.name}</option>
+          ))}
+        </select>
+      </label>
+
+      <div className="row g2">
+        <label className="stack g1" style={{ flex: 1 }}>
+          <span className="tiny dim">Durasi (menit)</span>
+          <input className="input" type="number" min={1} value={values.durationMin} disabled={isPending} onChange={(e) => patch({ durationMin: e.target.value })} />
+        </label>
+        <label className="stack g1" style={{ flex: 1 }}>
+          <span className="tiny dim">Tipe room</span>
+          <input className="input" value={values.roomType} disabled={isPending} placeholder="mis. Massage" onChange={(e) => patch({ roomType: e.target.value })} />
+        </label>
+      </div>
+
+      <div className="row g2">
+        <label className="stack g1" style={{ flex: 1 }}>
+          <span className="tiny dim">Harga List (Rp)</span>
+          <input className="input" type="number" min={0} value={values.listPrice} disabled={isPending} onChange={(e) => patch({ listPrice: e.target.value })} />
+        </label>
+        <label className="stack g1" style={{ flex: 1 }}>
+          <span className="tiny dim">Harga Member (Rp)</span>
+          <input className="input" type="number" min={0} value={values.memberPrice} disabled={isPending} onChange={(e) => patch({ memberPrice: e.target.value })} />
+        </label>
+        <label className="stack g1" style={{ flex: 1 }}>
+          <span className="tiny dim">Harga Weekend (Rp)</span>
+          <input className="input" type="number" min={0} value={values.weekendPrice} disabled={isPending} onChange={(e) => patch({ weekendPrice: e.target.value })} />
+        </label>
+      </div>
+
+      <label className="stack g1">
+        <span className="tiny dim">Komisi terapis</span>
+        <div className="row g2">
+          <select
+            className="select"
+            value={values.commissionType}
+            disabled={isPending}
+            onChange={(e) => patch({ commissionType: e.target.value as CommissionType })}
+            style={{ maxWidth: 110 }}
+          >
+            <option value="fixed">Rupiah</option>
+            <option value="percent">Persen</option>
+          </select>
+          <input
+            className="input"
+            type="number"
+            min={0}
+            max={values.commissionType === "percent" ? 100 : undefined}
+            value={values.commissionValue}
+            disabled={isPending}
+            onChange={(e) => patch({ commissionValue: e.target.value })}
+            style={{ flex: 1 }}
+          />
+        </div>
+      </label>
+
+      {previewValid ? (
+        <div className="tiny" style={{ color: "var(--text-2)" }}>
+          {formatCommissionRule({ type: values.commissionType, value: valueNum })} → terapis dapat{" "}
+          <span className="strong" style={{ color: "var(--text-1)" }}>{rp(preview)}</span> per treatment
+        </div>
+      ) : (
+        <div className="tiny dim">Komisi belum diisi — terapis tidak akan dapat komisi dari paket ini.</div>
+      )}
+
+      <ErrorNote error={error} />
+
+      <div className="row g2">
+        <button
+          className="btn btn-primary btn-sm"
+          disabled={isPending}
+          onClick={() => {
+            setError(null);
+            startTransition(async () => {
+              const r = await createPackage({
+                outletId,
+                serviceTypeId: values.serviceTypeId,
+                name: values.name,
+                durationMin: Number(values.durationMin),
+                listPrice: Number(values.listPrice),
+                memberPrice: Number(values.memberPrice),
+                weekendPrice: Number(values.weekendPrice),
+                roomType: values.roomType,
+                commissionType: values.commissionType,
+                commissionValue: Number(values.commissionValue),
+              });
+              if (r.ok) { setValues(empty); setOpen(false); }
+              else setError(r.error);
+            });
+          }}
+        >
+          <Icon name="check" size={13} /> {isPending ? "Menyimpan…" : "Simpan Paket"}
         </button>
         <button className="btn btn-ghost btn-sm" disabled={isPending} onClick={() => setOpen(false)}>
           Batal

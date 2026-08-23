@@ -6,6 +6,7 @@ import {
   savePayrollSettings,
   runPayroll,
   addPayrollAdjustment,
+  updatePayrollAdjustment,
   deletePayrollAdjustment,
   addBulkAdjustment,
   deleteAdjustmentBatch,
@@ -266,6 +267,109 @@ export function AddAdjustmentForm({
               if (result.ok) {
                 setLabel(""); setAmount(""); setOpen(false);
               } else setError(result.error);
+            });
+          }}
+        >
+          <Icon name="check" size={12} /> {isPending ? "Menyimpan…" : "Simpan"}
+        </button>
+        <button className="btn btn-ghost btn-sm" disabled={isPending} onClick={() => setOpen(false)}>Batal</button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// UPDATE 2026-08-23 — in-place edit for one existing manual line. Reuses
+// the same COMPONENT_OPTIONS list and validation shape as AddAdjustmentForm
+// above; the difference is it opens pre-filled with the row's current
+// values and calls updatePayrollAdjustment (lib/actions/payroll.ts)
+// instead of addPayrollAdjustment, so the row keeps its id/batch_id
+// rather than being replaced.
+// ---------------------------------------------------------------------
+
+export function EditAdjustmentButton({
+  id,
+  initialLabel,
+  initialAmount,
+  initialComponent,
+}: {
+  id: string;
+  initialLabel: string;
+  initialAmount: number;
+  initialComponent: PayrollComponent | null;
+}) {
+  const [open, setOpen] = useState(false);
+  const [label, setLabel] = useState(initialLabel);
+  const [amount, setAmount] = useState(String(initialAmount));
+  const [component, setComponent] = useState<PayrollComponent | "">(initialComponent ?? "OTHER_DEDUCTIONS");
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  const kind = COMPONENT_OPTIONS.find((o) => o.value === component)?.kind ?? "DEDUCTION";
+
+  if (!open) {
+    return (
+      <button
+        className="btn btn-ghost btn-sm"
+        title="Edit baris"
+        onClick={() => {
+          setLabel(initialLabel);
+          setAmount(String(initialAmount));
+          setComponent(initialComponent ?? "OTHER_DEDUCTIONS");
+          setError(null);
+          setOpen(true);
+        }}
+      >
+        <Icon name="edit" size={12} />
+      </button>
+    );
+  }
+
+  return (
+    <div className="stack g2" style={{ padding: "10px 12px", borderRadius: "var(--r-md)", background: "var(--bg-deep)", border: "1px solid var(--border)", minWidth: 260, marginTop: 4 }}>
+      <input
+        className="input"
+        placeholder="Keterangan"
+        value={label}
+        disabled={isPending}
+        onChange={(e) => setLabel(e.target.value)}
+      />
+      <div className="row g2">
+        <select
+          className="select"
+          value={component}
+          disabled={isPending}
+          onChange={(e) => setComponent(e.target.value as PayrollComponent | "")}
+          style={{ flex: 1 }}
+        >
+          {COMPONENT_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+        <input
+          className="input"
+          type="number"
+          min={0}
+          placeholder="Nominal"
+          value={amount}
+          disabled={isPending}
+          onChange={(e) => setAmount(e.target.value)}
+          style={{ maxWidth: 120 }}
+        />
+      </div>
+      <ErrorNote error={error} />
+      <div className="row g2">
+        <button
+          className="btn btn-primary btn-sm"
+          disabled={isPending}
+          onClick={() => {
+            setError(null);
+            startTransition(async () => {
+              const result = await updatePayrollAdjustment({
+                id, label, kind, amount: Number(amount), component: component || null,
+              });
+              if (result.ok) setOpen(false);
+              else setError(result.error);
             });
           }}
         >

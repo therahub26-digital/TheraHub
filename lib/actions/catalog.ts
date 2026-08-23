@@ -235,6 +235,94 @@ export async function updateAddon(input: UpdateAddonInput): Promise<ActionResult
   return { ok: true };
 }
 
+// ---------------------------------------------------------------------
+// UPDATE 2026-08-23 — user feedback: "tambah paket baru belum bisa,
+// tombolnya sebaiknya ada di kotak daftar paket". Packages had the same
+// gap add-ons had before 2026-08-22 (see createAddon's header above):
+// service_packages_write (0002) already lets a manager insert at their
+// own outlet, but nothing on the page ever called it — the "Paket Baru"
+// button in the page header was decorative, no onClick. Moved into the
+// "Daftar Paket" card's own header (CardHead action), matching where
+// "Add-on Baru" already lives on "Add-on Layanan".
+//
+// A package additionally needs a service_type_id (what kind of service
+// this is — Massage/Facial/etc, drives the booking form's grouping) and
+// a room_type, neither of which add-ons have. required_skill/buffer
+// before-after/extension_allowed/materials are left at safe defaults
+// (empty/0/true/[]) — a brand-new package with no special requirements
+// yet; the existing PackagePricingEditor only ever touches price+komisi,
+// so those other fields were never editable post-creation either, same
+// as before this change.
+// ---------------------------------------------------------------------
+
+function validatePackageName(name: string): string | null {
+  if (!name.trim()) return "Nama paket tidak boleh kosong.";
+  return null;
+}
+
+export type CreatePackageInput = {
+  outletId: string;
+  serviceTypeId: string;
+  name: string;
+  durationMin: number;
+  listPrice: number;
+  memberPrice: number;
+  weekendPrice: number;
+  roomType: string;
+  commissionType: CommissionType;
+  commissionValue: number;
+};
+
+export async function createPackage(input: CreatePackageInput): Promise<ActionResult> {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Sesi tidak ditemukan — silakan login ulang." };
+
+  const nameErr = validatePackageName(input.name);
+  if (nameErr) return { ok: false, error: nameErr };
+  if (!input.serviceTypeId) return { ok: false, error: "Pilih jenis layanan untuk paket ini." };
+  if (!Number.isFinite(input.durationMin) || input.durationMin <= 0) {
+    return { ok: false, error: "Durasi harus lebih dari nol menit." };
+  }
+  const priceErr = validatePrice(input.listPrice);
+  if (priceErr) return { ok: false, error: priceErr };
+  const memberErr = validatePrice(input.memberPrice);
+  if (memberErr) return { ok: false, error: `Harga member: ${memberErr}` };
+  const weekendErr = validatePrice(input.weekendPrice);
+  if (weekendErr) return { ok: false, error: `Harga weekend: ${weekendErr}` };
+  const commErr = validateCommission(input.commissionType, input.commissionValue);
+  if (commErr) return { ok: false, error: commErr };
+
+  const { error } = await supabase.from("service_packages").insert({
+    outlet_id: input.outletId,
+    service_type_id: input.serviceTypeId,
+    name: input.name.trim(),
+    duration_min: input.durationMin,
+    list_price: input.listPrice,
+    member_price: input.memberPrice,
+    weekend_price: input.weekendPrice,
+    room_type: input.roomType.trim() || "Massage",
+    required_skill: null,
+    buffer_before_min: 0,
+    buffer_after_min: 0,
+    extension_allowed: true,
+    commission_type: input.commissionType,
+    commission_value: input.commissionValue,
+    status: "ACTIVE",
+    materials: [],
+  });
+
+  if (error) {
+    return { ok: false, error: "Gagal menyimpan — pastikan akun Anda punya hak ubah katalog." };
+  }
+
+  revalidateCatalog();
+  return { ok: true };
+}
+
 function revalidateCatalog() {
   revalidatePath("/manager/catalog");
   revalidatePath("/admin/master");

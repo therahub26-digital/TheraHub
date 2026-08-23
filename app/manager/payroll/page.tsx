@@ -3,6 +3,7 @@ import Icon from "@/components/Icon";
 import { PageHead, Card, CardHead, StatCard, PersonCell } from "@/components/ui";
 import {
   AddAdjustmentForm,
+  EditAdjustmentButton,
   DeleteAdjustmentButton,
   RunPayrollButton,
   BulkAdjustmentForm,
@@ -172,6 +173,24 @@ export default async function ManagerPayrollPage() {
   const usesSavings = components.some((c) => c.key === "SAVINGS");
   const therapistCount = active.filter((e) => e.isTherapist).length;
 
+  // UPDATE 2026-08-23 — user feedback: "belum dipisahkan therapis dan
+  // karyawan". A single flat table made it easy to lose a staff member
+  // (kasir/admin) inside a long list dominated by therapists, and vice
+  // versa — the two groups are paid on different logic (commission vs.
+  // pure fixed pay) so reviewing them separately matches how a manager
+  // actually checks the sheet. Same columns, same live/stored figures,
+  // just split into two Cards with their own subtotal row.
+  const therapistRows = rows.filter((r) => r.employee.isTherapist);
+  const staffRows = rows.filter((r) => !r.employee.isTherapist);
+
+  function subtotal(group: Row[]): Record<string, number> {
+    const t: Record<string, number> = {};
+    for (const spec of components) {
+      t[spec.key] = group.reduce((s, r) => s + (r.values[spec.key] ?? 0), 0);
+    }
+    return t;
+  }
+
   return (
     <>
       <PageHead
@@ -243,137 +262,154 @@ export default async function ManagerPayrollPage() {
         </div>
       </Card>
 
-      <Card>
-        <CardHead
-          title="Estimasi Per Karyawan"
-          sub={`${components.length} komponen aktif: ${components.map((c) => c.label).join(" · ")}`}
-        />
-        <div className="table-wrap">
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th style={{ minWidth: 180 }}>Karyawan</th>
-                {earnings.map((c) => <th key={c.key}>{c.label}</th>)}
-                {deductions.map((c) => <th key={c.key}>{c.label}</th>)}
-                {usesSavings && <th>Saldo Tabungan</th>}
-                <th>Take-Home</th>
-                <th style={{ minWidth: 120 }}>Aksi</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.employee.id}>
-                  <td>
-                    <PersonCell name={r.employee.name} sub={r.employee.jobRole} toneKey="teal" size={28} />
-                    {/* Manual lines listed under the name so the label the
-                        manager typed stays visible — a column total alone
-                        would not say WHICH deduction it was. */}
-                    {r.lines.length > 0 && (
-                      <div className="stack g1" style={{ marginTop: 6 }}>
-                        {r.lines.map((l) => (
-                          <div key={l.id} className="row tiny" style={{ gap: 6, alignItems: "center" }}>
-                            <span className="dim" style={{ flex: 1, minWidth: 0 }}>
-                              {l.kind === "EARNING" ? "+" : "−"}{rp(l.amount)} · {l.label}
-                            </span>
-                            <DeleteAdjustmentButton id={l.id} />
+      {([
+        { key: "therapist", title: "Estimasi Terapis", group: therapistRows, emptyLabel: "Tidak ada terapis aktif di outlet ini." },
+        { key: "staff", title: "Estimasi Karyawan (Non-Terapis)", group: staffRows, emptyLabel: "Tidak ada staff pendukung aktif di outlet ini." },
+      ] as const).map(({ key, title, group, emptyLabel }) => {
+        const groupTotals = subtotal(group);
+        const groupTotalLive = group.reduce((s, r) => s + r.live, 0);
+        return (
+          <Card key={key} style={{ marginBottom: 16 }}>
+            <CardHead
+              title={title}
+              sub={`${group.length} orang · ${components.length} komponen aktif: ${components.map((c) => c.label).join(" · ")}`}
+            />
+            <div className="table-wrap">
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th style={{ minWidth: 180 }}>Karyawan</th>
+                    {earnings.map((c) => <th key={c.key}>{c.label}</th>)}
+                    {deductions.map((c) => <th key={c.key}>{c.label}</th>)}
+                    {usesSavings && <th>Saldo Tabungan</th>}
+                    <th>Take-Home</th>
+                    <th style={{ minWidth: 120 }}>Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {group.map((r) => (
+                    <tr key={r.employee.id}>
+                      <td>
+                        <PersonCell name={r.employee.name} sub={r.employee.jobRole} toneKey="teal" size={28} />
+                        {/* Manual lines listed under the name so the label the
+                            manager typed stays visible — a column total alone
+                            would not say WHICH deduction it was. */}
+                        {r.lines.length > 0 && (
+                          <div className="stack g1" style={{ marginTop: 6 }}>
+                            {r.lines.map((l) => (
+                              <div key={l.id} className="stack g1" style={{ marginBottom: 2 }}>
+                                <div className="row tiny" style={{ gap: 6, alignItems: "center" }}>
+                                  <span className="dim" style={{ flex: 1, minWidth: 0 }}>
+                                    {l.kind === "EARNING" ? "+" : "−"}{rp(l.amount)} · {l.label}
+                                  </span>
+                                  <EditAdjustmentButton
+                                    id={l.id}
+                                    initialLabel={l.label}
+                                    initialAmount={l.amount}
+                                    initialComponent={l.component}
+                                  />
+                                  <DeleteAdjustmentButton id={l.id} />
+                                </div>
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
-                    )}
-                  </td>
-
-                  {earnings.map((c) => {
-                    const v = r.values[c.key] ?? 0;
-                    return (
-                      <td key={c.key} className={`num small${v === 0 ? " dim" : ""}`}>
-                        {rp(v)}
-                        {c.key === "COMMISSION" && r.commissionCount > 0 && (
-                          <div className="tiny dim">{r.commissionCount} treatment</div>
                         )}
                       </td>
-                    );
-                  })}
 
-                  {deductions.map((c) => {
-                    const v = r.values[c.key] ?? 0;
-                    return (
-                      <td key={c.key} className={`num small${v === 0 ? " dim" : ""}`}>
-                        {v === 0 ? rp(0) : `−${rp(v)}`}
+                      {earnings.map((c) => {
+                        const v = r.values[c.key] ?? 0;
+                        return (
+                          <td key={c.key} className={`num small${v === 0 ? " dim" : ""}`}>
+                            {rp(v)}
+                            {c.key === "COMMISSION" && r.commissionCount > 0 && (
+                              <div className="tiny dim">{r.commissionCount} treatment</div>
+                            )}
+                          </td>
+                        );
+                      })}
+
+                      {deductions.map((c) => {
+                        const v = r.values[c.key] ?? 0;
+                        return (
+                          <td key={c.key} className={`num small${v === 0 ? " dim" : ""}`}>
+                            {v === 0 ? rp(0) : `−${rp(v)}`}
+                          </td>
+                        );
+                      })}
+
+                      {/* The running balance, not this month's deduction —
+                          the deduction column already says what was taken.
+                          This is the total the company is holding for them,
+                          which is the number that matters when deciding
+                          whether to pay it out. */}
+                      {usesSavings && (
+                        <td className="num small">
+                          <span className={savingsBalances.get(r.employee.id) ? "strong" : "dim"}
+                            style={savingsBalances.get(r.employee.id) ? { color: "var(--text-1)" } : undefined}>
+                            {rp(savingsBalances.get(r.employee.id) ?? 0)}
+                          </span>
+                          <div style={{ marginTop: 4 }}>
+                            <WithdrawSavingsButton
+                              employeeId={r.employee.id}
+                              outletId={outlet.id}
+                              period={period}
+                              balance={savingsBalances.get(r.employee.id) ?? 0}
+                            />
+                          </div>
+                        </td>
+                      )}
+
+                      <td className="num small strong" style={{ color: "var(--text-1)" }}>
+                        {rp(r.live)}
+                        {r.storedNet !== null && r.storedNet !== r.live && (
+                          <div className="tiny" style={{ color: "var(--warning)" }}>
+                            tersimpan {rp(r.storedNet)}
+                          </div>
+                        )}
                       </td>
-                    );
-                  })}
 
-                  {/* The running balance, not this month's deduction —
-                      the deduction column already says what was taken.
-                      This is the total the company is holding for them,
-                      which is the number that matters when deciding
-                      whether to pay it out. */}
-                  {usesSavings && (
-                    <td className="num small">
-                      <span className={savingsBalances.get(r.employee.id) ? "strong" : "dim"}
-                        style={savingsBalances.get(r.employee.id) ? { color: "var(--text-1)" } : undefined}>
-                        {rp(savingsBalances.get(r.employee.id) ?? 0)}
-                      </span>
-                      <div style={{ marginTop: 4 }}>
-                        <WithdrawSavingsButton
-                          employeeId={r.employee.id}
-                          outletId={outlet.id}
-                          period={period}
-                          balance={savingsBalances.get(r.employee.id) ?? 0}
-                        />
-                      </div>
-                    </td>
-                  )}
-
-                  <td className="num small strong" style={{ color: "var(--text-1)" }}>
-                    {rp(r.live)}
-                    {r.storedNet !== null && r.storedNet !== r.live && (
-                      <div className="tiny" style={{ color: "var(--warning)" }}>
-                        tersimpan {rp(r.storedNet)}
-                      </div>
-                    )}
-                  </td>
-
-                  <td>
-                    <AddAdjustmentForm employeeId={r.employee.id} outletId={outlet.id} period={period} />
-                  </td>
-                </tr>
-              ))}
-
-              {rows.length === 0 && (
-                <tr>
-                  <td colSpan={3 + components.length + (usesSavings ? 1 : 0)} className="dim small" style={{ textAlign: "center", padding: "20px 0" }}>
-                    Tidak ada karyawan aktif di outlet ini.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-
-            {rows.length > 0 && (
-              <tfoot>
-                <tr style={{ borderTop: "2px solid var(--border)" }}>
-                  <td className="strong" style={{ color: "var(--text-1)" }}>Total {rows.length} karyawan</td>
-                  {earnings.map((c) => (
-                    <td key={c.key} className="num small strong" style={{ color: "var(--text-1)" }}>{rp(totals[c.key] ?? 0)}</td>
+                      <td>
+                        <AddAdjustmentForm employeeId={r.employee.id} outletId={outlet.id} period={period} />
+                      </td>
+                    </tr>
                   ))}
-                  {deductions.map((c) => (
-                    <td key={c.key} className="num small strong" style={{ color: "var(--text-1)" }}>
-                      {(totals[c.key] ?? 0) === 0 ? rp(0) : `−${rp(totals[c.key])}`}
-                    </td>
-                  ))}
-                  {usesSavings && (
-                    <td className="num small strong" style={{ color: "var(--text-1)" }}>
-                      {rp(rows.reduce((s2, r) => s2 + (savingsBalances.get(r.employee.id) ?? 0), 0))}
-                    </td>
+
+                  {group.length === 0 && (
+                    <tr>
+                      <td colSpan={3 + components.length + (usesSavings ? 1 : 0)} className="dim small" style={{ textAlign: "center", padding: "20px 0" }}>
+                        {emptyLabel}
+                      </td>
+                    </tr>
                   )}
-                  <td className="num strong" style={{ color: "var(--accent)", fontSize: 15 }}>{rp(totalLive)}</td>
-                  <td />
-                </tr>
-              </tfoot>
-            )}
-          </table>
-        </div>
-      </Card>
+                </tbody>
+
+                {group.length > 0 && (
+                  <tfoot>
+                    <tr style={{ borderTop: "2px solid var(--border)" }}>
+                      <td className="strong" style={{ color: "var(--text-1)" }}>Total {group.length} orang</td>
+                      {earnings.map((c) => (
+                        <td key={c.key} className="num small strong" style={{ color: "var(--text-1)" }}>{rp(groupTotals[c.key] ?? 0)}</td>
+                      ))}
+                      {deductions.map((c) => (
+                        <td key={c.key} className="num small strong" style={{ color: "var(--text-1)" }}>
+                          {(groupTotals[c.key] ?? 0) === 0 ? rp(0) : `−${rp(groupTotals[c.key])}`}
+                        </td>
+                      ))}
+                      {usesSavings && (
+                        <td className="num small strong" style={{ color: "var(--text-1)" }}>
+                          {rp(group.reduce((s2, r) => s2 + (savingsBalances.get(r.employee.id) ?? 0), 0))}
+                        </td>
+                      )}
+                      <td className="num strong" style={{ color: "var(--accent)", fontSize: 15 }}>{rp(groupTotalLive)}</td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
+          </Card>
+        );
+      })}
 
       {settings.note && (
         <Card style={{ marginTop: 16 }}>

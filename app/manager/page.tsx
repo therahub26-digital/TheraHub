@@ -4,7 +4,7 @@ import { PageHead, Card, CardHead, StatCard, Badge, PersonCell, StatusBadge } fr
 import { getCurrentOutlet } from "@/lib/data/outlets";
 import { getTherapistsForOutlet } from "@/lib/data/employees";
 import { getBookingKpi, getBookingsForOutlet, getEffectiveToday, getEffectiveNow } from "@/lib/data/bookings";
-import { getActiveSessionsForOutlet } from "@/lib/data/sessions";
+import { getActiveSessionsForOutlet, getSessionsForOutlet } from "@/lib/data/sessions";
 import { getRoomsForOutlet, getAvailableRoomsForOutlet } from "@/lib/data/rooms";
 import { rp, pct, fmtTime } from "@/lib/format";
 
@@ -36,10 +36,11 @@ export default async function ManagerTodayPage() {
   const outlet = await getCurrentOutlet();
   const [today, nowHHMM] = await Promise.all([getEffectiveToday(), getEffectiveNow()]);
 
-  const [kpi, therapists, sessions, rooms, availableRooms, todaysBookings] = await Promise.all([
+  const [kpi, therapists, sessions, todaysSessions, rooms, availableRooms, todaysBookings] = await Promise.all([
     getBookingKpi(outlet.id, today),
     getTherapistsForOutlet(outlet.id),
     getActiveSessionsForOutlet(outlet.id),
+    getSessionsForOutlet(outlet.id, today),
     getRoomsForOutlet(outlet.id),
     getAvailableRoomsForOutlet(outlet.id),
     getBookingsForOutlet(outlet.id, today),
@@ -51,6 +52,19 @@ export default async function ManagerTodayPage() {
   const activeTherapists = therapists;
   const busyCount = activeTherapists.filter((t) => busyTherapistIds.has(t.id)).length;
   const availableCount = activeTherapists.length - busyCount;
+
+  // UPDATE 2026-08-23 — user feedback: "status terapis di overview
+  // tambahkan keterangan sudah masuk berapa sesi hari ini". Counts every
+  // session that has actually started today (COMPLETED, ACTIVE, or
+  // ENDING_SOON — i.e. anything with a real actual_start), keyed by
+  // therapist. A session that never started (VOID before starting)
+  // deliberately does not count — "sudah masuk X sesi" should mean X
+  // treatments actually begun, not X bookings that existed.
+  const sessionsTodayByTherapist = new Map<string, number>();
+  for (const s of todaysSessions) {
+    if (!s.therapistId || !s.actualStart) continue;
+    sessionsTodayByTherapist.set(s.therapistId, (sessionsTodayByTherapist.get(s.therapistId) ?? 0) + 1);
+  }
 
   const availableRoomIds = new Set(availableRooms.map((r) => r.id));
 
@@ -101,10 +115,14 @@ export default async function ManagerTodayPage() {
             <div className="stack g2" style={{ maxHeight: 230, overflowY: "auto", paddingRight: 4 }}>
               {activeTherapists.map((t) => {
                 const busy = busyTherapistIds.has(t.id);
+                const doneToday = sessionsTodayByTherapist.get(t.id) ?? 0;
                 return (
                   <div key={t.id} className="row between small" style={{ padding: "6px 0" }}>
                     <PersonCell name={t.name} sub={t.therapistGrade} toneKey={t.avatarTone} size={26} />
-                    <Badge tone={busy ? "accent" : "success"}>{busy ? "Sedang Melayani" : "Tersedia"}</Badge>
+                    <div className="row g2" style={{ alignItems: "center" }}>
+                      <span className="tiny dim">{doneToday} sesi hari ini</span>
+                      <Badge tone={busy ? "accent" : "success"}>{busy ? "Sedang Melayani" : "Tersedia"}</Badge>
+                    </div>
                   </div>
                 );
               })}

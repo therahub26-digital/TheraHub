@@ -165,6 +165,193 @@ export async function updateEmployeeReferral(input: UpdateEmployeeReferralInput)
 // given the UI never invites it).
 // ---------------------------------------------------------------------
 
+// ---------------------------------------------------------------------
+// UPDATE 2026-08-23 — user feedback: "tambah staf/therapis belum
+// berfungsi dan edit profil nya tidak ada: foto profil, data pribadi,
+// tanggal join, ... bisa di view di manager / admin outlet". The
+// "Tambah Staff" button on /manager/therapists had no onClick at all,
+// and neither table on that page had any edit action — this is the
+// missing write path for both.
+//
+// Scoped to what the existing schema already supports: name, role,
+// grade, phone, email, join date, contract type, therapist-only fields
+// (grade/skills), and the single profile photo (employees.photo_url,
+// distinct from gallery_urls which is the up-to-3-photo album). "Kopi
+// KTP" is NOT included here — there is no column or Storage bucket for
+// it yet, and a KTP scan is sensitive PII that needs its own
+// non-public bucket + RLS, not a reuse of the public therapist-photos
+// bucket. That is drafted as a separate migration for the user to
+// review and approve before it touches production (see the migration
+// draft handed to the user alongside this change) — this action
+// intentionally does not touch it.
+// ---------------------------------------------------------------------
+
+function validateEmployeeCore(input: { name: string; jobRole: string; joinDate: string }): string | null {
+  if (!input.name.trim()) return "Nama wajib diisi.";
+  if (!input.jobRole) return "Pilih peran/jabatan.";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.joinDate)) return "Tanggal join tidak valid.";
+  return null;
+}
+
+/**
+ * Generates the next sequential code for a new employee, e.g. TRP-006 or
+ * STF-014. Counts existing employees sharing the same prefix tenant-wide
+ * (codes are a display convenience, not a security boundary — the `id`
+ * column is what every foreign key actually uses) so an outlet-scoped
+ * create still gets a code that doesn't collide with another outlet's.
+ * insert() below still handles a race by falling back to a suffixed code
+ * once, rather than failing the whole create over a rare double-click.
+ */
+async function nextEmployeeCode(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  tenantId: string,
+  isTherapist: boolean
+): Promise<string> {
+  const prefix = isTherapist ? "TRP" : "STF";
+  const { count } = await supabase
+    .from("employees")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", tenantId)
+    .eq("is_therapist", isTherapist);
+  const n = (count ?? 0) + 1;
+  return `${prefix}-${String(n).padStart(3, "0")}`;
+}
+
+const AVATAR_TONES = ["teal", "sky", "gold", "violet", "rose", "amber"];
+
+export type CreateEmployeeInput = {
+  outletId: string;
+  tenantId: string;
+  name: string;
+  jobRole: string;
+  isTherapist: boolean;
+  grade?: string;
+  therapistGrade?: "Junior" | "Senior" | "Master" | null;
+  phone?: string;
+  email?: string;
+  joinDate: string;
+  contractType: "Tetap" | "Kontrak" | "Harian";
+};
+
+export type CreateEmployeeResult = { ok: true; employeeId: string } | { ok: false; error: string };
+
+export async function createEmployee(input: CreateEmployeeInput): Promise<CreateEmployeeResult> {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Sesi tidak ditemukan — silakan login ulang." };
+
+  const coreErr = validateEmployeeCore(input);
+  if (coreErr) return { ok: false, error: coreErr };
+
+  const code = await nextEmployeeCode(supabase, input.tenantId, input.isTherapist);
+  const avatarTone = AVATAR_TONES[Math.floor(Math.random() * AVATAR_TONES.length)];
+
+  const row = {
+    tenant_id: input.tenantId,
+    outlet_id: input.outletId,
+    code,
+    name: input.name.trim(),
+    job_role: input.jobRole,
+    grade: input.grade?.trim() || null,
+    phone: input.phone?.trim() || null,
+    email: input.email?.trim() || null,
+    join_date: input.joinDate,
+    status: "ACTIVE",
+    contract_type: input.contractType,
+    base_salary: 0,
+    fixed_allowance: 0,
+    avatar_tone: avatarTone,
+    is_therapist: input.isTherapist,
+    skills: input.isTherapist ? [] : null,
+    therapist_grade: input.isTherapist ? input.therapistGrade ?? null : null,
+  };
+
+  let { data, error } = await supabase.from("employees").insert(row).select("id").single();
+  if (error && error.code === "23505") {
+    // Unique-code collision (rare double-click race) — retry once with a
+    // timestamp-suffixed code rather than failing the whole create.
+    const retryCode = `${code}-${Date.now().toString().slice(-4)}`;
+    ({ data, error } = await supabase.from("employees").insert({ ...row, code: retryCode }).select("id").single());
+  }
+
+  if (error || !data) {
+    return { ok: false, error: "Gagal menyimpan — pastikan akun Anda punya hak tambah karyawan." };
+  }
+
+  revalidatePath("/manager/therapists");
+  revalidatePath("/admin/users");
+  return { ok: true, employeeId: data.id };
+}
+
+export type UpdateEmployeeProfileInput = {
+  employeeId: string;
+  name: string;
+  jobRole: string;
+  grade?: string;
+  therapistGrade?: "Junior" | "Senior" | "Master" | null;
+  phone?: string;
+  email?: string;
+  joinDate: string;
+  contractType: "Tetap" | "Kontrak" | "Harian";
+};
+
+export async function updateEmployeeProfile(input: UpdateEmployeeProfileInput): Promise<ActionResult> {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Sesi tidak ditemukan — silakan login ulang." };
+
+  const coreErr = validateEmployeeCore(input);
+  if (coreErr) return { ok: false, error: coreErr };
+
+  const { error } = await supabase
+    .from("employees")
+    .update({
+      name: input.name.trim(),
+      job_role: input.jobRole,
+      grade: input.grade?.trim() || null,
+      therapist_grade: input.therapistGrade ?? null,
+      phone: input.phone?.trim() || null,
+      email: input.email?.trim() || null,
+      join_date: input.joinDate,
+      contract_type: input.contractType,
+    })
+    .eq("id", input.employeeId);
+
+  if (error) {
+    return { ok: false, error: "Gagal menyimpan — pastikan akun Anda punya hak ubah data karyawan." };
+  }
+
+  revalidatePath("/manager/therapists");
+  revalidatePath("/admin/users");
+  return { ok: true };
+}
+
+/** Single profile-photo URL (employees.photo_url) — distinct from the up-to-3 gallery_urls album. */
+export async function setEmployeePhotoUrl(employeeId: string, url: string | null): Promise<ActionResult> {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Sesi tidak ditemukan — silakan login ulang." };
+
+  const { error } = await supabase.from("employees").update({ photo_url: url }).eq("id", employeeId);
+  if (error) {
+    return { ok: false, error: "Gagal menyimpan foto — pastikan akun Anda punya hak ubah data karyawan." };
+  }
+
+  revalidatePath("/manager/therapists");
+  revalidatePath("/customer/book");
+  revalidatePath("/customer/outlets");
+  return { ok: true };
+}
+
 export async function setEmployeeGalleryUrls(employeeId: string, urls: string[]): Promise<ActionResult> {
   const supabase = await createClient();
 

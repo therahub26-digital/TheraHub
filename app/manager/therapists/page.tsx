@@ -1,10 +1,10 @@
-import Icon from "@/components/Icon";
 import { PageHead, Card, CardHead, StatCard, Badge, PersonCell } from "@/components/ui";
 import { getCurrentOutlet } from "@/lib/data/outlets";
 import { getEmployees, getTherapistsForOutlet } from "@/lib/data/employees";
 import { getCommissionsForOutlet, getEffectivePeriod } from "@/lib/data/commissions";
 import { EmployeeReferralEditor } from "@/components/EmployeeReferralEditor";
 import EmployeePhotoGallery from "@/components/EmployeePhotoGallery";
+import { NewStaffForm, EditStaffButton } from "@/components/StaffEditor";
 import { rp, monthLabel } from "@/lib/format";
 
 // ---------------------------------------------------------------------
@@ -76,7 +76,11 @@ export default async function TherapistsPage() {
       <PageHead
         title="Therapists & Staff"
         desc={`${outlet.name} · Skill matrix, komisi periode berjalan, dan status kepegawaian.`}
-        actions={<button className="btn btn-primary btn-sm"><Icon name="plus" size={14} /> Tambah Staff</button>}
+        actions={
+          <div style={{ position: "relative" }}>
+            <NewStaffForm outletId={outlet.id} tenantId={outlet.tenantId} />
+          </div>
+        }
       />
 
       <div className="grid grid-4" style={{ marginBottom: 20 }}>
@@ -93,7 +97,7 @@ export default async function TherapistsPage() {
             <thead>
               <tr>
                 <th>Terapis</th><th>Grade</th><th>Skills</th><th>Treatment</th><th>Revenue</th>
-                <th>Komisi</th><th>Referral</th><th>Foto</th><th>Status</th>
+                <th>Komisi</th><th>Referral</th><th>Foto</th><th>Status</th><th>Aksi</th>
               </tr>
             </thead>
             <tbody>
@@ -128,12 +132,27 @@ export default async function TherapistsPage() {
                     </td>
                     <td><EmployeePhotoGallery employeeId={t.id} initialUrls={t.galleryUrls} /></td>
                     <td><Badge tone={t.status === "ACTIVE" ? "success" : "danger"} dot>{t.status}</Badge></td>
+                    <td style={{ position: "relative" }}>
+                      <EditStaffButton
+                        employeeId={t.id}
+                        photoUrl={t.photoUrl}
+                        initial={{
+                          name: t.name,
+                          jobRole: t.jobRole,
+                          therapistGrade: t.therapistGrade,
+                          phone: t.phone,
+                          email: t.email,
+                          joinDate: t.joinDate,
+                          contractType: t.contractType,
+                        }}
+                      />
+                    </td>
                   </tr>
                 );
               })}
               {rankedTherapists.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="dim small" style={{ textAlign: "center", padding: "20px 0" }}>
+                  <td colSpan={10} className="dim small" style={{ textAlign: "center", padding: "20px 0" }}>
                     Tidak ada terapis aktif di outlet ini.
                   </td>
                 </tr>
@@ -157,7 +176,7 @@ export default async function TherapistsPage() {
         <CardHead title="Staff Pendukung" sub={`${staff.length} staff — admin, manager, kasir`} />
         <div className="table-wrap">
           <table className="tbl">
-            <thead><tr><th>Nama</th><th>Role</th><th>Bergabung</th><th>Status</th></tr></thead>
+            <thead><tr><th>Nama</th><th>Role</th><th>Bergabung</th><th>Status</th><th>Aksi</th></tr></thead>
             <tbody>
               {staff.map((s) => (
                 <tr key={s.id}>
@@ -165,11 +184,26 @@ export default async function TherapistsPage() {
                   <td className="muted small">{s.jobRole}</td>
                   <td className="muted small">{s.joinDate}</td>
                   <td><Badge tone={s.status === "ACTIVE" ? "success" : "danger"} dot>{s.status}</Badge></td>
+                  <td style={{ position: "relative" }}>
+                    <EditStaffButton
+                      employeeId={s.id}
+                      photoUrl={s.photoUrl}
+                      initial={{
+                        name: s.name,
+                        jobRole: s.jobRole,
+                        therapistGrade: s.therapistGrade,
+                        phone: s.phone,
+                        email: s.email,
+                        joinDate: s.joinDate,
+                        contractType: s.contractType,
+                      }}
+                    />
+                  </td>
                 </tr>
               ))}
               {staff.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="dim small" style={{ textAlign: "center", padding: "20px 0" }}>
+                  <td colSpan={5} className="dim small" style={{ textAlign: "center", padding: "20px 0" }}>
                     Tidak ada staff pendukung tercatat di outlet ini.
                   </td>
                 </tr>

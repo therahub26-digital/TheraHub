@@ -110,6 +110,7 @@ export default async function ScheduleCheckPage() {
                   avatarTone: t.avatarTone,
                 }))}
                 exceptions={exceptions.map((e) => ({ employeeId: e.employeeId, type: e.type, note: e.note }))}
+                upcoming={upcomingExceptions.map((e) => ({ employeeId: e.employeeId, date: e.date, type: e.type }))}
                 bookings={activeBookingsToday.map((b) => ({
                   id: b.id,
                   code: b.code,

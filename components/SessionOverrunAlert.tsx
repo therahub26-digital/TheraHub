@@ -1,4 +1,5 @@
 import Icon from "@/components/Icon";
+import { CompleteSessionButton } from "@/components/SessionActions";
 import { SESSION_OVERDUE_ALERT_MIN, SESSION_OVERDUE_AUTOCLOSE_MIN } from "@/lib/data/sessionOverrunSweep";
 import type { SessionRec } from "@/lib/types";
 
@@ -47,12 +48,18 @@ export default function SessionOverrunAlert({ sessions }: { sessions: SessionRec
       </div>
       <div className="stack g1">
         {overdue.map((s) => (
-          <div key={s.id} className="row between tiny" style={{ paddingLeft: 24 }}>
+          <div key={s.id} className="row between g2 tiny wrap" style={{ paddingLeft: 24 }}>
             <span className="dim">{s.customerName} · {s.therapistName} · {s.roomName}</span>
-            <span style={{ color: "var(--danger)" }}>
-              {s.overdueMin}m lewat
-              {s.overdueMin >= SESSION_OVERDUE_AUTOCLOSE_MIN ? " · menunggu extension" : ""}
-            </span>
+            <div className="row g2" style={{ alignItems: "center" }}>
+              <span style={{ color: "var(--danger)" }}>
+                {s.overdueMin}m lewat
+                {s.overdueMin >= SESSION_OVERDUE_AUTOCLOSE_MIN ? " · menunggu extension" : ""}
+              </span>
+              {/* Kasir bisa langsung menutup sesi dari sini, bukan cuma
+                  menunggu auto-close +15 menit -- gap yang dilaporkan user
+                  2026-08-23: alert muncul tapi tidak ada tombol aksi. */}
+              <CompleteSessionButton sessionId={s.id} />
+            </div>
           </div>
         ))}
       </div>

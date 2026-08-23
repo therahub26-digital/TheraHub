@@ -1,6 +1,6 @@
 import Icon from "@/components/Icon";
 import { PageHead, Card, CardHead, StatCard, Badge, PersonCell, Progress } from "@/components/ui";
-import { PaySessionButton, ExtensionDecisionButtons } from "@/components/SessionActions";
+import { PaySessionButton, ExtensionDecisionButtons, CompleteSessionButton } from "@/components/SessionActions";
 import ExtensionRequestAlert from "@/components/ExtensionRequestAlert";
 import SessionOverrunAlert from "@/components/SessionOverrunAlert";
 import { getCurrentOutlet } from "@/lib/data/outlets";
@@ -139,6 +139,9 @@ export default async function SessionMonitorPage() {
                 </div>
                 <Progress value={s.progressPct} tone={s.status === "ENDING_SOON" ? "warn" : undefined} />
                 <div className="tiny dim">{s.therapistName} · estimasi selesai {s.expectedEnd}</div>
+                <div className="row">
+                  <CompleteSessionButton sessionId={s.id} />
+                </div>
               </div>
             ))}
           </div>

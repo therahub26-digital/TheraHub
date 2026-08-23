@@ -6,7 +6,7 @@ import Icon from "@/components/Icon";
 import { Badge, PersonCell } from "@/components/ui";
 import { setScheduleException, clearScheduleException } from "@/lib/actions/scheduleExceptions";
 import { cancelBookingStaff, reassignBookingTherapist } from "@/lib/actions/bookings";
-import { fmtTime } from "@/lib/format";
+import { fmtTime, fmtDateShort } from "@/lib/format";
 
 // ---------------------------------------------------------------------
 // Client half of the daily off/leave check (see ScheduleCheckPage.tsx
@@ -34,6 +34,12 @@ export type BoardTherapist = {
 
 export type BoardException = { employeeId: string; type: "OFF" | "LEAVE"; note: string | null };
 
+// Upcoming (future) exceptions, used only to surface approved leave dates
+// in the roster table below -- same shape as LeavePlanBoard's rows, kept
+// separate from BoardException (today-only) because a therapist can be
+// "Tersedia" today but still have LEAVE approved for a date next week.
+export type BoardUpcoming = { employeeId: string; date: string; type: "OFF" | "LEAVE" };
+
 export type BoardBooking = {
   id: string;
   code: string;
@@ -56,12 +62,14 @@ export default function ScheduleCheckBoard({
   date,
   therapists,
   exceptions,
+  upcoming = [],
   bookings,
 }: {
   outletId: string;
   date: string;
   therapists: BoardTherapist[];
   exceptions: BoardException[];
+  upcoming?: BoardUpcoming[];
   bookings: BoardBooking[];
 }) {
   const router = useRouter();
@@ -71,6 +79,23 @@ export default function ScheduleCheckBoard({
   const [reassigning, setReassigning] = useState<string | null>(null); // bookingId being reassigned
 
   const exceptionByEmployee = new Map(exceptions.map((e) => [e.employeeId, e]));
+  // "tanggal cuti yang sudah disetujui dimasukan ke tabel ... antara
+  // status hari ini dan booking terdampak" (user review, 2026-08-23):
+  // approved LEAVE dates for each therapist, today's + any upcoming ones
+  // from Rencana Libur/Cuti ke Depan, so the roster doesn't require
+  // scrolling to a separate card to see when someone is off next.
+  const leaveDatesByEmployee = new Map<string, string[]>();
+  for (const e of exceptions) {
+    if (e.type !== "LEAVE") continue;
+    leaveDatesByEmployee.set(e.employeeId, [date]);
+  }
+  for (const u of upcoming) {
+    if (u.type !== "LEAVE") continue;
+    const arr = leaveDatesByEmployee.get(u.employeeId) ?? [];
+    arr.push(u.date);
+    leaveDatesByEmployee.set(u.employeeId, arr);
+  }
+  for (const arr of leaveDatesByEmployee.values()) arr.sort();
 
   function setStatus(employeeId: string, status: "AVAILABLE" | "OFF" | "LEAVE") {
     setError(null);
@@ -131,8 +156,9 @@ export default function ScheduleCheckBoard({
         <table className="tbl">
           <thead>
             <tr>
-              <th>Terapis</th>
-              <th>Status Hari Ini</th>
+              <th style={{ width: 170 }}>Terapis</th>
+              <th style={{ width: 280 }}>Status Hari Ini</th>
+              <th style={{ width: 140 }}>Tanggal Cuti</th>
               <th>Booking Terdampak</th>
             </tr>
           </thead>
@@ -145,7 +171,7 @@ export default function ScheduleCheckBoard({
 
               return (
                 <tr key={t.id}>
-                  <td><PersonCell name={t.name} sub={t.code} toneKey={t.avatarTone} photoUrl={t.photoUrl ?? undefined} /></td>
+                  <td style={{ width: 170 }}><PersonCell name={t.name} sub={t.code} toneKey={t.avatarTone} photoUrl={t.photoUrl ?? undefined} /></td>
                   <td>
                     <div className="row g1 wrap">
                       {STATUS_OPTIONS.map((o) => (
@@ -160,6 +186,16 @@ export default function ScheduleCheckBoard({
                         </button>
                       ))}
                     </div>
+                  </td>
+                  <td>
+                    {(() => {
+                      const leaveDates = leaveDatesByEmployee.get(t.id) ?? [];
+                      return leaveDates.length === 0 ? (
+                        <span className="tiny dim">—</span>
+                      ) : (
+                        <span className="tiny">{leaveDates.map((d) => fmtDateShort(d)).join(", ")}</span>
+                      );
+                    })()}
                   </td>
                   <td>
                     {status === "AVAILABLE" ? (

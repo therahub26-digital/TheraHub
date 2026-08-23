@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useTransition } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Icon from "./Icon";
 import { Avatar } from "./ui";
 import ThemeToggle from "./ThemeToggle";
@@ -10,6 +10,7 @@ import { ROLES, roleByKey } from "@/lib/nav";
 import { themeVars } from "@/lib/brand";
 import { useBrandOverride } from "@/lib/brandOverride";
 import { ACTIVE_TENANT } from "@/lib/mock";
+import { createClient } from "@/lib/supabase/client";
 import type { Role } from "@/lib/types";
 
 export default function Shell({
@@ -44,8 +45,26 @@ export default function Shell({
 }) {
   const def = roleByKey(role);
   const pathname = usePathname();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [switcher, setSwitcher] = useState(false);
+  // UPDATE 2026-08-23 — user caught this from a real (non-demo) manager
+  // login: the sidebar-foot "log out" icon was a leftover from before
+  // this app had real auth (see lib/route-guard.ts's header — Bug 5) —
+  // just <Link href="/">, which navigates to the landing page but never
+  // calls supabase.auth.signOut(). The Supabase session cookie stayed
+  // valid, so going back to /manager (or even just pressing back) let
+  // the same account straight back in without re-entering a password.
+  // Mirrors components/LogoutButton.tsx's real sign-out, added
+  // 2026-08-22 for the customer portal for the exact same reason.
+  const [loggingOut, startLogout] = useTransition();
+  const handleLogout = () =>
+    startLogout(async () => {
+      const supabase = createClient();
+      await supabase.auth.signOut();
+      router.push("/login");
+      router.refresh();
+    });
   const { override } = useBrandOverride();
   const vars = themeVars(
     override.brandKey ?? brandKey ?? ACTIVE_TENANT.logoTone,
@@ -126,9 +145,15 @@ export default function Shell({
               </div>
               <div className="tiny dim truncate">{def.persona.sub}</div>
             </div>
-            <Link href="/" title="Keluar demo" className="btn btn-quiet btn-icon btn-sm">
+            <button
+              type="button"
+              title="Keluar"
+              className="btn btn-quiet btn-icon btn-sm"
+              onClick={handleLogout}
+              disabled={loggingOut}
+            >
               <Icon name="log-out" size={15} />
-            </Link>
+            </button>
           </div>
         </div>
       </aside>

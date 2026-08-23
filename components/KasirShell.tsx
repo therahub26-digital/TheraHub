@@ -1,14 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Icon from "./Icon";
 import ThemeToggle from "./ThemeToggle";
 import { ROLES, roleByKey } from "@/lib/nav";
 import { themeVars } from "@/lib/brand";
 import { useBrandOverride } from "@/lib/brandOverride";
 import { ACTIVE_TENANT } from "@/lib/mock";
+import { createClient } from "@/lib/supabase/client";
 
 /**
  * Dedicated tablet-first shell for the Kasir portal.
@@ -59,8 +60,22 @@ export default function KasirShell({
 }) {
   const def = roleByKey("kasir");
   const pathname = usePathname();
+  const router = useRouter();
   const [switcher, setSwitcher] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  // KasirShell shipped this session (2026-08-23) without any sign-out
+  // control at all — Shell.tsx (manager/admin/owner) had the same gap
+  // until a real manager login caught it the same day (see that file's
+  // header comment). Fixed here before it could ship the same way:
+  // real supabase.auth.signOut(), not a plain navigation link.
+  const [loggingOut, startLogout] = useTransition();
+  const handleLogout = () =>
+    startLogout(async () => {
+      const supabase = createClient();
+      await supabase.auth.signOut();
+      router.push("/login");
+      router.refresh();
+    });
   const { override } = useBrandOverride();
   const vars = themeVars(
     override.brandKey ?? brandKey ?? ACTIVE_TENANT.logoTone,
@@ -159,6 +174,20 @@ export default function KasirShell({
                 </span>
               </Link>
             ))}
+            <button
+              type="button"
+              onClick={handleLogout}
+              disabled={loggingOut}
+              className="m-list-link kasir-sheet-item"
+              style={{ width: "100%", textAlign: "left" }}
+            >
+              <span className="stat-icon" style={{ width: 36, height: 36, borderRadius: 10, flexShrink: 0 }}>
+                <Icon name="log-out" size={17} />
+              </span>
+              <span className="small" style={{ color: "var(--danger)" }}>
+                {loggingOut ? "Keluar…" : "Keluar"}
+              </span>
+            </button>
           </div>
         </div>
       )}

@@ -3,7 +3,9 @@ import Icon from "@/components/Icon";
 import { PageHead, Card, CardHead, StatCard, Badge, PersonCell, StatusBadge } from "@/components/ui";
 import { getCurrentOutlet } from "@/lib/data/outlets";
 import { getTherapistsForOutlet } from "@/lib/data/employees";
-import { getBookingKpi, getBookingsForOutlet, getEffectiveToday, getEffectiveNow } from "@/lib/data/bookings";
+import { getBookingKpi, getBookingsForOutlet, getEffectiveToday, getEffectiveNow, isLiveBookingsData } from "@/lib/data/bookings";
+import { buildFollowUpList } from "@/lib/bookingRules";
+import BookingFollowUpBanner from "@/components/BookingFollowUp";
 import { getActiveSessionsForOutlet, getSessionsForOutlet } from "@/lib/data/sessions";
 import { getRoomsForOutlet, getAvailableRoomsForOutlet } from "@/lib/data/rooms";
 import { rp, pct, fmtTime } from "@/lib/format";
@@ -36,7 +38,7 @@ export default async function ManagerTodayPage() {
   const outlet = await getCurrentOutlet();
   const [today, nowHHMM] = await Promise.all([getEffectiveToday(), getEffectiveNow()]);
 
-  const [kpi, therapists, sessions, todaysSessions, rooms, availableRooms, todaysBookings] = await Promise.all([
+  const [kpi, therapists, sessions, todaysSessions, rooms, availableRooms, todaysBookings, live] = await Promise.all([
     getBookingKpi(outlet.id, today),
     getTherapistsForOutlet(outlet.id),
     getActiveSessionsForOutlet(outlet.id),
@@ -44,7 +46,14 @@ export default async function ManagerTodayPage() {
     getRoomsForOutlet(outlet.id),
     getAvailableRoomsForOutlet(outlet.id),
     getBookingsForOutlet(outlet.id, today),
+    isLiveBookingsData(),
   ]);
+
+  // Rule 2, staff side (2026-08-23) — same list the kasir sees on
+  // /kasir, shown here too because the manager works the same floor.
+  // Live-data only; see buildFollowUpList()'s doc comment for why the
+  // demo view must not run this.
+  const followUps = live ? buildFollowUpList(todaysBookings) : [];
 
   // getTherapistsForOutlet already filters to status === "ACTIVE" (see
   // lib/data/employees.ts) — no need to filter again here.
@@ -84,6 +93,8 @@ export default async function ManagerTodayPage() {
           </>
         }
       />
+
+      <BookingFollowUpBanner items={followUps} />
 
       <div className="grid grid-4" style={{ marginBottom: 20 }}>
         <StatCard label="Pendapatan Hari Ini" value={rp(kpi.revenue, { short: true })} icon="circle-dollar" toneKey="gold" deltaLabel={`${kpi.paid} transaksi paid`} />

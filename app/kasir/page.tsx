@@ -2,18 +2,33 @@ import Link from "next/link";
 import Icon from "@/components/Icon";
 import { PageHead, Card, CardHead, StatCard, Badge, StatusBadge, PersonCell } from "@/components/ui";
 import { getCurrentOutlet } from "@/lib/data/outlets";
-import { getBookingsToday, getBookingKpi, getEffectiveToday, getEffectiveNow } from "@/lib/data/bookings";
+import { getBookingsToday, getBookingKpi, getEffectiveToday, getEffectiveNow, isLiveBookingsData } from "@/lib/data/bookings";
 import { rp, fmtTime } from "@/lib/format";
+import { buildFollowUpList } from "@/lib/bookingRules";
+import BookingFollowUpBanner from "@/components/BookingFollowUp";
 
 export default async function KasirTodayPage() {
   const outlet = await getCurrentOutlet();
-  const [rawBookings, kpi, today, NOW_HHMM] = await Promise.all([
+  const [rawBookings, kpi, today, NOW_HHMM, live] = await Promise.all([
     getBookingsToday(outlet.id),
     getBookingKpi(outlet.id),
     getEffectiveToday(),
     getEffectiveNow(),
+    isLiveBookingsData(),
   ]);
   const bookings = rawBookings.filter((b) => b.status !== "CANCELLED");
+
+  // Rule 2, kasir side (user, 2026-08-23): the guest gets an email at
+  // H-1 (not built yet — no mail provider is wired up, see the roadmap),
+  // but "prakteknya kasir akan mendapatkan notifikasi juga dan
+  // menghubungi budi secara manual via wa". This is that list: bookings
+  // starting within the hour that nobody has confirmed yet.
+  //
+  // Live mode only. In the demo "Ganti Role" view the booking rows carry
+  // the frozen mock date while these helpers read the real wall clock,
+  // so the two would be comparing different calendars and the banner
+  // would be nonsense.
+  const followUps = live ? buildFollowUpList(bookings) : [];
   const waiting = bookings.filter((b) => ["BOOKED", "CONFIRMED"].includes(b.status));
   const arrived = bookings.filter((b) => ["ARRIVED", "CHECKED_IN"].includes(b.status));
 
@@ -24,6 +39,8 @@ export default async function KasirTodayPage() {
         desc={`${outlet.name} · ${today} · Pukul ${NOW_HHMM} · Jadwal booking hari ini dan status kedatangan tamu.`}
         actions={<Link href="/kasir/booking-baru" className="btn btn-primary btn-sm"><Icon name="calendar-plus" size={14} /> Booking Walk-in</Link>}
       />
+
+      <BookingFollowUpBanner items={followUps} />
 
       <div className="grid grid-4" style={{ marginBottom: 20 }}>
         <StatCard label="Booking Hari Ini" value={kpi.total} icon="calendar-days" toneKey="teal" deltaLabel={`${kpi.sessions} sesi berjalan/selesai`} />

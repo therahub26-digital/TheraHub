@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { BOOKINGS as MOCK_BOOKINGS } from "@/lib/mock/ops";
+import { sweepNoShowBookings } from "@/lib/data/noShowSweep";
 import { TODAY as MOCK_TODAY, NOW_HHMM as MOCK_NOW_HHMM } from "@/lib/mock/rng";
 import type { Booking } from "@/lib/types";
 
@@ -116,6 +117,16 @@ async function fetchLiveBookings(): Promise<Booking[] | null> {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return null;
+
+  // Rule 3 (2026-08-23): close out bookings that never checked in before
+  // reading, so every caller of this module sees the same, already-swept
+  // truth — the kasir's queue, the therapist's day, the guest's own
+  // "Booking Mendatang" card, and createBooking()'s conflict check all
+  // agree. This is THE chokepoint every booking read passes through, and
+  // it sits inside the cache() below, so it runs at most once per
+  // request. See lib/data/noShowSweep.ts for why this is a sweep-on-read
+  // rather than a cron job, and why it uses the caller's own RLS.
+  await sweepNoShowBookings(supabase);
 
   const { data: rows, error } = await supabase.from("bookings").select("*").order("date").order("scheduled_start");
   if (error) return null;

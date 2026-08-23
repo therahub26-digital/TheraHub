@@ -8,6 +8,18 @@ import { rp, minutesToHm, addDays } from "@/lib/format";
 import { createCustomerBooking } from "@/lib/actions/customerBookings";
 import TherapistProfileModal from "@/components/TherapistProfileModal";
 import DatePickerField from "@/components/DatePickerField";
+import { nowHHMM as wallNowHHMM } from "@/lib/wallclock";
+
+/**
+ * Round a "HH:mm" up to the next :00/:30 slot, clamped to 23:30 so a
+ * late-evening bump can never roll past midnight into a different day
+ * than the one the guest picked.
+ */
+function nextBookableSlot(hhmm: string): string {
+  const [h, m] = hhmm.split(":").map(Number);
+  const rounded = Math.min(Math.ceil((h * 60 + m) / 30) * 30, 23 * 60 + 30);
+  return `${String(Math.floor(rounded / 60)).padStart(2, "0")}:${String(rounded % 60).padStart(2, "0")}`;
+}
 
 // ---------------------------------------------------------------------
 // Customer-facing booking form — added 2026-08-22, the live-data
@@ -113,6 +125,19 @@ export default function CustomerBookingForm({
 
   const [date, setDate] = useState(today);
   const [startTime, setStartTime] = useState("10:00");
+
+  // Rule 1 (2026-08-23): a guest must not be able to book a slot that
+  // has already passed. Read on the client, after mount, and kept
+  // ticking — rendering the current time during SSR would both hydrate
+  // mismatched and go stale the moment the guest left the tab open.
+  // null until mount, which is why every use below is guarded.
+  const [clockHHMM, setClockHHMM] = useState<string | null>(null);
+  useEffect(() => {
+    const tick = () => setClockHHMM(wallNowHHMM());
+    tick();
+    const id = setInterval(tick, 30_000);
+    return () => clearInterval(id);
+  }, []);
   const [notes, setNotes] = useState("");
   const [profileTherapist, setProfileTherapist] = useState<TherapistOption | null>(null);
 
@@ -129,6 +154,18 @@ export default function CustomerBookingForm({
     if (date < today || date > maxDate) setDate(today);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [maxDate]);
+
+  // Keep the chosen time honest as the clock moves: a guest who opened
+  // the form at 09:55 and picks a slot at 10:15 should not be able to
+  // submit it at 10:20. Bumping to the next half-hour is friendlier than
+  // clearing the field, and converges immediately (the new value is
+  // never itself in the past, so this cannot loop).
+  useEffect(() => {
+    if (date === today && clockHHMM && startTime < clockHHMM) {
+      setStartTime(nextBookableSlot(clockHHMM));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date, clockHHMM, today]);
 
   function onSelectOutlet(id: string) {
     setOutletId(id);
@@ -314,12 +351,25 @@ export default function CustomerBookingForm({
         </div>
         <div className="row g2">
           <DatePickerField value={date} min={today} max={maxDate} onChange={setDate} />
-          <input className="input" type="time" required value={startTime} onChange={(e) => setStartTime(e.target.value)} style={{ flex: 1 }} />
+          <input
+            className="input"
+            type="time"
+            required
+            value={startTime}
+            min={date === today && clockHHMM ? clockHHMM : undefined}
+            onChange={(e) => setStartTime(e.target.value)}
+            style={{ flex: 1 }}
+          />
         </div>
         {maxDate === today ? (
           <div className="tiny dim" style={{ marginTop: 6 }}>Outlet ini hanya menerima booking untuk hari ini.</div>
         ) : (
           <div className="tiny dim" style={{ marginTop: 6 }}>Booking bisa dijadwalkan sampai {maxDate.slice(8)}/{maxDate.slice(5, 7)}.</div>
+        )}
+        {date === today && clockHHMM && (
+          <div className="tiny dim" style={{ marginTop: 4 }}>
+            Untuk hari ini, jam paling awal yang bisa dipilih adalah {clockHHMM}.
+          </div>
         )}
       </div>
 

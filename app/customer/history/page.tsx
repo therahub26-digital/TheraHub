@@ -6,6 +6,8 @@ import { getCurrentCustomer } from "@/lib/data/customers";
 import { getBookingsForCustomer, getEffectiveToday } from "@/lib/data/bookings";
 import { ME_CUSTOMER, BOOKINGS as MOCK_BOOKINGS, TODAY as MOCK_TODAY } from "@/lib/mock";
 import { rp, fmtDateShort, fmtTime } from "@/lib/format";
+import { wallClockIso } from "@/lib/wallclock";
+import { guestCanStillChange } from "@/lib/bookingRules";
 
 // ---------------------------------------------------------------------
 // UPDATE 2026-08-22 — migrated off ME_CUSTOMER/BOOKINGS mock fixtures to
@@ -61,7 +63,11 @@ export default async function HistoryPage() {
                   <div className="tiny dim">{fmtDateShort(b.date)} · {fmtTime(b.scheduledStart)} · {b.therapistName || "—"}</div>
                   {live && ["BOOKED", "CONFIRMED", "ARRIVED"].includes(b.status) && (
                     <div className="row g2" style={{ marginTop: 10 }}>
-                      <CancelBookingButton bookingId={b.id} />
+                      <CancelBookingButton
+                        bookingId={b.id}
+                        startIso={wallClockIso(b.date, b.scheduledStart)}
+                        initiallyLocked={!guestCanStillChange(wallClockIso(b.date, b.scheduledStart))}
+                      />
                     </div>
                   )}
                 </div>

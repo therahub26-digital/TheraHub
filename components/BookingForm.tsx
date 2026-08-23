@@ -1,11 +1,23 @@
 "use client";
 
-import { useState, useTransition, type FormEvent } from "react";
+import { useEffect, useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Icon from "@/components/Icon";
 import { Field, Avatar, InfoNote } from "@/components/ui";
 import { rp, minutesToHm } from "@/lib/format";
 import { createBooking } from "@/lib/actions/bookings";
+import { nowHHMM as wallNowHHMM } from "@/lib/wallclock";
+
+/**
+ * Round a "HH:mm" up to the next :00/:30 slot, clamped to 23:30 so a
+ * late-evening bump can never roll past midnight into a different day.
+ * Mirrors the same helper in components/CustomerBookingForm.tsx.
+ */
+function nextBookableSlot(hhmm: string): string {
+  const [h, m] = hhmm.split(":").map(Number);
+  const rounded = Math.min(Math.ceil((h * 60 + m) / 30) * 30, 23 * 60 + 30);
+  return `${String(Math.floor(rounded / 60)).padStart(2, "0")}:${String(rounded % 60).padStart(2, "0")}`;
+}
 
 type PackageOption = { id: string; name: string; durationMin: number; listPrice: number };
 type TherapistOption = { id: string; name: string; grade?: string; skills: string[]; photoUrl?: string };
@@ -34,6 +46,27 @@ export default function BookingForm({
   const [therapistId, setTherapistId] = useState(therapists[0]?.id ?? "");
   const [date, setDate] = useState(today);
   const [startTime, setStartTime] = useState("10:00");
+
+  // Rule 1 (2026-08-23): createBooking() now refuses a start time that
+  // has already passed, so a form hard-coded to 10:00 handed the kasir a
+  // guaranteed rejection every afternoon. Read the clock on the client
+  // (after mount, to avoid a hydration mismatch) and keep the field on a
+  // slot that can actually be saved. Bumping to the next half-hour is
+  // friendlier than clearing the field, and converges immediately since
+  // the new value is never itself in the past.
+  const [clockHHMM, setClockHHMM] = useState<string | null>(null);
+  useEffect(() => {
+    const tick = () => setClockHHMM(wallNowHHMM());
+    tick();
+    const id = setInterval(tick, 30_000);
+    return () => clearInterval(id);
+  }, []);
+  useEffect(() => {
+    if (date === today && clockHHMM && startTime < clockHHMM) {
+      setStartTime(nextBookableSlot(clockHHMM));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date, clockHHMM, today]);
   const [notes, setNotes] = useState("");
 
   const selectedPackage = packages.find((p) => p.id === packageId);
@@ -118,7 +151,14 @@ export default function BookingForm({
           <input className="input" type="date" required value={date} onChange={(e) => setDate(e.target.value)} />
         </Field>
         <Field label="Jam Mulai">
-          <input className="input" type="time" required value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+          <input
+            className="input"
+            type="time"
+            required
+            value={startTime}
+            min={date === today && clockHHMM ? clockHHMM : undefined}
+            onChange={(e) => setStartTime(e.target.value)}
+          />
         </Field>
       </div>
 

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { addMin } from "@/lib/format";
+import { GUEST_CHANGE_CUTOFF_MIN, guestCanStillChange, isStartInPast } from "@/lib/bookingRules";
 
 // ---------------------------------------------------------------------
 // Server Actions for the CUSTOMER-initiated half of the booking module
@@ -143,6 +144,16 @@ export async function createCustomerBooking(input: CreateCustomerBookingInput): 
     return { ok: false, error: "Terapis ini sudah punya booking lain di jam tersebut. Pilih jam atau terapis lain." };
   }
 
+  // Rule 1 (user, 2026-08-23): "booking hanya bisa dilakukan lebih dari
+  // jam berjalan, tidak mungkin waktu yg sudah lewat". The date-window
+  // check above only ever constrained the DAY, so "today at 08:00" was
+  // still accepted at 13:00 — a booking that is a no-show the instant it
+  // is created. The form now hides past slots too, but as with the
+  // booking window that is a convenience, not the guarantee: this is.
+  if (isStartInPast(startIso)) {
+    return { ok: false, error: "Jam yang dipilih sudah lewat. Pilih jam setelah waktu sekarang." };
+  }
+
   const code = `BK-${input.date.replace(/-/g, "")}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
 
   const { data: booking, error: insertErr } = await supabase
@@ -192,10 +203,28 @@ export async function cancelCustomerBooking(bookingId: string): Promise<CancelBo
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Sesi tidak ditemukan — silakan login ulang." };
 
-  const { data: booking, error: fetchErr } = await supabase.from("bookings").select("id, status").eq("id", bookingId).maybeSingle();
+  const { data: booking, error: fetchErr } = await supabase
+    .from("bookings")
+    .select("id, status, scheduled_start")
+    .eq("id", bookingId)
+    .maybeSingle();
   if (fetchErr || !booking) return { ok: false, error: "Booking tidak ditemukan." };
   if (!CANCELLABLE_STATUSES.includes(booking.status)) {
     return { ok: false, error: "Booking ini sudah tidak bisa dibatalkan (sudah check-in/selesai)." };
+  }
+
+  // Rule 2 (user, 2026-08-23): "budi bisa minta ganti jadwal atau
+  // therapis minimal 1 jam sebelumnya". Inside the last hour the outlet
+  // has already committed the therapist's slot and is about to start
+  // chasing the guest by phone (see the kasir follow-up list on /kasir),
+  // so a silent self-service cancellation at T-10 minutes is exactly
+  // what the rule exists to prevent. The guest is pointed at the outlet
+  // rather than simply blocked.
+  if (!guestCanStillChange(booking.scheduled_start)) {
+    return {
+      ok: false,
+      error: `Perubahan atau pembatalan lewat aplikasi hanya bisa sampai ${GUEST_CHANGE_CUTOFF_MIN} menit sebelum jadwal. Hubungi outlet untuk membatalkan.`,
+    };
   }
 
   // RLS's bookings_customer policy ("for all") already ensures this UPDATE

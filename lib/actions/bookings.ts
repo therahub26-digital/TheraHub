@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { addMin } from "@/lib/format";
 import { notifyTherapist } from "@/lib/notify";
+import { isStartInPast } from "@/lib/bookingRules";
 
 // ---------------------------------------------------------------------
 // Server Action: createBooking — the write half of the booking module.
@@ -107,6 +108,15 @@ export async function createBooking(input: CreateBookingInput): Promise<CreateBo
   const conflict = (sameDayBookings ?? []).find((b) => overlaps(startIso, endIso, b.scheduled_start, b.scheduled_end));
   if (conflict) {
     return { ok: false, error: "Terapis ini sudah punya booking lain di jam tersebut. Pilih terapis atau jam lain." };
+  }
+
+  // Rule 1 (user, 2026-08-23) — same guard as createCustomerBooking().
+  // isStartInPast() allows a start of exactly "now" on purpose, which is
+  // what keeps "Booking Walk-in" usable: the kasir records the guest at
+  // the counter as starting this minute. Only genuinely past slots are
+  // refused. See lib/bookingRules.ts.
+  if (isStartInPast(startIso)) {
+    return { ok: false, error: "Jam yang dipilih sudah lewat. Pilih jam setelah waktu sekarang." };
   }
 
   // Find an existing customer by phone within this tenant, else create one.
@@ -219,6 +229,40 @@ export async function cancelBookingStaff(bookingId: string): Promise<ActionResul
   revalidatePath("/kasir");
   revalidatePath("/kasir/schedule-check");
   revalidatePath("/customer/history");
+  return { ok: true };
+}
+
+/**
+ * Rule 2, kasir side (user, 2026-08-23): "prakteknya kasir akan
+ * mendapatkan notifikasi juga dan menghubungi budi secara manual via
+ * wa". This is what the kasir clicks once that call actually happens —
+ * it moves the booking from BOOKED (nobody has spoken to this guest) to
+ * CONFIRMED (a human confirmed they are coming), which is what takes it
+ * off the follow-up list on /kasir.
+ *
+ * Deliberately does NOT exempt the booking from the no-show sweep: a
+ * guest who promised to come and then didn't is still a no-show, and
+ * pretending otherwise would leave the therapist's slot locked exactly
+ * as it was before rule 3 existed.
+ */
+export async function confirmBookingStaff(bookingId: string): Promise<ActionResultBooking> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Sesi tidak ditemukan — silakan login ulang." };
+
+  const { data: booking, error: fetchErr } = await supabase.from("bookings").select("id, status").eq("id", bookingId).maybeSingle();
+  if (fetchErr || !booking) return { ok: false, error: "Booking tidak ditemukan." };
+  if (booking.status !== "BOOKED") {
+    return { ok: false, error: "Booking ini sudah tidak berstatus BOOKED." };
+  }
+
+  const { error: updateErr } = await supabase.from("bookings").update({ status: "CONFIRMED" }).eq("id", bookingId);
+  if (updateErr) return { ok: false, error: "Gagal menandai booking terkonfirmasi — coba lagi." };
+
+  revalidatePath("/kasir");
+  revalidatePath("/manager/bookings");
   return { ok: true };
 }
 

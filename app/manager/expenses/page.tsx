@@ -1,31 +1,56 @@
 import Icon from "@/components/Icon";
 import { PageHead, Card, CardHead, StatCard, Badge, StatusBadge } from "@/components/ui";
 import { DonutChart, LegendList } from "@/components/Charts";
-import { PRIMARY_OUTLET, expensesOf, expenseByCategory, PETTY_CASH, CURRENT_PERIOD } from "@/lib/mock";
+import { getCurrentOutlet } from "@/lib/data/outlets";
+import { getExpensesForOutlet, expenseByCategory, getPettyCash } from "@/lib/data/expenses";
 import { rp, fmtDateShort, monthLabel } from "@/lib/format";
+import { NewExpenseForm, ApproveRejectButtons, PettyCashTopUpForm } from "@/components/ExpenseEditor";
 
-export default function ExpensesPage() {
-  const outlet = PRIMARY_OUTLET;
-  const expenses = expensesOf(outlet.id);
-  const thisMonth = expenses.filter((e) => e.date.startsWith(CURRENT_PERIOD));
+// ---------------------------------------------------------------------
+// UPDATE 2026-08-23 — was 100% lib/mock (expensesOf, expenseByCategory,
+// PETTY_CASH, CURRENT_PERIOD). `expenses` table itself already existed
+// in production since baseline 0001 (with RLS) — only petty_cash /
+// petty_cash_movements + expenses.approved_by/approved_at were missing,
+// added by supabase/migrations/0020_inventory_expenses.sql. See
+// app/manager/inventory/page.tsx's header for the same story on that
+// migration's other half.
+//
+// Same session-based dual-mode convention as lib/data/inventory.ts — a
+// signed-in manager sees real data (including a genuine empty state),
+// the demo "Ganti Role" viewer keeps the original mock numbers.
+// "Catat Pengeluaran" / Setujui / Tolak / Top-up are now real writes
+// (lib/actions/expenses.ts).
+// ---------------------------------------------------------------------
+
+function currentPeriod(): string {
+  return new Date().toISOString().slice(0, 7);
+}
+
+export default async function ExpensesPage() {
+  const outlet = await getCurrentOutlet();
+  const [{ expenses, live }, { pettyCash }] = await Promise.all([
+    getExpensesForOutlet(outlet.id),
+    getPettyCash(outlet.id),
+  ]);
+  const period = live ? currentPeriod() : "2026-08"; // CURRENT_PERIOD equivalent for the mock branch's fixed demo data
+  const thisMonth = expenses.filter((e) => e.date.startsWith(period));
   const pending = expenses.filter((e) => e.status === "SUBMITTED" || e.status === "DRAFT");
-  const petty = PETTY_CASH.find((p) => p.outletId === outlet.id)!;
-  const byCategory = expenseByCategory(outlet.id, CURRENT_PERIOD);
+  const byCategory = expenseByCategory(expenses, period);
   const total = byCategory.reduce((s, c) => s + c.value, 0);
 
   return (
     <>
       <PageHead
         title="Expenses"
-        desc={`${outlet.name} · ${monthLabel(CURRENT_PERIOD)} · Pengeluaran operasional dan petty cash.`}
-        actions={<button className="btn btn-primary btn-sm"><Icon name="plus" size={14} /> Catat Pengeluaran</button>}
+        desc={`${outlet.name} · ${monthLabel(period)} · Pengeluaran operasional dan petty cash.`}
+        actions={<NewExpenseForm outletId={outlet.id} />}
       />
 
       <div className="grid grid-4" style={{ marginBottom: 20 }}>
         <StatCard label="Total Bulan Ini" value={rp(total, { short: true })} icon="wallet" toneKey="teal" deltaLabel={`${thisMonth.length} entri`} />
         <StatCard label="Menunggu Approval" value={pending.length} icon="clock" toneKey="danger" deltaLabel="Draft & submitted" />
-        <StatCard label="Kas Kecil" value={rp(petty.balance, { short: true })} icon="piggy-bank" toneKey="gold" deltaLabel={`Limit ${rp(petty.limit, { short: true })}`} />
-        <StatCard label="Custodian" value={petty.custodian.split(" ")[0]} icon="user" toneKey="sky" deltaLabel={`Top-up terakhir ${fmtDateShort(petty.lastTopUp)}`} />
+        <StatCard label="Kas Kecil" value={rp(pettyCash.balance, { short: true })} icon="piggy-bank" toneKey="gold" deltaLabel={`Limit ${rp(pettyCash.limit, { short: true })}`} />
+        <StatCard label="Custodian" value={pettyCash.custodianName.split(" ")[0]} icon="user" toneKey="sky" deltaLabel={pettyCash.lastTopUp ? `Top-up terakhir ${fmtDateShort(pettyCash.lastTopUp)}` : "Belum pernah top-up"} />
       </div>
 
       <div className="grid grid-3" style={{ alignItems: "start", marginBottom: 20 }}>
@@ -45,13 +70,19 @@ export default function ExpensesPage() {
                     <td><StatusBadge status={e.status} /></td>
                   </tr>
                 ))}
+                {expenses.length === 0 && (
+                  <tr><td colSpan={6} className="dim small" style={{ textAlign: "center", padding: "20px 0" }}>Belum ada pengeluaran tercatat.</td></tr>
+                )}
               </tbody>
             </table>
           </div>
         </Card>
 
         <Card className="card-pad">
-          <div className="tiny dim uppercase" style={{ marginBottom: 10 }}>Distribusi Kategori</div>
+          <div className="row between" style={{ marginBottom: 10 }}>
+            <div className="tiny dim uppercase">Distribusi Kategori</div>
+            <PettyCashTopUpForm outletId={outlet.id} />
+          </div>
           <DonutChart data={byCategory} nameKey="name" valueKey="value" height={160} centerValue={rp(total, { short: true })} centerLabel="Total" />
           <div style={{ marginTop: 10 }}>
             <LegendList data={byCategory.slice(0, 6).map((c) => ({ label: c.name, value: rp(c.value, { short: true }) }))} />
@@ -69,9 +100,9 @@ export default function ExpensesPage() {
                 <div className="strong" style={{ color: "var(--text-1)" }}>{e.vendor} — {e.category}</div>
                 <div className="tiny dim">{e.description} · diajukan oleh {e.submittedBy}</div>
               </div>
-              <div className="row g3">
+              <div className="row g3" style={{ alignItems: "center" }}>
                 <span className="strong" style={{ color: "var(--text-1)" }}>{rp(e.amount)}</span>
-                <StatusBadge status={e.status} />
+                {live ? <ApproveRejectButtons id={e.id} /> : <StatusBadge status={e.status} />}
               </div>
             </div>
           ))}

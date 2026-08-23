@@ -1,22 +1,54 @@
 import Icon from "@/components/Icon";
 import { PageHead, Card, CardHead, StatCard, Badge, PersonCell } from "@/components/ui";
-import { PRIMARY_OUTLET, PRODUCTS, movementsOf, lowStock, PURCHASE_ORDERS, STOCK_OPNAMES, TRANSFERS } from "@/lib/mock";
+import { getCurrentOutlet } from "@/lib/data/outlets";
+import { getOutlets } from "@/lib/data/outlets";
+import {
+  getProducts,
+  getLowStockForOutlet,
+  getMovementsForOutlet,
+  getPurchaseOrdersForOutlet,
+  getStockOpnamesForOutlet,
+  getStockTransfersForOutlet,
+} from "@/lib/data/inventory";
 import { rp, fmtDateTime, num } from "@/lib/format";
+import { NewProductForm, PurchaseOrderForm, ReceivePOButton, StockTransferForm, StockOpnameForm } from "@/components/InventoryEditor";
+
+// ---------------------------------------------------------------------
+// UPDATE 2026-08-23 — was 100% lib/mock (PRODUCTS, movementsOf, lowStock,
+// PURCHASE_ORDERS, STOCK_OPNAMES, TRANSFERS), flagged by the user: "coba
+// buatkan skemanya?". Introspection of production found the core 4
+// tables (products/product_stocks/stock_movements/expenses) already
+// existed since baseline 0001 with matching RLS + enums — only
+// purchase_orders/stock_transfers/stock_opnames/petty_cash were missing,
+// added by supabase/migrations/0020_inventory_expenses.sql.
+//
+// Same dual-mode convention as the rest of the app: getCurrentOutlet()
+// already resolves the signed-in manager's real outlet (or falls back to
+// the first outlet for the demo "Ganti Role" viewer); lib/data/inventory.ts
+// mirrors that by session, not by row count, so a real tenant with zero
+// products yet shows a real EMPTY state instead of borrowing mock
+// numbers. "Purchase Order" / "Transfer" / "Stock Opname" / "Produk
+// Baru" are now real writes (lib/actions/inventory.ts) instead of the
+// old dead buttons.
+// ---------------------------------------------------------------------
 
 const MOVE_LABEL: Record<string, string> = {
   PURCHASE_RECEIPT: "Penerimaan Barang", SALE: "Penjualan", TREATMENT_USAGE: "Pemakaian Treatment",
   TRANSFER_OUT: "Transfer Keluar", TRANSFER_IN: "Transfer Masuk", ADJUSTMENT: "Penyesuaian",
-  STOCK_OPNAME: "Stock Opname", WASTE_DAMAGE: "Rusak/Waste",
+  STOCK_OPNAME: "Stock Opname", WASTE_DAMAGE: "Rusak/Waste", RETURN_TO_SUPPLIER: "Retur Supplier",
 };
 
-export default function InventoryPage() {
-  const outlet = PRIMARY_OUTLET;
-  const products = PRODUCTS;
-  const low = lowStock(outlet.id);
-  const movements = movementsOf(outlet.id).slice(0, 10);
-  const pos = PURCHASE_ORDERS.filter((p) => p.outletId === outlet.id);
-  const opnames = STOCK_OPNAMES.filter((o) => o.outletId === outlet.id);
-  const transfers = TRANSFERS.filter((t) => t.from === outlet.id || t.to === outlet.id);
+export default async function InventoryPage() {
+  const outlet = await getCurrentOutlet();
+  const [products, low, movements, pos, opnames, transfers, outlets] = await Promise.all([
+    getProducts(),
+    getLowStockForOutlet(outlet.id),
+    getMovementsForOutlet(outlet.id, 10),
+    getPurchaseOrdersForOutlet(outlet.id),
+    getStockOpnamesForOutlet(outlet.id),
+    getStockTransfersForOutlet(outlet.id),
+    getOutlets(),
+  ]);
   const totalValue = products.reduce((s, p) => s + p.costPrice * (p.stocks[outlet.id] ?? 0), 0);
 
   return (
@@ -26,8 +58,10 @@ export default function InventoryPage() {
         desc={`${outlet.name} · Stok produk, consumable, purchase order, transfer, dan stock opname.`}
         actions={
           <>
-            <button className="btn btn-ghost btn-sm"><Icon name="arrow-left-right" size={14} /> Transfer</button>
-            <button className="btn btn-primary btn-sm"><Icon name="plus" size={14} /> Purchase Order</button>
+            <NewProductForm tenantId={outlet.tenantId} />
+            <StockTransferForm tenantId={outlet.tenantId} currentOutletId={outlet.id} outlets={outlets.map((o) => ({ id: o.id, name: o.name }))} products={products} />
+            <StockOpnameForm outletId={outlet.id} products={products} />
+            <PurchaseOrderForm outletId={outlet.id} products={products} />
           </>
         }
       />
@@ -49,7 +83,7 @@ export default function InventoryPage() {
                 <tr key={p.id}>
                   <td><PersonCell name={p.name} sub={p.sku} toneKey="danger" size={26} /></td>
                   <td className="muted small">{p.category}</td>
-                  <td className="num small" style={{ color: "var(--danger)" }}>{p.stocks[outlet.id]} {p.uom}</td>
+                  <td className="num small" style={{ color: "var(--danger)" }}>{p.stocks[outlet.id] ?? 0} {p.uom}</td>
                   <td className="num small muted">{p.minStock} {p.uom}</td>
                   <td className="num small muted">{num(p.usedThisMonth)}</td>
                 </tr>
@@ -80,6 +114,9 @@ export default function InventoryPage() {
                     <td className="muted small">{m.by}</td>
                   </tr>
                 ))}
+                {movements.length === 0 && (
+                  <tr><td colSpan={5} className="dim small" style={{ textAlign: "center", padding: "20px 0" }}>Belum ada pergerakan stok.</td></tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -92,11 +129,15 @@ export default function InventoryPage() {
               <div key={p.id} className="row between small" style={{ padding: "6px 0", borderBottom: "1px solid var(--border)" }}>
                 <div style={{ minWidth: 0 }}>
                   <div className="strong truncate" style={{ color: "var(--text-1)" }}>{p.supplier}</div>
-                  <div className="tiny dim">{p.id} · {p.items} item · {rp(p.total, { short: true })}</div>
+                  <div className="tiny dim">{p.code} · {p.itemCount} item · {rp(p.totalAmount, { short: true })}</div>
                 </div>
-                <Badge tone={p.status === "RECEIVED" ? "success" : p.status === "PARTIAL" ? "warning" : p.status === "DRAFT" ? "neutral" : "info"}>{p.status}</Badge>
+                <div className="stack g1" style={{ alignItems: "flex-end" }}>
+                  <Badge tone={p.status === "RECEIVED" ? "success" : p.status === "PARTIAL" ? "warning" : p.status === "DRAFT" ? "neutral" : "info"}>{p.status}</Badge>
+                  <ReceivePOButton poId={p.id} status={p.status} />
+                </div>
               </div>
             ))}
+            {pos.length === 0 && <div className="small dim">Belum ada purchase order.</div>}
           </div>
         </Card>
       </div>
@@ -109,7 +150,7 @@ export default function InventoryPage() {
               <div key={o.id} className="row between small" style={{ padding: "6px 0", borderBottom: "1px solid var(--border)" }}>
                 <div>
                   <div className="strong" style={{ color: "var(--text-1)" }}>{o.scope}</div>
-                  <div className="tiny dim">{o.date} · {o.items} item · {o.by}</div>
+                  <div className="tiny dim">{o.opnameDate} · {o.itemCount} item · {o.postedBy ?? "—"}</div>
                 </div>
                 <div style={{ textAlign: "right" }}>
                   <div className="small" style={{ color: o.varianceValue < 0 ? "var(--danger)" : "var(--success)" }}>{rp(o.varianceValue)}</div>
@@ -117,6 +158,7 @@ export default function InventoryPage() {
                 </div>
               </div>
             ))}
+            {opnames.length === 0 && <div className="small dim">Belum ada stock opname.</div>}
           </div>
         </Card>
         <Card>
@@ -125,12 +167,13 @@ export default function InventoryPage() {
             {transfers.map((t) => (
               <div key={t.id} className="row between small" style={{ padding: "6px 0", borderBottom: "1px solid var(--border)" }}>
                 <div>
-                  <div className="strong" style={{ color: "var(--text-1)" }}>{t.note}</div>
-                  <div className="tiny dim">{t.id} · {t.qty} unit · {t.date}</div>
+                  <div className="strong" style={{ color: "var(--text-1)" }}>{t.note || `${t.fromOutletName} → ${t.toOutletName}`}</div>
+                  <div className="tiny dim">{t.code} · {t.totalQty} unit · {t.fromOutletName} → {t.toOutletName}</div>
                 </div>
                 <Badge tone={t.status === "COMPLETED" ? "success" : "info"}>{t.status.replace(/_/g, " ")}</Badge>
               </div>
             ))}
+            {transfers.length === 0 && <div className="small dim">Belum ada transfer.</div>}
           </div>
         </Card>
       </div>

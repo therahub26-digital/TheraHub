@@ -18,6 +18,7 @@ export default function Shell({
   scopeSub,
   brandKey,
   bgKey,
+  notificationCount,
   children,
 }: {
   role: Role;
@@ -27,6 +28,18 @@ export default function Shell({
   brandKey?: string;
   /** Tenant background preset key — omit to use the active demo tenant's background. */
   bgKey?: string;
+  /**
+   * Real pending-item count for the header bell (e.g. extension requests
+   * awaiting a kasir/manager decision). UPDATE 2026-08-23 — user caught
+   * this on their own device: the bell's red dot used to be a hardcoded
+   * <i> with no data behind it at all, so it showed on EVERY page
+   * regardless of whether anything actually needed attention — including
+   * while a real extension request was sitting unanswered on Session
+   * Monitor, which looked identical to a page with nothing pending.
+   * Omit (or 0) to show no dot; a layout that has nothing real to count
+   * yet (admin/owner/super-admin today) simply doesn't pass this prop.
+   */
+  notificationCount?: number;
   children: React.ReactNode;
 }) {
   const def = roleByKey(role);
@@ -143,18 +156,20 @@ export default function Shell({
             <ThemeToggle />
             <button className="btn btn-quiet btn-icon" aria-label="Notifikasi" style={{ position: "relative" }}>
               <Icon name="bell" size={17} />
-              <i
-                style={{
-                  position: "absolute",
-                  top: 7,
-                  right: 8,
-                  width: 7,
-                  height: 7,
-                  borderRadius: "50%",
-                  background: "var(--danger)",
-                  border: "1.5px solid var(--bg-deep)",
-                }}
-              />
+              {!!notificationCount && notificationCount > 0 && (
+                <i
+                  style={{
+                    position: "absolute",
+                    top: 7,
+                    right: 8,
+                    width: 7,
+                    height: 7,
+                    borderRadius: "50%",
+                    background: "var(--danger)",
+                    border: "1.5px solid var(--bg-deep)",
+                  }}
+                />
+              )}
             </button>
           </div>
         </header>

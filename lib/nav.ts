@@ -163,7 +163,7 @@ export const ROLES: RoleDef[] = [
     nav: [
       { href: "/customer", label: "Beranda", icon: "home" },
       { href: "/customer/book", label: "Booking", icon: "calendar-plus" },
-      { href: "/customer/history", label: "Riwayat", icon: "history" },
+      { href: "/customer/promo", label: "Promo", icon: "ticket" },
       { href: "/customer/membership", label: "Membership", icon: "gem" },
       { href: "/customer/profile", label: "Profil", icon: "user-round" },
     ],

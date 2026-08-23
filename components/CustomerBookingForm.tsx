@@ -7,6 +7,7 @@ import { Badge, Avatar } from "@/components/ui";
 import { rp, minutesToHm, addDays } from "@/lib/format";
 import { createCustomerBooking } from "@/lib/actions/customerBookings";
 import TherapistProfileModal from "@/components/TherapistProfileModal";
+import DatePickerField from "@/components/DatePickerField";
 
 // ---------------------------------------------------------------------
 // Customer-facing booking form — added 2026-08-22, the live-data
@@ -312,7 +313,7 @@ export default function CustomerBookingForm({
           <span className="m-section" style={{ marginBottom: 0 }}>Tanggal &amp; Waktu</span>
         </div>
         <div className="row g2">
-          <input className="input" type="date" required min={today} max={maxDate} value={date} onChange={(e) => setDate(e.target.value)} style={{ flex: 1 }} />
+          <DatePickerField value={date} min={today} max={maxDate} onChange={setDate} />
           <input className="input" type="time" required value={startTime} onChange={(e) => setStartTime(e.target.value)} style={{ flex: 1 }} />
         </div>
         {maxDate === today ? (

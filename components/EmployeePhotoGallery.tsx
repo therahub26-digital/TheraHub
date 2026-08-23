@@ -46,42 +46,65 @@ export default function EmployeePhotoGallery({ employeeId, initialUrls }: { empl
   }
 
   async function onFileChosen(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = ""; // allow re-picking the same filename later
-    if (!file) return;
+    // UPDATE 2026-08-23 — user reported uploading 3 photos at once from the
+    // OS file picker only ever saved 1. Root cause: this input lacked
+    // `multiple`, and the handler only ever read files[0], silently
+    // dropping every file past the first with no error shown — easy to
+    // miss since the manager sees "upload succeeded" either way. Now reads
+    // the whole FileList, validates each, and uploads sequentially before
+    // persisting the combined list ONCE (avoids a race where two
+    // concurrent persist() calls could each overwrite the other's result
+    // with a stale `urls` snapshot).
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = ""; // allow re-picking the same filename(s) later
+    if (files.length === 0) return;
 
     setError(null);
 
-    if (!file.type.startsWith("image/")) {
-      setError("File harus berupa gambar (JPG, PNG, atau WEBP).");
-      return;
-    }
-    if (file.size > MAX_BYTES) {
-      setError("Ukuran file maksimal 3MB.");
-      return;
-    }
-    if (urls.length >= MAX_PHOTOS) {
+    const room = MAX_PHOTOS - urls.length;
+    if (room <= 0) {
       setError(`Maksimal ${MAX_PHOTOS} foto — hapus salah satu dulu untuk menambah yang baru.`);
       return;
+    }
+    const toUpload = files.slice(0, room);
+    const overflow = files.length - toUpload.length;
+
+    for (const file of toUpload) {
+      if (!file.type.startsWith("image/")) {
+        setError("File harus berupa gambar (JPG, PNG, atau WEBP).");
+        return;
+      }
+      if (file.size > MAX_BYTES) {
+        setError("Ukuran file maksimal 3MB.");
+        return;
+      }
     }
 
     setUploading(true);
     try {
       const supabase = createClient();
-      const ext = file.name.split(".").pop() || "jpg";
-      const path = `${employeeId}/${Date.now()}.${ext}`;
-      const { error: uploadErr } = await supabase.storage.from("therapist-photos").upload(path, file, { upsert: true });
-      if (uploadErr) {
-        setError("Gagal mengunggah — coba lagi.");
-        setUploading(false);
-        return;
+      const uploaded: string[] = [];
+      for (const file of toUpload) {
+        const ext = file.name.split(".").pop() || "jpg";
+        const path = `${employeeId}/${Date.now()}-${uploaded.length}.${ext}`;
+        const { error: uploadErr } = await supabase.storage.from("therapist-photos").upload(path, file, { upsert: true });
+        if (uploadErr) {
+          setError(uploaded.length > 0 ? "Sebagian foto gagal diunggah — coba lagi untuk sisanya." : "Gagal mengunggah — coba lagi.");
+          break;
+        }
+        const { data: pub } = supabase.storage.from("therapist-photos").getPublicUrl(path);
+        uploaded.push(pub.publicUrl);
       }
-      const { data: pub } = supabase.storage.from("therapist-photos").getPublicUrl(path);
       setUploading(false);
-      persist([...urls, pub.publicUrl]);
+      if (uploaded.length > 0) {
+        persist([...urls, ...uploaded]);
+      }
+      if (overflow > 0) {
+        setError(`Hanya ${room} foto yang diunggah — sisa ${overflow} dilewati karena melebihi batas ${MAX_PHOTOS} foto.`);
+      }
     } catch {
-      setError("Gagal mengunggah — coba lagi.");
       setUploading(false);
+      setError("Gagal mengunggah — coba lagi.");
     }
   }
 
@@ -137,7 +160,7 @@ export default function EmployeePhotoGallery({ employeeId, initialUrls }: { empl
             </div>
           )}
 
-          <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={onFileChosen} />
+          <input ref={fileInputRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={onFileChosen} />
           <button
             type="button"
             className="btn btn-primary btn-sm"

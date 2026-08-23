@@ -45,6 +45,7 @@ export default function MobileShell({
   const def = roleByKey(role);
   const pathname = usePathname();
   const [switcher, setSwitcher] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const { override } = useBrandOverride();
   const vars = themeVars(
     override.brandKey ?? brandKey ?? ACTIVE_TENANT.logoTone,
@@ -54,6 +55,33 @@ export default function MobileShell({
   const active = def.nav
     .filter((n) => pathname === n.href || pathname.startsWith(n.href + "/"))
     .sort((a, b) => b.href.length - a.href.length)[0];
+
+  // ---------------------------------------------------------------------
+  // UPDATE 2026-08-23 — user caught this from the desktop preview:
+  // the "Layar Aplikasi" list on the left (below) shows every screen in
+  // def.nav, but that whole rail is desktop-only chrome (see the
+  // @media (max-width: 1080px) rule in app/ui.css that hides
+  // .device-context entirely). On an actual phone — or once this is
+  // wrapped as the Android app the tagline recommends — the ONLY
+  // navigation left was the bottom tab bar below, which only ever
+  // rendered the first 5 items (def.nav.slice(0, 5)). For therapist
+  // (8 items) that silently dropped Komisi Saya and Payslip & Tabungan
+  // off the app entirely on a real device — those pages worked fine,
+  // there was just no way to ever open them.
+  //
+  // Fix: when there are more than 5 screens, the tab bar shows the
+  // first 4 plus a "Lainnya" tab that opens a sheet listing the rest
+  // (confined to .device, which is position:relative and fills the
+  // real viewport on an actual phone thanks to the same media query
+  // above — so this sheet works identically in both the desktop
+  // preview and on a real device). Roles with 5 or fewer screens
+  // (customer today) are unaffected — every item still gets its own
+  // tab, no "Lainnya" appears.
+  // ---------------------------------------------------------------------
+  const hasOverflow = def.nav.length > 5;
+  const tabItems = hasOverflow ? def.nav.slice(0, 4) : def.nav.slice(0, 5);
+  const overflowItems = hasOverflow ? def.nav.slice(4) : [];
+  const overflowActive = overflowItems.some((n) => n.href === active?.href);
 
   return (
     <div className="device-stage" style={vars}>
@@ -169,8 +197,41 @@ export default function MobileShell({
 
           <main className="device-body">{children}</main>
 
+          {moreOpen && (
+            <div
+              onClick={() => setMoreOpen(false)}
+              style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 30 }}
+            >
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="stack g2"
+                style={{
+                  position: "absolute", left: 0, right: 0, bottom: 0, zIndex: 31,
+                  background: "var(--bg-surface-1, var(--bg-deep))", borderTop: "1px solid var(--border)",
+                  borderRadius: "18px 18px 0 0", padding: "14px 14px 20px", maxHeight: "70%", overflowY: "auto",
+                }}
+              >
+                <div className="row between" style={{ marginBottom: 4 }}>
+                  <span className="small bold" style={{ color: "var(--text-1)" }}>Lainnya</span>
+                  <button className="btn btn-quiet btn-icon btn-sm" onClick={() => setMoreOpen(false)}>
+                    <Icon name="x" size={16} />
+                  </button>
+                </div>
+                {overflowItems.map((n) => (
+                  <Link key={n.href} href={n.href} onClick={() => setMoreOpen(false)} className="m-list-link">
+                    <span className="stat-icon" style={{ width: 34, height: 34, borderRadius: 9, flexShrink: 0, position: "relative" }}>
+                      <Icon name={n.icon} size={16} />
+                      {n.badge ? <i className="device-tab-dot" style={{ top: -2, right: -2 }} /> : null}
+                    </span>
+                    <span className="small" style={{ color: active?.href === n.href ? "var(--accent)" : "var(--text-1)" }}>{n.label}</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
           <nav className="device-tabs">
-            {def.nav.slice(0, 5).map((n) => (
+            {tabItems.map((n) => (
               <Link key={n.href} href={n.href} className={`device-tab ${active?.href === n.href ? "active" : ""}`}>
                 <span style={{ position: "relative" }}>
                   <Icon name={n.icon} size={19} />
@@ -179,6 +240,20 @@ export default function MobileShell({
                 <span className="device-tab-label">{n.label.split(" ")[0]}</span>
               </Link>
             ))}
+            {hasOverflow && (
+              <button
+                type="button"
+                onClick={() => setMoreOpen((v) => !v)}
+                className={`device-tab ${overflowActive || moreOpen ? "active" : ""}`}
+                style={{ background: "none", border: "none", cursor: "pointer" }}
+              >
+                <span style={{ position: "relative" }}>
+                  <Icon name="grid" size={19} />
+                  {overflowItems.some((n) => n.badge) ? <i className="device-tab-dot" /> : null}
+                </span>
+                <span className="device-tab-label">Lainnya</span>
+              </button>
+            )}
           </nav>
         </div>
       </div>

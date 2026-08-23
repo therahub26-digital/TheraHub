@@ -29,7 +29,17 @@ export default async function SessionMonitorPage() {
   // diapprove, dibagian bawahnya history pada hari itu").
   const todaysHistory = requests.filter((r) => r.status !== "PENDING" && r.requestedAt.slice(0, 10) === today);
 
-  const running = sessions.filter((s) => s.status === "ACTIVE" || s.status === "ENDING_SOON");
+  const running = sessions
+    .filter((s) => s.status === "ACTIVE" || s.status === "ENDING_SOON")
+    // User request 2026-08-23 ("sesi berjalan juga diurutkan terbalik, mana
+    // yg sebentar lagi selesai"): soonest-ending session first. Sessions
+    // without a resolvable end time (shouldn't happen while running, but
+    // defensive) sort to the end instead of crashing the comparator.
+    .sort((a, b) => {
+      const aEnd = a.expectedEndIso ? Date.parse(a.expectedEndIso) : Infinity;
+      const bEnd = b.expectedEndIso ? Date.parse(b.expectedEndIso) : Infinity;
+      return aEnd - bEnd;
+    });
   const endingSoon = sessions.filter((s) => s.status === "ENDING_SOON");
   // A completed session is only the CASHIER'S problem until it has been
   // billed. Session status stays COMPLETED forever, so without the

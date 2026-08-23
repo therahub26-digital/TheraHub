@@ -7,6 +7,7 @@ import { BookingRowActions } from "@/components/SessionActions";
 import { getBookingsToday, getBookingKpi, getEffectiveToday, getEffectiveNow, isLiveBookingsData } from "@/lib/data/bookings";
 import { rp, fmtTime } from "@/lib/format";
 import { buildFollowUpList } from "@/lib/bookingRules";
+import type { BookingStatus } from "@/lib/types";
 import BookingFollowUpBanner from "@/components/BookingFollowUp";
 
 export default async function KasirTodayPage() {
@@ -36,6 +37,25 @@ export default async function KasirTodayPage() {
   const waiting = bookings.filter((b) => ["BOOKED", "CONFIRMED"].includes(b.status));
   const arrived = bookings.filter((b) => ["ARRIVED", "CHECKED_IN"].includes(b.status));
 
+  // User request 2026-08-23 ("jadwal booking hari ini di kelompokan mulai
+  // dari menunggu kedatangan, diurut dari jam yg lebih awal; kemudian yg
+  // sudah checkin; kemudian in session; dan yg sudah selesai atau batal"):
+  // group the table into 4 ordered stages, sorted by scheduled time within
+  // each stage. DRAFT is treated as "menunggu kedatangan" too since it
+  // hasn't checked in yet; CANCELLED never reaches here (filtered above)
+  // but is included for completeness/future-proofing if that filter changes.
+  function stageRank(status: BookingStatus): number {
+    if (["DRAFT", "BOOKED", "CONFIRMED"].includes(status)) return 0; // menunggu kedatangan
+    if (["ARRIVED", "CHECKED_IN"].includes(status)) return 1; // sudah check-in
+    if (status === "IN_SESSION") return 2; // in session
+    return 3; // sudah selesai atau batal (COMPLETED, PAID, NO_SHOW, RESCHEDULED, CANCELLED)
+  }
+  const sortedBookings = [...bookings].sort((a, b) => {
+    const rankDiff = stageRank(a.status) - stageRank(b.status);
+    if (rankDiff !== 0) return rankDiff;
+    return a.scheduledStart < b.scheduledStart ? -1 : a.scheduledStart > b.scheduledStart ? 1 : 0;
+  });
+
   return (
     <>
       <PageHead
@@ -54,14 +74,14 @@ export default async function KasirTodayPage() {
       </div>
 
       <Card>
-        <CardHead title="Jadwal Booking Hari Ini" sub={`${bookings.length} booking · diurutkan berdasarkan jam`} />
+        <CardHead title="Jadwal Booking Hari Ini" sub={`${bookings.length} booking · dikelompokkan per tahap, diurutkan berdasarkan jam`} />
         <div className="table-wrap">
           <table className="tbl">
             <thead>
               <tr><th>Jam</th><th>Tamu</th><th>Layanan</th><th>Terapis</th><th>Room</th><th>Sumber</th><th>Status</th><th></th></tr>
             </thead>
             <tbody>
-              {bookings.map((b) => (
+              {sortedBookings.map((b) => (
                 <tr key={b.id}>
                   <td className="mono small nowrap">{fmtTime(b.scheduledStart)}</td>
                   <td><PersonCell name={b.customerName} sub={b.customerPhone} toneKey="teal" size={26} /></td>

@@ -19,7 +19,17 @@ export default async function KasirTodayPage() {
     isLiveBookingsData(),
     getAvailableRoomsForOutlet(outlet.id),
   ]);
-  const bookings = rawBookings.filter((b) => b.status !== "CANCELLED");
+  // UPDATE 2026-08-23 (user, reviewing the real kasir tab view): "selesai
+  // dan batal dipisahkan juga, batal paling bawah" — CANCELLED bookings
+  // used to be dropped from `bookings` entirely right here, so a kasir
+  // could never actually see them on this page (not even lumped into the
+  // old combined "Selesai / Batal" box, which in practice only ever held
+  // NO_SHOW rows). Splitting Selesai from Batal into their own boxes only
+  // makes sense if Batal can actually show every kind of "didn't happen"
+  // booking, so the CANCELLED filter is removed here — CANCELLED now
+  // flows through like every other status and lands in the Batal box
+  // below instead of being silently hidden.
+  const bookings = rawBookings;
   const roomOptions = availableRooms.map((r) => ({ id: r.id, name: r.name }));
 
   // Rule 2, kasir side (user, 2026-08-23): the guest gets an email at
@@ -61,8 +71,22 @@ export default async function KasirTodayPage() {
   const inProgress = bookings
     .filter((b) => ["ARRIVED", "CHECKED_IN", "IN_SESSION"].includes(b.status))
     .sort((a, b) => (a.scheduledStart < b.scheduledStart ? -1 : a.scheduledStart > b.scheduledStart ? 1 : 0));
-  const doneOrCancelled = bookings
-    .filter((b) => !["DRAFT", "BOOKED", "CONFIRMED", "ARRIVED", "CHECKED_IN", "IN_SESSION"].includes(b.status))
+  // UPDATE 2026-08-23 — user: "selesai dan batal dipisahkan juga, batal
+  // paling bawah". The old single "Selesai / Batal" box sorted COMPLETED/
+  // PAID and CANCELLED/NO_SHOW together purely by scheduled time, so a
+  // no-show from 10:00 could sit above a real completed+paid session from
+  // 18:00 — a kasir scanning the day's outcomes had to read every status
+  // chip individually to tell which bookings actually happened. Split
+  // into two boxes: "Selesai" (COMPLETED/PAID — the booking happened) and
+  // "Batal" (CANCELLED/NO_SHOW/RESCHEDULED — it didn't, for whatever
+  // reason), each still sorted by scheduled time within itself, with
+  // Batal rendered last so the outcomes a kasir actually cares about
+  // (what got paid) aren't pushed below a pile of no-shows.
+  const done = bookings
+    .filter((b) => ["COMPLETED", "PAID"].includes(b.status))
+    .sort((a, b) => (a.scheduledStart < b.scheduledStart ? -1 : a.scheduledStart > b.scheduledStart ? 1 : 0));
+  const cancelled = bookings
+    .filter((b) => ["CANCELLED", "NO_SHOW", "RESCHEDULED"].includes(b.status))
     .sort((a, b) => (a.scheduledStart < b.scheduledStart ? -1 : a.scheduledStart > b.scheduledStart ? 1 : 0));
 
   function BookingBox({ title, sub, rows }: { title: string; sub: string; rows: typeof bookings }) {
@@ -123,7 +147,8 @@ export default async function KasirTodayPage() {
 
       <BookingBox title="Menunggu Kedatangan" sub={`${waitingArrival.length} booking · belum check-in, diurutkan berdasarkan jam`} rows={waitingArrival} />
       <BookingBox title="Check-in & Sesi Berjalan" sub={`${inProgress.length} booking · tamu sudah di outlet`} rows={inProgress} />
-      <BookingBox title="Selesai / Batal" sub={`${doneOrCancelled.length} booking · sudah tuntas hari ini`} rows={doneOrCancelled} />
+      <BookingBox title="Selesai" sub={`${done.length} booking · sudah dibayar / tuntas hari ini`} rows={done} />
+      <BookingBox title="Batal" sub={`${cancelled.length} booking · dibatalkan, tidak datang, atau dijadwal ulang`} rows={cancelled} />
     </>
   );
 }

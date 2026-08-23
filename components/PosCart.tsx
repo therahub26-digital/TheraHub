@@ -78,11 +78,15 @@ export default function PosCart({
     });
   }
 
-  function changeQty(index: number, delta: number) {
+  // Addressed by kind+id, never by array index: the index belongs to the
+  // render that drew the button, but the update runs against the latest
+  // `prev`, and dropping a line at qty 0 reshuffles every index after it.
+  // Two quick clicks could otherwise decrement the wrong product.
+  function changeQty(kind: "ADD_ON" | "PRODUCT", id: string, delta: number) {
     setLines((prev) =>
       prev
-        .map((l, i) => {
-          if (i !== index) return l;
+        .map((l) => {
+          if (l.kind !== kind || l.id !== id) return l;
           const next = l.qty + delta;
           if (l.maxQty !== null && next > l.maxQty) return l;
           return { ...l, qty: next };
@@ -242,17 +246,17 @@ export default function PosCart({
                 </div>
               ))}
 
-              {lines.map((l, i) => (
+              {lines.map((l) => (
                 <div key={`${l.kind}-${l.id}`} className="row between small">
                   <div style={{ minWidth: 0 }}>
                     <div className="strong truncate" style={{ color: "var(--text-1)" }}>{l.name}</div>
                     <div className="row g1" style={{ marginTop: 3 }}>
-                      <button className="btn btn-ghost btn-sm" disabled={isPending} onClick={() => changeQty(i, -1)} style={{ padding: "1px 7px", height: 22 }}>−</button>
+                      <button className="btn btn-ghost btn-sm" disabled={isPending} onClick={() => changeQty(l.kind, l.id, -1)} style={{ padding: "1px 7px", height: 22 }}>−</button>
                       <span className="tiny" style={{ minWidth: 18, textAlign: "center" }}>{l.qty}</span>
                       <button
                         className="btn btn-ghost btn-sm"
                         disabled={isPending || (l.maxQty !== null && l.qty >= l.maxQty)}
-                        onClick={() => changeQty(i, 1)}
+                        onClick={() => changeQty(l.kind, l.id, 1)}
                         style={{ padding: "1px 7px", height: 22 }}
                       >
                         +

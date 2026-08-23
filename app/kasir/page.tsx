@@ -96,12 +96,28 @@ export default async function KasirTodayPage() {
                         report "tombol checkin tidak bisa klik"). Now the
                         same BookingRowActions used on /manager/bookings'
                         list view — Check-in picks a room live via
-                        checkInBooking(); a guest already arrived here
-                        goes to /kasir/checkin instead, same as before. */}
-                    {["BOOKED", "CONFIRMED", "ARRIVED"].includes(b.status) && (
+                        checkInBooking(); Mulai Sesi calls startSession().
+                        BookingRowActions itself decides which button to
+                        show from `status` (canCheckIn / canStart), so
+                        it can be handed every non-final status instead of
+                        being gated a second time here.
+                        FIXED 2026-08-23 (user: "kasir bisa mulai sesi,
+                        tidak harus therapis"): CHECKED_IN used to fall
+                        into the disabled "Detail" branch below, so a
+                        cashier could check a guest in but then had NO WAY
+                        to start their session from this page — even
+                        though RLS (sessions_staff, gated by
+                        _is_outlet_staff) already allows kasir/manager to
+                        do exactly that. startSession() itself never
+                        required a therapist role; the button to reach it
+                        was simply missing here. The dedicated therapist
+                        flow at /therapist/session is unaffected — this
+                        just gives the front desk the same "Mulai Sesi"
+                        button /manager/bookings already had. */}
+                    {["BOOKED", "CONFIRMED", "ARRIVED", "CHECKED_IN"].includes(b.status) && (
                       <BookingRowActions bookingId={b.id} status={b.status} rooms={roomOptions} />
                     )}
-                    {["CHECKED_IN", "IN_SESSION", "COMPLETED"].includes(b.status) && (
+                    {["IN_SESSION", "COMPLETED"].includes(b.status) && (
                       <button className="btn btn-ghost btn-sm" disabled><Icon name="eye" size={12} /> Detail</button>
                     )}
                   </td>

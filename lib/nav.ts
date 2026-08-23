@@ -140,15 +140,22 @@ export const ROLES: RoleDef[] = [
     icon: "hand-heart",
     tone: "rose",
     persona: { name: "Melati Puspita", sub: "Terapis Master · TRP-005" },
+    // UPDATE 2026-08-23 — reordered per user request:
+    // 1) Jadwal Saya + Job Saya merged into one entry ("Jadwal & Job",
+    //    still pointing at /therapist/shift — see that page's header
+    //    comment; /therapist/jobs now just redirects there).
+    // 2) Sesi Aktif moved into the main tab bar (first 4 = main tabs in
+    //    MobileShell, rest overflow into "Lainnya"), swapped with
+    //    Absensi GPS — attendance is already reachable from the Beranda
+    //    dashboard card, so it moved into "Lainnya" instead.
     nav: [
       { href: "/therapist", label: "Beranda", icon: "home", section: "Harian" },
-      { href: "/therapist/attendance", label: "Absensi GPS", icon: "map-pin-check", section: "Harian" },
-      { href: "/therapist/shift", label: "Jadwal Saya", icon: "calendar-days", section: "Harian" },
-      { href: "/therapist/jobs", label: "Job Saya", icon: "list-todo", badge: 2, section: "Harian" },
+      { href: "/therapist/shift", label: "Jadwal & Job", icon: "calendar-days", badge: 2, section: "Harian" },
       { href: "/therapist/session", label: "Sesi Aktif", icon: "timer", section: "Harian" },
+      { href: "/therapist/notifications", label: "Notifikasi", icon: "bell", badge: 2, section: "Harian" },
+      { href: "/therapist/attendance", label: "Absensi GPS", icon: "map-pin-check", section: "Penghasilan" },
       { href: "/therapist/commission", label: "Komisi Saya", icon: "percent", section: "Penghasilan" },
       { href: "/therapist/payslip", label: "Payslip & Tabungan", icon: "wallet", section: "Penghasilan" },
-      { href: "/therapist/notifications", label: "Notifikasi", icon: "bell", badge: 2, section: "Penghasilan" },
     ],
   },
   {

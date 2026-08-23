@@ -11,7 +11,19 @@ import {
   getStockTransfersForOutlet,
 } from "@/lib/data/inventory";
 import { rp, fmtDateTime, num } from "@/lib/format";
-import { NewProductForm, PurchaseOrderForm, ReceivePOButton, StockTransferForm, StockOpnameForm } from "@/components/InventoryEditor";
+import { PurchaseOrderForm, ReceivePOButton, StockTransferForm, StockOpnameForm } from "@/components/InventoryEditor";
+
+// NewProductForm is deliberately NOT wired in here — caught live during
+// self-testing (2026-08-23): `products_write` RLS (0002_rls_policies.sql,
+// pre-existing, not part of this feature's migration) restricts INSERT
+// on `products` to admin/owner only, tenant-wide. A manager submitting
+// the form got a silent "Gagal menyimpan produk." — RLS working exactly
+// as designed, my UI just put the button on the wrong role's page. The
+// component is still exported from InventoryEditor.tsx for reuse once
+// an admin-side "add product" surface exists (none does yet — the
+// closest page, /admin/master, is itself still 100% mock and out of
+// scope here). Until then, a manager can only receive/transfer/opname
+// products an admin already created.
 
 // ---------------------------------------------------------------------
 // UPDATE 2026-08-23 — was 100% lib/mock (PRODUCTS, movementsOf, lowStock,
@@ -58,7 +70,6 @@ export default async function InventoryPage() {
         desc={`${outlet.name} · Stok produk, consumable, purchase order, transfer, dan stock opname.`}
         actions={
           <>
-            <NewProductForm tenantId={outlet.tenantId} />
             <StockTransferForm tenantId={outlet.tenantId} currentOutletId={outlet.id} outlets={outlets.map((o) => ({ id: o.id, name: o.name }))} products={products} />
             <StockOpnameForm outletId={outlet.id} products={products} />
             <PurchaseOrderForm outletId={outlet.id} products={products} />

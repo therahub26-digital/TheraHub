@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { nowIso, todayIsoDate } from "@/lib/wallclock";
 import type { Product } from "@/lib/types";
 
@@ -50,12 +51,13 @@ async function nextCode(
   return `${prefix}-${ym}-${String(n).padStart(3, "0")}`;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function adjustStock(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  supabase: any,
   outletId: string,
   productId: string,
   deltaQty: number
-): Promise<void> {
+): Promise<boolean> {
   const { data: existing } = await supabase
     .from("product_stocks")
     .select("qty")
@@ -63,9 +65,10 @@ async function adjustStock(
     .eq("product_id", productId)
     .maybeSingle();
   const newQty = Number(existing?.qty ?? 0) + deltaQty;
-  await supabase
+  const { error } = await supabase
     .from("product_stocks")
     .upsert({ outlet_id: outletId, product_id: productId, qty: newQty }, { onConflict: "outlet_id,product_id" });
+  return !error;
 }
 
 // ============================================================= PRODUCT
@@ -203,7 +206,7 @@ export async function receivePurchaseOrder(poId: string): Promise<ActionResult> 
   const postedAt = nowIso();
   for (const item of items) {
     const qty = Number(item.qty_ordered);
-    await supabase.from("stock_movements").insert({
+    const { error: moveError } = await supabase.from("stock_movements").insert({
       outlet_id: po.outlet_id,
       product_id: item.product_id,
       type: "PURCHASE_RECEIPT",
@@ -214,7 +217,9 @@ export async function receivePurchaseOrder(poId: string): Promise<ActionResult> 
       posted_at: postedAt,
       posted_by: appUserId,
     });
-    await adjustStock(supabase, po.outlet_id, item.product_id, qty);
+    if (moveError) return { ok: false, error: "Gagal mencatat pergerakan stok — penerimaan dibatalkan." };
+    const stockOk = await adjustStock(supabase, po.outlet_id, item.product_id, qty);
+    if (!stockOk) return { ok: false, error: "Gagal memperbarui saldo stok — hubungi admin." };
     await supabase.from("purchase_order_items").update({ qty_received: qty }).eq("id", item.id);
   }
 
@@ -245,6 +250,17 @@ export async function createAndCompleteStockTransfer(input: CreateStockTransferI
   const items = input.items.filter((i) => i.productId && i.qty > 0);
   if (items.length === 0) return { ok: false, error: "Tambahkan minimal 1 item dengan qty > 0." };
 
+  // Both outlets must belong to the caller's own tenant — verified here via
+  // the normal RLS session client (outlets_read is tenant-scoped), BEFORE
+  // any privileged write below. This is what stops a tampered toOutletId
+  // from being used to move stock into another tenant once we switch to
+  // the admin client.
+  const { data: outletsCheck } = await supabase
+    .from("outlets")
+    .select("id")
+    .in("id", [input.fromOutletId, input.toOutletId]);
+  if ((outletsCheck ?? []).length !== 2) return { ok: false, error: "Outlet asal/tujuan tidak valid." };
+
   const { appUserId, employeeId } = await resolveIdentity(supabase, user.id);
   const code = await nextCode(supabase, "stock_transfers", "tenant_id", input.tenantId, "TRF");
   const postedAt = nowIso();
@@ -269,14 +285,32 @@ export async function createAndCompleteStockTransfer(input: CreateStockTransferI
   const { error: itemsError } = await supabase
     .from("stock_transfer_items")
     .insert(items.map((i) => ({ stock_transfer_id: transfer.id, product_id: i.productId, qty: i.qty })));
-  if (itemsError) return { ok: false, error: "Transfer tersimpan tapi item gagal disimpan — hubungi admin." };
+  if (itemsError) {
+    await supabase.from("stock_transfers").delete().eq("id", transfer.id);
+    return { ok: false, error: "Transfer tersimpan tapi item gagal disimpan — hubungi admin." };
+  }
 
   // Langsung diselesaikan (bukan DRAFT -> IN_TRANSIT -> COMPLETED
   // bertahap) untuk menyederhanakan alur — sesuai kartu "Transfer Antar
   // Outlet" yang hanya menampilkan riwayat, bukan status berjalan yang
   // diproses staff lain di outlet tujuan.
+  //
+  // BUG FIX 2026-08-23 (caught live during self-testing): a transfer
+  // touches stock_movements/product_stocks rows for BOTH outlets, but
+  // `_is_outlet_staff` RLS only authorizes the signed-in manager/kasir's
+  // OWN outlet — so with the normal session client, the destination-side
+  // insert/upsert was silently rejected by RLS while the source-side
+  // deduction still went through (and the old code never checked the
+  // error), destroying stock: -3 at Cikawao, +0 at Mekarwangi, transfer
+  // shown as "COMPLETED". Business rules (same-tenant outlets, qty > 0,
+  // fromOutlet ≠ toOutlet) are already enforced above with the normal
+  // session client, so it's safe to finish the actual movement with the
+  // admin client — same bypass-RLS-after-validating pattern already used
+  // by lib/actions/customerBookings.ts. Any failure here rolls back the
+  // transfer + item rows instead of leaving stock half-moved.
+  const admin = createAdminClient();
   for (const item of items) {
-    await supabase.from("stock_movements").insert([
+    const { error: moveError } = await admin.from("stock_movements").insert([
       {
         outlet_id: input.fromOutletId, product_id: item.productId, type: "TRANSFER_OUT", qty: -item.qty,
         unit_cost: 0, ref_type: "STOCK_TRANSFER", ref_id: transfer.id, posted_at: postedAt, posted_by: appUserId,
@@ -286,8 +320,13 @@ export async function createAndCompleteStockTransfer(input: CreateStockTransferI
         unit_cost: 0, ref_type: "STOCK_TRANSFER", ref_id: transfer.id, posted_at: postedAt, posted_by: appUserId,
       },
     ]);
-    await adjustStock(supabase, input.fromOutletId, item.productId, -item.qty);
-    await adjustStock(supabase, input.toOutletId, item.productId, item.qty);
+    const outOk = !moveError && (await adjustStock(admin, input.fromOutletId, item.productId, -item.qty));
+    const inOk = !moveError && (await adjustStock(admin, input.toOutletId, item.productId, item.qty));
+    if (moveError || !outOk || !inOk) {
+      await supabase.from("stock_transfer_items").delete().eq("stock_transfer_id", transfer.id);
+      await supabase.from("stock_transfers").delete().eq("id", transfer.id);
+      return { ok: false, error: "Gagal memindahkan stok antar outlet — transfer dibatalkan, tidak ada perubahan tersimpan." };
+    }
   }
 
   revalidatePath("/manager/inventory");
@@ -357,13 +396,15 @@ export async function createStockOpnameAndPost(input: CreateStockOpnameInput): P
   for (const item of items) {
     const variance = item.countedQty - item.systemQty;
     if (variance === 0) continue;
-    await supabase.from("stock_movements").insert({
+    const { error: moveError } = await supabase.from("stock_movements").insert({
       outlet_id: input.outletId, product_id: item.productId, type: "STOCK_OPNAME", qty: variance,
       unit_cost: item.unitCost, ref_type: "STOCK_OPNAME", ref_id: opname.id, posted_at: postedAt, posted_by: appUserId,
     });
-    await supabase
+    if (moveError) return { ok: false, error: "Opname tersimpan tapi pergerakan stok gagal dicatat — hubungi admin." };
+    const { error: stockError } = await supabase
       .from("product_stocks")
       .upsert({ outlet_id: input.outletId, product_id: item.productId, qty: item.countedQty }, { onConflict: "outlet_id,product_id" });
+    if (stockError) return { ok: false, error: "Opname tersimpan tapi saldo stok gagal diperbarui — hubungi admin." };
   }
 
   revalidatePath("/manager/inventory");

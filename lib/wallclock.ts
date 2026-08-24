@@ -36,14 +36,29 @@
 // answer wrongly by 7 hours.
 // ---------------------------------------------------------------------
 
-/** Local wall-clock date as "YYYY-MM-DD". */
+// Amethyst's one real timezone, hardcoded. Not a general TZ system (that's
+// the Fase 9 migration described above) -- just enough to fix a live bug
+// found 2026-08-25: todayIsoDate()/nowHHMM() used to read the HOST
+// machine's local clock via getFullYear()/getHours()/etc. That is fine on
+// a laptop set to WIB, but Vercel's serverless functions run in UTC, so
+// every night between 00:00-06:59 WIB the server's "today" was still
+// YESTERDAY's date -- a booking made for "today" (WIB) would silently
+// vanish from every getEffectiveToday()-filtered list (kasir dashboard,
+// therapist home, etc.) until the UTC clock caught up at 07:00 WIB.
+// Shifting by this offset and reading back with getUTC*() gives WIB
+// wall-clock digits regardless of the host's own TZ setting.
+const WIB_OFFSET_MS = 7 * 60 * 60 * 1000;
+
+/** WIB wall-clock date as "YYYY-MM-DD", independent of the host machine's timezone. */
 export function todayIsoDate(d: Date = new Date()): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const wib = new Date(d.getTime() + WIB_OFFSET_MS);
+  return `${wib.getUTCFullYear()}-${String(wib.getUTCMonth() + 1).padStart(2, "0")}-${String(wib.getUTCDate()).padStart(2, "0")}`;
 }
 
-/** Local wall-clock time of day as "HH:mm". */
+/** WIB wall-clock time of day as "HH:mm", independent of the host machine's timezone. */
 export function nowHHMM(d: Date = new Date()): string {
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  const wib = new Date(d.getTime() + WIB_OFFSET_MS);
+  return `${String(wib.getUTCHours()).padStart(2, "0")}:${String(wib.getUTCMinutes()).padStart(2, "0")}`;
 }
 
 /**

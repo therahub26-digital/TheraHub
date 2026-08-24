@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { BOOKINGS as MOCK_BOOKINGS } from "@/lib/mock/ops";
 import { sweepNoShowBookings } from "@/lib/data/noShowSweep";
 import { TODAY as MOCK_TODAY, NOW_HHMM as MOCK_NOW_HHMM } from "@/lib/mock/rng";
+import { todayIsoDate, nowHHMM } from "@/lib/wallclock";
 import type { Booking } from "@/lib/types";
 
 // ---------------------------------------------------------------------
@@ -184,16 +185,20 @@ export async function isLiveBookingsData(): Promise<boolean> {
 export async function getEffectiveToday(): Promise<string> {
   const live = await isLiveBookingsData();
   if (!live) return MOCK_TODAY;
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  // Delegate to lib/wallclock.ts's todayIsoDate() rather than reading
+  // new Date() with local getters here directly -- that used to return
+  // the HOST machine's calendar date (UTC on Vercel), which lags a full
+  // day behind WIB every night from 00:00-06:59, silently hiding same-day
+  // bookings from every "today" list. See wallclock.ts's WIB_OFFSET_MS
+  // comment for the 2026-08-25 bug this fixes.
+  return todayIsoDate();
 }
 
 /** Same live/mock split as getEffectiveToday(), for the current wall-clock time-of-day. */
 export async function getEffectiveNow(): Promise<string> {
   const live = await isLiveBookingsData();
   if (!live) return MOCK_NOW_HHMM;
-  const d = new Date();
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  return nowHHMM();
 }
 
 export async function getBookingsForOutlet(outletId: string, date?: string): Promise<Booking[]> {

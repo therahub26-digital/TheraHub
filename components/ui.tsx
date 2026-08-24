@@ -526,15 +526,37 @@ export function InfoNote({
  * Brand identity picker — used at tenant setup (Admin > Business Profile,
  * Super Admin provisioning). Lets a tenant choose accent colour, logo, and
  * the ambient background that the whole product is painted with.
+ *
+ * User (2026-08-25): "bussines profile: visual, brand, logo, belum
+ * fungsi" — the swatches/presets below were purely decorative and the
+ * upload buttons were disabled. This component now accepts OPTIONAL
+ * interactive props (onSelectBrand/onSelectBackground/logoUploadSlot/
+ * backgroundUploadSlot/logoUrl/backgroundPhotoUrl). When none are passed
+ * — the Super Admin provisioning call site (app/super-admin/tenants/[id]/
+ * page.tsx) — this renders exactly as before: read-only preview.
+ * app/admin/profile/page.tsx (via BusinessProfileForm) is the only place
+ * that now passes them, making the panel actually save to the tenant.
  */
 export function BrandPicker({
   selected = "teal",
   logoInitial = "Z",
   background = "aurora",
+  logoUrl,
+  backgroundPhotoUrl,
+  onSelectBrand,
+  onSelectBackground,
+  logoUploadSlot,
+  backgroundUploadSlot,
 }: {
   selected?: string;
   logoInitial?: string;
   background?: string;
+  logoUrl?: string | null;
+  backgroundPhotoUrl?: string | null;
+  onSelectBrand?: (key: string) => void;
+  onSelectBackground?: (key: string) => void;
+  logoUploadSlot?: ReactNode;
+  backgroundUploadSlot?: ReactNode;
 }) {
   return (
     <div className="stack g4">
@@ -546,6 +568,7 @@ export function BrandPicker({
               key={b.key}
               title={b.label}
               className="row g2"
+              onClick={onSelectBrand ? () => onSelectBrand(b.key) : undefined}
               style={{
                 padding: "7px 11px 7px 7px",
                 borderRadius: "var(--r-full)",
@@ -577,21 +600,33 @@ export function BrandPicker({
       <div className="field">
         <label>Logo Bisnis</label>
         <div className="row g3">
-          <span
-            className="avatar avatar-rect"
-            style={{
-              width: 56,
-              height: 56,
-              fontSize: 20,
-              background: `linear-gradient(135deg, ${BRAND_PRESETS.find((b) => b.key === selected)?.accent}, ${BRAND_PRESETS.find((b) => b.key === selected)?.accent2})`,
-            }}
-          >
-            {logoInitial}
-          </span>
+          {logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={logoUrl}
+              alt=""
+              className="avatar avatar-rect"
+              style={{ width: 56, height: 56, objectFit: "cover" }}
+            />
+          ) : (
+            <span
+              className="avatar avatar-rect"
+              style={{
+                width: 56,
+                height: 56,
+                fontSize: 20,
+                background: `linear-gradient(135deg, ${BRAND_PRESETS.find((b) => b.key === selected)?.accent}, ${BRAND_PRESETS.find((b) => b.key === selected)?.accent2})`,
+              }}
+            >
+              {logoInitial}
+            </span>
+          )}
           <div className="stack g2">
-            <button className="btn btn-ghost btn-sm" disabled title="Belum tersedia — unggah logo belum tersambung ke penyimpanan.">
-              <Icon name="upload" size={13} /> Unggah Logo
-            </button>
+            {logoUploadSlot ?? (
+              <button className="btn btn-ghost btn-sm" disabled title="Belum tersedia — unggah logo belum tersambung ke penyimpanan.">
+                <Icon name="upload" size={13} /> Unggah Logo
+              </button>
+            )}
             <span className="tiny dim">PNG/SVG, disarankan rasio 1:1, maks 2 MB.</span>
           </div>
         </div>
@@ -606,6 +641,7 @@ export function BrandPicker({
               <div
                 key={bg.key}
                 title={bg.desc}
+                onClick={onSelectBackground ? () => onSelectBackground(bg.key) : undefined}
                 style={{
                   padding: 5,
                   borderRadius: "var(--r-md)",
@@ -652,26 +688,36 @@ export function BrandPicker({
 
       <div className="field">
         <label>Background Foto Kustom (Opsional)</label>
-        <button
-          className="stack g2"
-          style={{
-            width: "100%",
-            aspectRatio: `${MEDIA_SPECS.appBackground.width} / ${MEDIA_SPECS.appBackground.height}`,
-            maxHeight: 120,
-            alignItems: "center",
-            justifyContent: "center",
-            borderRadius: "var(--r-md)",
-            border: "1.5px dashed var(--border-3)",
-            background: "transparent",
-            color: "var(--text-3)",
-          }}
-         disabled title="Belum tersedia — unggah latar sendiri belum tersambung ke penyimpanan.">
-          <span className="stat-icon" style={{ width: 32, height: 32, borderRadius: 10 }}>
-            <Icon name="camera" size={15} />
-          </span>
-          <span className="tiny bold" style={{ color: "var(--text-2)" }}>Unggah foto latar sendiri</span>
-          <span className="tiny dim">{specLine("appBackground")}</span>
-        </button>
+        {backgroundUploadSlot ?? (
+          <button
+            className="stack g2"
+            style={{
+              width: "100%",
+              aspectRatio: `${MEDIA_SPECS.appBackground.width} / ${MEDIA_SPECS.appBackground.height}`,
+              maxHeight: 120,
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: "var(--r-md)",
+              border: "1.5px dashed var(--border-3)",
+              background: "transparent",
+              color: "var(--text-3)",
+            }}
+           disabled title="Belum tersedia — unggah latar sendiri belum tersambung ke penyimpanan.">
+            <span className="stat-icon" style={{ width: 32, height: 32, borderRadius: 10 }}>
+              <Icon name="camera" size={15} />
+            </span>
+            <span className="tiny bold" style={{ color: "var(--text-2)" }}>Unggah foto latar sendiri</span>
+            <span className="tiny dim">{specLine("appBackground")}</span>
+          </button>
+        )}
+        {backgroundPhotoUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={backgroundPhotoUrl}
+            alt=""
+            style={{ width: "100%", maxHeight: 120, objectFit: "cover", borderRadius: "var(--r-md)", border: "1px solid var(--border)" }}
+          />
+        )}
         <span className="hint">
           Alternatif dari preset di atas — unggah foto sendiri (misalnya suasana outlet Anda) sebagai latar
           seluruh aplikasi. {MEDIA_SPECS.appBackground.note}

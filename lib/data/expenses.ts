@@ -28,11 +28,18 @@ type ExpenseRow = {
   vendor: string;
   amount: number | string;
   tax: number | string;
-  payment_method: string;
+  payment_method: ExpenseRec["paymentMethod"];
   description: string;
   status: ExpenseRec["status"];
   submitted_by: string | null;
   attachment_url: string | null;
+  /**
+   * Hasil join `employees:submitted_by(name)` di fetchLiveExpenses.
+   * Ditambahkan 2026-08-24: tipe ini sudah ada sejak awal tapi tidak
+   * pernah dipakai (mappernya memakai `any`), padahal justru inilah
+   * bentuk baris yang dikembalikan query itu.
+   */
+  employees: { name: string } | null;
 };
 
 type PettyCashRow = {
@@ -70,7 +77,7 @@ async function fetchLiveExpenses(outletId: string): Promise<ExpenseRec[] | null>
     .order("date", { ascending: false });
   if (error) return null;
 
-  return (rows ?? []).map((r: any) => ({
+  return ((rows ?? []) as ExpenseRow[]).map((r) => ({
     id: r.id,
     outletId: r.outlet_id,
     date: r.date,

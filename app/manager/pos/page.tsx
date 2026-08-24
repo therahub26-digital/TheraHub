@@ -167,7 +167,7 @@ export default async function PosPage() {
 
       {!live && (
         <div className="tiny dim" style={{ marginTop: 16 }}>
-          Menampilkan data contoh (viewer demo "Ganti Role") — login sungguhan untuk melihat transaksi outlet ini.
+          Menampilkan data contoh (viewer demo &quot;Ganti Role&quot;) — login sungguhan untuk melihat transaksi outlet ini.
         </div>
       )}
     </>

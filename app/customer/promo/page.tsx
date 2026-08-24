@@ -5,7 +5,7 @@ import { getCurrentCustomer } from "@/lib/data/customers";
 import { getOutlets } from "@/lib/data/outlets";
 import { getPromotionsForOutlet } from "@/lib/data/promotions";
 import { ME_CUSTOMER, PROMOTIONS as MOCK_PROMOTIONS, PRIMARY_OUTLET } from "@/lib/mock";
-import { rp, fmtDateShort } from "@/lib/format";
+import { fmtDateShort } from "@/lib/format";
 
 // ---------------------------------------------------------------------
 // Added 2026-08-23 — replaces "Riwayat" in the bottom nav (see

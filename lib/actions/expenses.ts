@@ -24,7 +24,14 @@ async function resolveIdentity(
   return { appUserId: data?.id ?? null, employeeId: data?.employee_id ?? null };
 }
 
-const PAYMENT_METHODS = ["Cash", "QRIS", "Debit Card", "Credit Card", "Transfer", "E-Wallet", "Split", "Midtrans"] as const;
+/**
+ * Daftar metode pembayaran yang sah. Diekspor (2026-08-24) supaya tidak
+ * lagi "hanya dipakai sebagai tipe": nilainya berguna sebagai sumber
+ * kebenaran runtime untuk validasi input dan untuk mengisi dropdown di
+ * form, sedangkan PaymentMethod di bawah tetap diturunkan dari sini
+ * sehingga keduanya tidak mungkin berbeda.
+ */
+export const PAYMENT_METHODS = ["Cash", "QRIS", "Debit Card", "Credit Card", "Transfer", "E-Wallet", "Split", "Midtrans"] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
 export type CreateExpenseInput = {

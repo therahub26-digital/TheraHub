@@ -180,7 +180,7 @@ export default async function CatalogPage() {
                 </div>
               </div>
             ))}
-            {addons.length === 0 && <div className="small dim">Belum ada add-on. Tekan "Add-on Baru" untuk menambahkan.</div>}
+            {addons.length === 0 && <div className="small dim">Belum ada add-on. Tekan &quot;Add-on Baru&quot; untuk menambahkan.</div>}
           </div>
         </Card>
       </div>

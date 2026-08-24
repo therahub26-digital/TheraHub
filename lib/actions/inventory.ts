@@ -51,9 +51,16 @@ async function nextCode(
   return `${prefix}-${ym}-${String(n).padStart(3, "0")}`;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+/**
+ * Klien Supabase milik pemanggil. Diturunkan dari createClient() sendiri
+ * (2026-08-24, sebelumnya `any` dengan eslint-disable) supaya tetap ikut
+ * kalau tipe klien itu berubah, tanpa perlu meng-import generik
+ * SupabaseClient<Database> ke file ini.
+ */
+type Db = Awaited<ReturnType<typeof createClient>>;
+
 async function adjustStock(
-  supabase: any,
+  supabase: Db,
   outletId: string,
   productId: string,
   deltaQty: number

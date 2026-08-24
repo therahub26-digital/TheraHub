@@ -1,4 +1,3 @@
-import Icon from "@/components/Icon";
 import { PageHead, Card, CardHead, StatCard, Badge, StatusBadge } from "@/components/ui";
 import { DonutChart, LegendList } from "@/components/Charts";
 import { getCurrentOutlet } from "@/lib/data/outlets";

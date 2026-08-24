@@ -241,6 +241,75 @@ export async function getMovementsForOutlet(outletId: string, limit = 10): Promi
   }));
 }
 
+// ---------------------------------------------------------------------
+// Tipe baris hasil query (2026-08-24) — sebelumnya ketiga mapper di bawah
+// memakai `(r: any)`, jadi salah ketik nama kolom snake_case tidak
+// ketahuan sampai nilainya muncul undefined di layar. Bentuk tiap tipe
+// mengikuti persis daftar kolom .select() query yang bersangkutan,
+// termasuk tabel hasil join. Konvensi penamaan sama dengan *Row di file
+// lib/data lainnya.
+// ---------------------------------------------------------------------
+
+type PurchaseOrderRow = {
+  id: string;
+  outlet_id: string;
+  code: string;
+  supplier: string;
+  status: PurchaseOrder["status"];
+  order_date: string;
+  expected_date: string | null;
+  received_at: string | null;
+  total_amount: number | string;
+  notes: string | null;
+  purchase_order_items: { id: string }[] | null;
+};
+
+/**
+ * Embed relasi many-to-one PostgREST (mis. `products(name)` di bawah)
+ * mengembalikan SATU objek saat dijalankan, tapi tipe hasil generate
+ * supabase-js kadang menyebutnya array. Helper ini menerima kedua bentuk
+ * sehingga kodenya benar apa pun yang datang — dipilih daripada
+ * `as unknown as ...` yang hanya membungkam TypeScript tanpa menjamin
+ * bentuk datanya. Ditemukan 2026-08-24 saat mengganti `any` dengan tipe
+ * sungguhan: `r.products?.name` diam-diam bisa selalu undefined (jatuh ke
+ * "Produk?") kalau ternyata yang datang array.
+ */
+function embeddedOne<T>(v: T | T[] | null | undefined): T | null {
+  if (Array.isArray(v)) return v[0] ?? null;
+  return v ?? null;
+}
+
+type PurchaseOrderItemRow = {
+  id: string;
+  product_id: string;
+  qty_ordered: number | string;
+  qty_received: number | string;
+  unit_cost: number | string;
+  products: { name: string } | { name: string }[] | null;
+};
+
+type StockOpnameRow = {
+  id: string;
+  outlet_id: string;
+  code: string;
+  scope: string;
+  status: StockOpname["status"];
+  opname_date: string;
+  stock_opname_items: { variance_qty: number | string; variance_value: number | string }[] | null;
+  employees: { name: string } | null;
+};
+
+type StockTransferRow = {
+  id: string;
+  code: string;
+  from_outlet_id: string;
+  to_outlet_id: string;
+  status: StockTransfer["status"];
+  note: string | null;
+  created_at: string;
+  stock_transfer_items: { qty: number | string }[] | null;
+};
+
 export async function getPurchaseOrdersForOutlet(outletId: string): Promise<PurchaseOrder[]> {
   const live = await loadProductsData();
   if (!live.live) {
@@ -259,7 +328,7 @@ export async function getPurchaseOrdersForOutlet(outletId: string): Promise<Purc
     .order("order_date", { ascending: false });
   if (error || !rows) return [];
 
-  return rows.map((r: any) => ({
+  return (rows as PurchaseOrderRow[]).map((r) => ({
     id: r.id, outletId: r.outlet_id, code: r.code, supplier: r.supplier, status: r.status,
     orderDate: r.order_date, expectedDate: r.expected_date, receivedAt: r.received_at,
     totalAmount: Number(r.total_amount), itemCount: (r.purchase_order_items ?? []).length, notes: r.notes,
@@ -273,8 +342,8 @@ export async function getPurchaseOrderItems(poId: string): Promise<PurchaseOrder
     .select("id, product_id, qty_ordered, qty_received, unit_cost, products(name)")
     .eq("purchase_order_id", poId);
   if (error || !rows) return [];
-  return rows.map((r: any) => ({
-    id: r.id, productId: r.product_id, productName: r.products?.name ?? "Produk?",
+  return (rows as PurchaseOrderItemRow[]).map((r) => ({
+    id: r.id, productId: r.product_id, productName: embeddedOne(r.products)?.name ?? "Produk?",
     qtyOrdered: Number(r.qty_ordered), qtyReceived: Number(r.qty_received), unitCost: Number(r.unit_cost),
   }));
 }
@@ -296,13 +365,13 @@ export async function getStockOpnamesForOutlet(outletId: string): Promise<StockO
     .order("opname_date", { ascending: false });
   if (error || !rows) return [];
 
-  return rows.map((r: any) => {
+  return (rows as StockOpnameRow[]).map((r) => {
     const items = r.stock_opname_items ?? [];
     return {
       id: r.id, outletId: r.outlet_id, code: r.code, scope: r.scope, status: r.status, opnameDate: r.opname_date,
       itemCount: items.length,
-      varianceQty: items.reduce((s: number, i: any) => s + Number(i.variance_qty), 0),
-      varianceValue: items.reduce((s: number, i: any) => s + Number(i.variance_value), 0),
+      varianceQty: items.reduce((sum, i) => sum + Number(i.variance_qty), 0),
+      varianceValue: items.reduce((sum, i) => sum + Number(i.variance_value), 0),
       postedBy: r.employees?.name ?? null,
     };
   });
@@ -329,12 +398,12 @@ export async function getStockTransfersForOutlet(outletId: string): Promise<Stoc
     .order("created_at", { ascending: false });
   if (error || !rows) return [];
 
-  return rows.map((r: any) => {
+  return (rows as StockTransferRow[]).map((r) => {
     const items = r.stock_transfer_items ?? [];
     return {
       id: r.id, code: r.code, fromOutletId: r.from_outlet_id, fromOutletName: outletName(r.from_outlet_id),
       toOutletId: r.to_outlet_id, toOutletName: outletName(r.to_outlet_id), status: r.status, note: r.note,
-      itemCount: items.length, totalQty: items.reduce((s: number, i: any) => s + Number(i.qty), 0), createdAt: r.created_at,
+      itemCount: items.length, totalQty: items.reduce((sum, i) => sum + Number(i.qty), 0), createdAt: r.created_at,
     };
   });
 }

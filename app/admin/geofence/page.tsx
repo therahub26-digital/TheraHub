@@ -1,4 +1,4 @@
-import { PageHead, Card, CardHead, Field, Badge, InfoNote } from "@/components/ui";
+import { PageHead, Card, CardHead, Badge, InfoNote } from "@/components/ui";
 import MockDataNotice from "@/components/MockDataNotice";
 import { getOutlets } from "@/lib/data/outlets";
 import GeofenceEditor from "@/components/GeofenceEditor";

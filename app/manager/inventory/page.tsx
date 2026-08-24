@@ -1,4 +1,3 @@
-import Icon from "@/components/Icon";
 import { PageHead, Card, CardHead, StatCard, Badge, PersonCell } from "@/components/ui";
 import { getCurrentOutlet } from "@/lib/data/outlets";
 import { getOutlets } from "@/lib/data/outlets";

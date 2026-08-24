@@ -134,7 +134,6 @@ export default function CustomerBookingForm({
     return therapists.filter((t) => t.outletId === outletId && (!selectedPackage || t.skills.includes(selectedPackage.requiredSkill)) && unavailableIdSet.has(t.id)).length;
   }, [therapists, outletId, selectedPackage, date, today, unavailableIdSet]);
   const [therapistId, setTherapistId] = useState(outletTherapists[0]?.id ?? "");
-  const selectedTherapist = outletTherapists.find((t) => t.id === therapistId) ?? outletTherapists[0];
   useEffect(() => {
     if (!outletTherapists.some((t) => t.id === therapistId)) {
       setTherapistId(outletTherapists[0]?.id ?? "");

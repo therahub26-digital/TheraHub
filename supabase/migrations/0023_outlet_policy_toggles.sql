@@ -21,16 +21,29 @@
 -- baru dicoba) kode itu berjalan — kalau belum, query checkout akan
 -- gagal karena kolomnya belum ada.
 --
+-- Revisi 2026-08-24 (percobaan pertama gagal di Supabase SQL Editor):
+-- late_policy ternyata kolom bertipe ENUM Postgres (bukan text + CHECK
+-- seperti dugaan awal) — error "invalid input value for enum
+-- late_policy: NONE" saat mencoba ADD CONSTRAINT ... CHECK (late_policy
+-- in (...)). Diperbaiki: nilai 'NONE' ditambahkan ke enum yang sudah ada
+-- lewat ALTER TYPE ... ADD VALUE, nama tipe enum dicari otomatis dari
+-- pg_attribute (bukan di-hardcode) karena baseline 0001 diterapkan lewat
+-- dashboard dan nama tipe persisnya tidak diketahui dari file migrasi
+-- mana pun di repo ini. Blok CHECK constraint versi lama dihapus total
+-- — tidak relevan untuk kolom enum.
+--
 -- Yang diubah
 -- -----------
 -- 1. Dua kolom boolean baru, default true (outlet yang sudah ada tidak
 --    berubah perilakunya — pajak & service charge tetap aktif seperti
 --    sebelumnya sampai manager/admin sengaja mematikannya).
--- 2. late_policy diberi nilai tambahan 'NONE' (tidak ada kebijakan
---    keterlambatan). Constraint CHECK lama pada late_policy dicari
---    dinamis lewat pg_constraint (bukan di-drop by name) karena baseline
---    0001 diterapkan lewat dashboard, jadi nama constraint persisnya
---    tidak diketahui dari file migrasi mana pun di repo ini.
+-- 2. Nilai 'NONE' (tidak ada kebijakan keterlambatan) ditambahkan ke
+--    enum late_policy yang sudah ada.
+--
+-- Catatan teknis: ALTER TYPE ... ADD VALUE tidak boleh dipakai untuk
+-- perbandingan/cast di transaksi yang sama tempat ia ditambahkan (batasan
+-- Postgres). Migrasi ini hanya menambahkan nilainya, tidak langsung
+-- memakainya, jadi aman dijalankan sebagai satu batch.
 -- ---------------------------------------------------------------------
 
 alter table outlets
@@ -39,27 +52,27 @@ alter table outlets
 
 do $$
 declare
-  c record;
+  enum_type text;
 begin
-  for c in
-    select con.conname
-    from pg_constraint con
-    join pg_class rel on rel.oid = con.conrelid
-    where rel.relname = 'outlets'
-      and con.contype = 'c'
-      and pg_get_constraintdef(con.oid) ilike '%late_policy%'
-  loop
-    execute format('alter table outlets drop constraint %I', c.conname);
-  end loop;
+  select a.atttypid::regtype::text
+  into enum_type
+  from pg_attribute a
+  where a.attrelid = 'outlets'::regclass
+    and a.attname = 'late_policy'
+    and a.attnum > 0
+    and not a.attisdropped;
+
+  if enum_type is null then
+    raise exception 'Kolom outlets.late_policy tidak ditemukan — cek nama kolom/tabel.';
+  end if;
+
+  execute format('alter type %s add value if not exists %L', enum_type, 'NONE');
 end $$;
 
-alter table outlets
-  add constraint outlets_late_policy_check
-  check (late_policy in ('FULL_DURATION', 'FIXED_SLOT', 'GRACE_PERIOD', 'NONE'));
-
 -- Rollback kalau perlu:
---   alter table outlets drop constraint if exists outlets_late_policy_check;
 --   alter table outlets drop column if exists tax_enabled;
 --   alter table outlets drop column if exists service_charge_enabled;
---   -- (constraint lama tanpa 'NONE' tidak dipulihkan otomatis — tulis ulang
---   --  manual kalau benar-benar perlu rollback penuh)
+--   -- Nilai 'NONE' pada enum late_policy TIDAK BISA di-drop lagi begitu
+--   -- ditambahkan (batasan Postgres) — kalau benar-benar perlu rollback
+--   -- penuh, enum harus dibuat ulang dari nol (buat tipe baru tanpa
+--   -- 'NONE', migrasikan kolom, drop tipe lama).

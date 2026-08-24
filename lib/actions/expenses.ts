@@ -25,13 +25,19 @@ async function resolveIdentity(
 }
 
 /**
- * Daftar metode pembayaran yang sah. Diekspor (2026-08-24) supaya tidak
- * lagi "hanya dipakai sebagai tipe": nilainya berguna sebagai sumber
- * kebenaran runtime untuk validasi input dan untuk mengisi dropdown di
- * form, sedangkan PaymentMethod di bawah tetap diturunkan dari sini
- * sehingga keduanya tidak mungkin berbeda.
+ * Daftar metode pembayaran yang sah -- sumber kebenaran tunggal untuk
+ * PaymentMethod di bawah dan untuk validasi runtime di createExpense().
+ *
+ * TIDAK di-export (revisi 2026-08-24 malam): file ini "use server", dan
+ * Next.js mewajibkan SEMUA export dari file "use server" berupa async
+ * function -- meng-export const array ini bikin build produksi gagal
+ * ("A \"use server\" file can only export async functions", ketahuan
+ * saat deploy pertama ke Vercel). Tidak ada kode lain yang mengimpor
+ * PAYMENT_METHODS dari sini (komponen lain punya array lokalnya sendiri),
+ * jadi tidak perlu diekspor -- yang perlu diekspor cuma tipe turunannya,
+ * dan itu aman karena type-only export dihapus saat kompilasi.
  */
-export const PAYMENT_METHODS = ["Cash", "QRIS", "Debit Card", "Credit Card", "Transfer", "E-Wallet", "Split", "Midtrans"] as const;
+const PAYMENT_METHODS = ["Cash", "QRIS", "Debit Card", "Credit Card", "Transfer", "E-Wallet", "Split", "Midtrans"] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
 export type CreateExpenseInput = {
@@ -55,6 +61,7 @@ export async function createExpense(input: CreateExpenseInput): Promise<ActionRe
   if (!input.vendor.trim()) return { ok: false, error: "Vendor wajib diisi." };
   if (!Number.isFinite(input.amount) || input.amount <= 0) return { ok: false, error: "Jumlah harus lebih dari 0." };
   if (!Number.isFinite(input.tax) || input.tax < 0) return { ok: false, error: "Pajak tidak boleh negatif." };
+  if (!PAYMENT_METHODS.includes(input.paymentMethod)) return { ok: false, error: "Metode pembayaran tidak dikenali." };
 
   const { appUserId } = await resolveIdentity(supabase, user.id);
   const { error } = await supabase.from("expenses").insert({

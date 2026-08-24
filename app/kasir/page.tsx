@@ -43,8 +43,6 @@ export default async function KasirTodayPage() {
   // so the two would be comparing different calendars and the banner
   // would be nonsense.
   const followUps = live ? buildFollowUpList(bookings) : [];
-  const waiting = bookings.filter((b) => ["BOOKED", "CONFIRMED"].includes(b.status));
-  const arrived = bookings.filter((b) => ["ARRIVED", "CHECKED_IN"].includes(b.status));
 
   // User request 2026-08-23 ("jadwal booking hari ini di kelompokan mulai
   // dari menunggu kedatangan, diurut dari jam yg lebih awal; kemudian yg
@@ -140,8 +138,24 @@ export default async function KasirTodayPage() {
 
       <div className="grid grid-4" style={{ marginBottom: 20 }}>
         <StatCard label="Booking Hari Ini" value={kpi.total} icon="calendar-days" toneKey="teal" deltaLabel={`${kpi.sessions} sesi berjalan/selesai`} />
-        <StatCard label="Menunggu Kedatangan" value={waiting.length} icon="hourglass" toneKey="sky" deltaLabel="Belum check-in" />
-        <StatCard label="Sudah Tiba" value={arrived.length} icon="user-check" toneKey="gold" deltaLabel="Arrived / checked-in" />
+        {/*
+          FIX 2026-08-24 — these two counters used to be computed from their
+          own status lists, separate from the tables below, and the lists
+          did not agree:
+            * "Menunggu Kedatangan" counted BOOKED/CONFIRMED, while the box
+              of the SAME NAME renders waitingArrival, which also includes
+              DRAFT. A kasir comparing the number against the rows it is
+              labelling could see 3 vs 4 and have no way to tell which was
+              right.
+            * "Sudah Tiba" counted ARRIVED/CHECKED_IN only, excluding
+              IN_SESSION — but a guest whose session is running has very
+              obviously arrived, so the number under-reported how many
+              people were physically in the outlet.
+          Both now count the exact arrays their matching tables render, so
+          the number and the rows can never disagree again.
+        */}
+        <StatCard label="Menunggu Kedatangan" value={waitingArrival.length} icon="hourglass" toneKey="sky" deltaLabel="Belum check-in" />
+        <StatCard label="Sudah Tiba" value={inProgress.length} icon="user-check" toneKey="gold" deltaLabel="Check-in / sesi berjalan" />
         <StatCard label="Revenue Hari Ini" value={rp(kpi.revenue, { short: true })} icon="circle-dollar" toneKey="violet" deltaLabel={`${kpi.paid} transaksi paid`} />
       </div>
 

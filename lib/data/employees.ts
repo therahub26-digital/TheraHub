@@ -91,7 +91,16 @@ async function fetchLiveEmployees(): Promise<Employee[] | null> {
 
 const loadEmployeesData = cache(async () => {
   const live = await fetchLiveEmployees();
-  if (live) return { employees: live, live: true };
+  // Cek `!== null` eksplisit (diselaraskan 2026-08-24, backlog 7.3) — pola
+  // yang sama seperti lib/data/bookings.ts. `if (live)` saja kebetulan
+  // benar hari ini karena fetchLive...() di atas mengembalikan null saat
+  // hasilnya kosong, tapi itu bergantung pada detail yang mudah hilang:
+  // begitu ada yang mengubahnya jadi mengembalikan [] (atau objek dengan
+  // array kosong) untuk "sesi asli, memang belum ada datanya", array
+  // kosong yang truthy akan diam-diam tetap masuk cabang live/mock yang
+  // salah tanpa error apa pun. null di sini berarti satu hal saja: tidak
+  // ada sesi live, jatuh ke data mock demo.
+  if (live !== null) return { employees: live, live: true };
   return { employees: MOCK_EMPLOYEES, live: false };
 });
 

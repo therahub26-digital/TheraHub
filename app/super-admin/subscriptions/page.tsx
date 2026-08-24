@@ -1,13 +1,21 @@
 import Icon from "@/components/Icon";
 import { PageHead, Card, StatusBadge, Avatar, Meter, StatCard } from "@/components/ui";
 import MockDataNotice from "@/components/MockDataNotice";
-import { TENANTS, planOf } from "@/lib/mock";
-import { rp, fmtDate } from "@/lib/format";
+import { TENANTS, planOf, TODAY } from "@/lib/mock";
+import { rp, fmtDate, addDays } from "@/lib/format";
 
 export default function SubscriptionsPage() {
   const totalMrr = TENANTS.filter((t) => t.status !== "CHURNED").reduce((s, t) => s + t.mrr, 0);
   const overdue = TENANTS.filter((t) => t.status === "GRACE" || t.status === "SUSPENDED");
-  const upcoming = [...TENANTS].sort((a, b) => (a.renewalAt < b.renewalAt ? -1 : 1)).slice(0, 6);
+  // FIX 2026-08-24 — this was `[...TENANTS].sort(...).slice(0, 6)`, feeding
+  // a card labelled "Renewal 30 Hari". slice(0, 6) is not a date filter, so
+  // the number it produced was always exactly 6 (or the tenant count, if
+  // fewer) no matter how far away the renewals actually were — the label
+  // promised a 30-day window the code never looked at. Now it really is a
+  // 30-day window, counted from the same frozen demo date the rest of this
+  // mock page uses.
+  const renewalCutoff = addDays(TODAY, 30);
+  const upcoming = TENANTS.filter((t) => t.renewalAt >= TODAY && t.renewalAt <= renewalCutoff);
 
   return (
     <>

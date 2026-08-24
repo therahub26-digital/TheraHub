@@ -4,6 +4,8 @@ import { DonutChart, LegendList } from "@/components/Charts";
 import { getCurrentOutlet } from "@/lib/data/outlets";
 import { getExpensesForOutlet, expenseByCategory, getPettyCash } from "@/lib/data/expenses";
 import { rp, fmtDateShort, monthLabel } from "@/lib/format";
+import { toCsv, csvFilename } from "@/lib/csv";
+import ExportCsvButton from "@/components/ExportCsvButton";
 import { NewExpenseForm, ApproveRejectButtons, PettyCashTopUpForm } from "@/components/ExpenseEditor";
 
 // ---------------------------------------------------------------------
@@ -38,6 +40,25 @@ export default async function ExpensesPage() {
   const byCategory = expenseByCategory(expenses, period);
   const total = byCategory.reduce((s, c) => s + c.value, 0);
 
+  // Ekspor CSV (backlog 4.5, 2026-08-24). Seluruh riwayat pengeluaran
+  // outlet ini, bukan hanya 12 baris yang dirender tabel dan bukan hanya
+  // periode berjalan — laporan pengeluaran hampir selalu dipakai lintas
+  // bulan (rekap ke akuntan), jadi memotongnya ke satu periode di file
+  // ekspor justru memaksa ekspor berulang kali. Nama file tetap memakai
+  // periode berjalan sebagai penanda kapan ekspornya diambil.
+  const expensesCsv = toCsv(expenses, [
+    { header: "Tanggal", value: (e) => e.date },
+    { header: "Kategori", value: (e) => e.category },
+    { header: "Vendor", value: (e) => e.vendor },
+    { header: "Deskripsi", value: (e) => e.description },
+    { header: "Metode", value: (e) => e.paymentMethod },
+    { header: "Jumlah", value: (e) => e.amount },
+    { header: "Pajak", value: (e) => e.tax },
+    { header: "Status", value: (e) => e.status },
+    { header: "Diajukan Oleh", value: (e) => e.submittedBy },
+    { header: "Ada Lampiran", value: (e) => (e.attachment ? "Ya" : "Tidak") },
+  ]);
+
   return (
     <>
       <PageHead
@@ -55,7 +76,18 @@ export default async function ExpensesPage() {
 
       <div className="grid grid-3" style={{ alignItems: "start", marginBottom: 20 }}>
         <Card style={{ gridColumn: "span 2" }}>
-          <CardHead title="Riwayat Pengeluaran" sub={`${expenses.length} entri`} action={<button className="btn btn-quiet btn-sm" disabled title="Belum tersedia — ekspor laporan belum dibangun di aplikasi ini."><Icon name="download" size={13} /> Export</button>} />
+          <CardHead
+            title="Riwayat Pengeluaran"
+            sub={`${expenses.length} entri`}
+            action={
+              <ExportCsvButton
+                csv={expensesCsv}
+                filename={csvFilename(`pengeluaran-${outlet.code}`, period)}
+                rowCount={expenses.length}
+                emptyReason="Belum ada pengeluaran tercatat untuk diekspor."
+              />
+            }
+          />
           <div className="table-wrap">
             <table className="tbl">
               <thead><tr><th>Tanggal</th><th>Kategori</th><th>Vendor</th><th>Metode</th><th>Jumlah</th><th>Status</th></tr></thead>

@@ -5,6 +5,8 @@ import { getCurrentOutlet } from "@/lib/data/outlets";
 import { getEffectiveToday } from "@/lib/data/bookings";
 import { getTransactionsForOutlet, isLiveTransactionsData } from "@/lib/data/transactions";
 import { rp, fmtTime } from "@/lib/format";
+import { toCsv, csvFilename } from "@/lib/csv";
+import ExportCsvButton from "@/components/ExportCsvButton";
 
 const ITEM_LABEL: Record<string, string> = {
   SERVICE: "Layanan", EXTENSION: "Extension", ADD_ON: "Add-on", PRODUCT: "Produk", FOOD: "Makanan", BEVERAGE: "Minuman",
@@ -38,6 +40,27 @@ export default async function PosPage() {
     isLiveTransactionsData(),
   ]);
 
+  // Ekspor CSV (backlog 4.5, 2026-08-24). Dibangun di server dari baris
+  // yang sama yang dirender tabel di bawah — TANPA .slice(0, 12) yang
+  // dipakai tampilan, karena batas 12 baris itu murni supaya kartunya
+  // tidak kepanjangan di layar; file ekspor harus berisi seluruh transaksi
+  // hari itu, bukan 12 teratas. Angka uang sengaja mentah (bukan rp()),
+  // lihat catatan format di lib/csv.ts.
+  const transactionsCsv = toCsv(transactions, [
+    { header: "Waktu", value: (t) => (t.paidAt ? fmtTime(t.paidAt) : "") },
+    { header: "No. Struk", value: (t) => t.receiptNo },
+    { header: "Kode Booking", value: (t) => t.bookingCode ?? "" },
+    { header: "Customer", value: (t) => t.customerName },
+    { header: "Kasir", value: (t) => t.cashierName },
+    { header: "Metode", value: (t) => t.paymentMethod },
+    { header: "Status", value: (t) => t.status },
+    { header: "Subtotal", value: (t) => t.subtotal },
+    { header: "Diskon", value: (t) => t.discount },
+    { header: "Service Charge", value: (t) => t.serviceCharge },
+    { header: "Pajak", value: (t) => t.tax },
+    { header: "Total", value: (t) => t.total },
+  ]);
+
   const paid = transactions.filter((t) => t.status === "PAID");
   const byType: Record<string, number> = {};
   const byMethod: Record<string, number> = {};
@@ -69,7 +92,18 @@ export default async function PosPage() {
 
       <div className="grid grid-3" style={{ alignItems: "start", marginBottom: 20 }}>
         <Card style={{ gridColumn: "span 2" }}>
-          <CardHead title="Transaksi Hari Ini" sub={`${transactions.length} struk`} action={<button className="btn btn-quiet btn-sm" disabled title="Belum tersedia — ekspor laporan belum dibangun di aplikasi ini."><Icon name="download" size={13} /> Export</button>} />
+          <CardHead
+            title="Transaksi Hari Ini"
+            sub={`${transactions.length} struk`}
+            action={
+              <ExportCsvButton
+                csv={transactionsCsv}
+                filename={csvFilename(`transaksi-${outlet.code}`, today)}
+                rowCount={transactions.length}
+                emptyReason="Belum ada transaksi hari ini untuk diekspor."
+              />
+            }
+          />
           <div className="table-wrap">
             <table className="tbl">
               <thead><tr><th>Waktu</th><th>No. Struk</th><th>Customer</th><th>Kasir</th><th>Metode</th><th>Total</th><th>Status</th></tr></thead>

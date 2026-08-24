@@ -2,6 +2,7 @@ import Link from "next/link";
 import Icon from "@/components/Icon";
 import { PageHead, Card, Badge, StatCard } from "@/components/ui";
 import { getOutlets, formatDepositLabel } from "@/lib/data/outlets";
+import OutletEditor from "@/components/OutletEditor";
 
 export default async function OutletsPage() {
   const OUTLETS = await getOutlets();
@@ -10,7 +11,7 @@ export default async function OutletsPage() {
       <PageHead
         title="Outlets"
         desc="Kelola lokasi fisik operasional. Single/multi sesuai entitlement plan."
-        actions={<button className="btn btn-primary btn-sm" disabled title="Belum tersedia — untuk sekarang perubahan ini dilakukan langsung di database oleh admin teknis."><Icon name="plus" size={14} /> Tambah Outlet</button>}
+        actions={<button className="btn btn-primary btn-sm" disabled title="Belum tersedia — membuat outlet baru juga perlu menetapkan kode outlet, prefix struk, koordinat geofence, dan manager penanggung jawab. Untuk sekarang outlet baru dibuat admin teknis; mengubah outlet yang sudah ada sudah bisa lewat tombol edit di kartunya."><Icon name="plus" size={14} /> Tambah Outlet</button>}
       />
 
       <div className="grid grid-3" style={{ marginBottom: 20 }}>
@@ -25,7 +26,7 @@ export default async function OutletsPage() {
             <div className="card-pad" style={{ paddingBottom: 12 }}>
               <div className="between" style={{ marginBottom: 8 }}>
                 <Badge tone="success" dot>{o.status}</Badge>
-                <button className="btn btn-quiet btn-icon btn-sm" disabled title="Belum tersedia — fiturnya belum dibangun."><Icon name="more" size={15} /></button>
+                <OutletEditor outlet={o} />
               </div>
               <h3 style={{ marginBottom: 3 }}>{o.name}</h3>
               <div className="small muted" style={{ marginBottom: 2 }}>{o.address}</div>
@@ -85,7 +86,7 @@ export default async function OutletsPage() {
             display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
             gap: 10, minHeight: 260, border: "1.5px dashed var(--border-3)", background: "transparent",
           }}
-         disabled title="Belum tersedia — untuk sekarang perubahan ini dilakukan langsung di database oleh admin teknis.">
+         disabled title="Belum tersedia — membuat outlet baru juga perlu menetapkan kode outlet, prefix struk, koordinat geofence, dan manager penanggung jawab. Untuk sekarang outlet baru dibuat admin teknis; mengubah outlet yang sudah ada sudah bisa lewat tombol edit di kartunya.">
           <span className="stat-icon" style={{ width: 44, height: 44, borderRadius: 14 }}>
             <Icon name="plus" size={20} />
           </span>

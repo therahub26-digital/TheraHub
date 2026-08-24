@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Icon from "@/components/Icon";
 import { Switch } from "@/components/ui";
+import MarketingConsentToggle from "@/components/MarketingConsentToggle";
 import MobileShell from "@/components/MobileShell";
 import LogoutButton from "@/components/LogoutButton";
 import { getCurrentCustomer } from "@/lib/data/customers";
@@ -14,14 +15,19 @@ import { fmtDateShort } from "@/lib/format";
 // fixtures (same dual-mode convention as the rest of /customer/*, see
 // app/customer/page.tsx's header). "Home outlet" shown here is resolved
 // the same way as the home page: most recent booking's outlet, else the
-// tenant's first outlet. The settings toggles below stay NON-interactive
-// on purpose — `marketing_consent` is the only one of the four with a
-// real column (customers.marketing_consent, customers_update_self RLS
-// already permits the customer to change it themselves), but the shared
-// <Switch> component (components/ui.tsx) has no onChange handler yet;
-// wiring real persistence would mean extending that shared component,
-// which is used elsewhere too — out of scope for this pass. Better to
-// show the real current value read-only than to fake interactivity.
+// tenant's first outlet.
+//
+// UPDATE 2026-08-24 — "Promo via WhatsApp" is now genuinely operable.
+// It was left read-only because the shared <Switch> had no onChange;
+// that has since been fixed (components/ui.tsx), so the one setting here
+// with a real column (customers.marketing_consent, already writable by
+// the customer under customers_update_self RLS) is wired through
+// components/MarketingConsentToggle.tsx.
+//
+// The other three stay read-only, and that is still the right call: they
+// have no columns AND no delivery channel behind them. Letting a guest
+// switch off a push notification the app cannot send would be a promise
+// about behaviour that does not exist.
 // ---------------------------------------------------------------------
 
 export default async function ProfilePage() {
@@ -79,15 +85,24 @@ export default async function ProfilePage() {
         <div className="m-card m-card-tight">
           <div className="m-section">Pengaturan</div>
           <div className="stack g1">
+            <div className="m-row">
+              <span className="small" style={{ color: "var(--text-1)", flex: 1 }}>Promo via WhatsApp</span>
+              {live ? (
+                <MarketingConsentToggle initial={me.marketingConsent} />
+              ) : (
+                /* Demo viewer has no customer row to write to — showing an
+                   operable switch here would save nothing. */
+                <Switch on={me.marketingConsent} label="Promo via WhatsApp" title="Masuk sebagai tamu untuk mengubah preferensi ini." />
+              )}
+            </div>
             {[
               { label: "Notifikasi Push", on: true },
-              { label: "Promo via WhatsApp", on: me.marketingConsent },
               { label: "Reminder Booking", on: true },
               { label: "Newsletter Email", on: false },
             ].map((s) => (
               <div key={s.label} className="m-row">
                 <span className="small" style={{ color: "var(--text-1)", flex: 1 }}>{s.label}</span>
-                <Switch on={s.on} />
+                <Switch on={s.on} label={s.label} title="Belum tersedia — pengingat & newsletter otomatis belum dikirim aplikasi ini." />
               </div>
             ))}
           </div>

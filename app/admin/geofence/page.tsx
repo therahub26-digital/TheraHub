@@ -1,6 +1,7 @@
 import { PageHead, Card, CardHead, Field, Badge, InfoNote } from "@/components/ui";
 import MockDataNotice from "@/components/MockDataNotice";
 import { getOutlets } from "@/lib/data/outlets";
+import GeofenceEditor from "@/components/GeofenceEditor";
 
 export default async function GeofencePage() {
   const OUTLETS = await getOutlets();
@@ -9,56 +10,54 @@ export default async function GeofencePage() {
     <>
       <PageHead title="Geofence & Attendance" desc="Latitude/longitude, radius, dan accuracy threshold untuk absensi GPS." />
 
-      <MockDataNotice title="Perubahan di halaman ini tidak tersimpan">
-        Koordinat dan radius di tabel bawah adalah data outlet yang <strong>asli</strong> dan berguna
-        untuk verifikasi — tapi halaman ini tidak punya tombol simpan sama sekali. Menggeser slider
-        radius, mengubah koordinat, atau mencentang kebijakan absensi tidak menyimpan apa pun.
-        Peta yang ditampilkan juga bukan peta asli, melainkan gambar buatan sendiri.
+      <MockDataNotice title="Sebagian halaman ini sudah bisa disimpan">
+        <strong>Koordinat, radius, dan accuracy threshold sekarang tersimpan sungguhan</strong> lewat
+        tombol Simpan Geofence di bawah peta. Yang <strong>belum</strong>: lima kebijakan absensi di
+        kartu kanan — itu belum punya kolom di database, jadi centangannya masih penanda rencana saja.
+        Peta yang ditampilkan juga bukan peta asli, melainkan gambar skematis; lingkarannya mengikuti
+        slider radius, tapi posisinya tidak mencerminkan lokasi geografis sungguhan.
       </MockDataNotice>
 
       <div className="grid grid-3" style={{ alignItems: "start", marginBottom: 20 }}>
         <Card style={{ gridColumn: "span 2" }}>
           <CardHead title={`Peta Geofence — ${outlet.name}`} sub="Radius menentukan area valid check-in" />
-          <div style={{ position: "relative", height: 340, margin: "0 20px 20px", borderRadius: "var(--r-md)", overflow: "hidden", background: "linear-gradient(135deg,#0d1b2a,#132a33)" }}>
-            <svg width="100%" height="100%" viewBox="0 0 400 340" style={{ position: "absolute", inset: 0 }}>
-              <defs>
-                <pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse">
-                  <path d="M 24 0 L 0 0 0 24" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
-                </pattern>
-              </defs>
-              <rect width="400" height="340" fill="url(#grid)" />
-              <circle cx="200" cy="170" r="110" fill="var(--accent)" opacity="0.09" />
-              <circle cx="200" cy="170" r="110" fill="none" stroke="var(--accent)" strokeWidth="1.5" strokeDasharray="4 4" opacity="0.6" />
-              <circle cx="200" cy="170" r="7" fill="var(--accent)" stroke="#04140f" strokeWidth="2" />
-            </svg>
-            <div style={{ position: "absolute", left: 14, bottom: 14, background: "rgba(10,15,24,0.75)", padding: "8px 12px", borderRadius: "var(--r-sm)", backdropFilter: "blur(8px)" }}>
-              <div className="tiny bold" style={{ color: "var(--text-1)" }}>{outlet.name}</div>
-              <div className="tiny dim">{outlet.lat.toFixed(4)}, {outlet.lng.toFixed(4)}</div>
-            </div>
-          </div>
-          <div className="card-body" style={{ paddingTop: 0 }}>
-            <div className="grid grid-2">
-              <Field label="Latitude"><input className="input mono" defaultValue={outlet.lat} /></Field>
-              <Field label="Longitude"><input className="input mono" defaultValue={outlet.lng} /></Field>
-              <Field label="Radius Geofence (meter)" hint="Area valid untuk check-in absensi">
-                <input className="input" type="range" min={40} max={300} defaultValue={outlet.geofenceRadius} />
-              </Field>
-              <Field label="Accuracy Threshold (meter)" hint="Akurasi GPS device maksimum yang diterima">
-                <input className="input" type="number" defaultValue={outlet.accuracyThreshold} />
-              </Field>
-            </div>
-          </div>
+          <GeofenceEditor
+            outletId={outlet.id}
+            outletName={outlet.name}
+            lat={outlet.lat}
+            lng={outlet.lng}
+            radius={outlet.geofenceRadius}
+            accuracy={outlet.accuracyThreshold}
+          />
         </Card>
 
         <div className="stack g5">
           <Card className="card-pad">
             <h4 style={{ marginBottom: 10 }}>Kebijakan Absensi</h4>
+            {/* Left unwired on purpose: none of these five have a column
+                on `outlets`, so there is nothing to save them to without a
+                migration. Rendered disabled with an explanatory title
+                rather than as live-looking checkboxes. */}
             <div className="stack g3">
-              <label className="row g2 small"><input type="checkbox" defaultChecked /> Wajib berada dalam radius geofence</label>
-              <label className="row g2 small"><input type="checkbox" defaultChecked /> Check-out hanya di dalam area</label>
-              <label className="row g2 small"><input type="checkbox" defaultChecked /> Toleransi keterlambatan 15 menit</label>
-              <label className="row g2 small"><input type="checkbox" defaultChecked /> Deteksi mock location / jailbreak</label>
-              <label className="row g2 small"><input type="checkbox" /> Wajib device binding (Android wrapper)</label>
+              {[
+                { label: "Wajib berada dalam radius geofence", on: true },
+                { label: "Check-out hanya di dalam area", on: true },
+                { label: "Toleransi keterlambatan 15 menit", on: true },
+                { label: "Deteksi mock location / jailbreak", on: true },
+                { label: "Wajib device binding (Android wrapper)", on: false },
+              ].map((c) => (
+                <label
+                  key={c.label}
+                  className="row g2 small"
+                  title="Belum bisa diubah — kebijakan ini belum punya kolom di database."
+                  style={{ cursor: "not-allowed" }}
+                >
+                  <input type="checkbox" checked={c.on} disabled readOnly /> {c.label}
+                </label>
+              ))}
+            </div>
+            <div className="tiny dim" style={{ marginTop: 8 }}>
+              Penanda rencana — belum tersambung ke penyimpanan.
             </div>
           </Card>
 

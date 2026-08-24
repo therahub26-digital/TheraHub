@@ -19,7 +19,7 @@ import {
   ClipboardCheck, Fingerprint, Navigation, Gauge, Target, Award, Cake, Waves,
   PiggyBank, Gift, TowerControl, Cctv, ScanFace, Route, Warehouse,
   ClipboardX, BadgeCheck, CircleDot, Layers3, PartyPopper, HandCoins, Calculator,
-  Moon, Car, Wind, Camera, Images,
+  Moon, Car, Wind, Camera, Images, Archive, MapPinned,
 } from "lucide-react";
 
 const MAP: Record<string, React.ComponentType<{ size?: number | string; strokeWidth?: number; className?: string; style?: React.CSSProperties }>> = {
@@ -67,6 +67,8 @@ const MAP: Record<string, React.ComponentType<{ size?: number | string; strokeWi
   // spelling of AlertTriangle) and drew "…" next to the error text
   // instead of a warning sign; the photo gallery asked for "image".
   "triangle-alert": AlertTriangle, image: Images,
+  // Added 2026-08-24 with the room/geofence editors that use them.
+  archive: Archive, "map-pinned": MapPinned,
 };
 
 export default function Icon({

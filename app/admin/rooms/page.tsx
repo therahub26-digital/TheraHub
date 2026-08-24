@@ -1,6 +1,7 @@
 import Icon from "@/components/Icon";
 import { PageHead, Card, Badge } from "@/components/ui";
 import { getOutlets, getRoomsForOutlet } from "@/lib/data/outlets";
+import { NewRoomButton, EditRoomButton } from "@/components/RoomEditor";
 
 export default async function AdminRoomsPage() {
   const OUTLETS = await getOutlets();
@@ -11,8 +12,13 @@ export default async function AdminRoomsPage() {
       <PageHead
         title="Rooms"
         desc="Room master per outlet — nama, tipe, kapasitas, dan status."
-        actions={<button className="btn btn-primary btn-sm" disabled title="Belum tersedia — untuk menandai room maintenance gunakan portal Manager → Rooms; menambah/mengubah master room dilakukan langsung di database."><Icon name="plus" size={14} /> Tambah Room</button>}
       />
+
+      {/* One "Room Baru" per outlet section rather than one global button:
+          a room cannot exist without an outlet, and this admin page lists
+          every outlet in the tenant, so a single top-level button would
+          have needed an outlet picker inside the form to answer a question
+          the section heading already answers. */}
 
       <div className="stack g6">
         {OUTLETS.map((o, oi) => {
@@ -21,7 +27,10 @@ export default async function AdminRoomsPage() {
             <div key={o.id}>
               <div className="between" style={{ marginBottom: 10 }}>
                 <h3 style={{ fontSize: 14.5 }}>{o.name}</h3>
-                <span className="tiny dim">{rooms.length} room</span>
+                <div className="row g2">
+                  <span className="tiny dim">{rooms.length} room</span>
+                  <NewRoomButton outletId={o.id} outletName={o.name} />
+                </div>
               </div>
               <div className="grid grid-4">
                 {rooms.map((r) => (
@@ -36,7 +45,7 @@ export default async function AdminRoomsPage() {
                     </div>
                     <div className="strong" style={{ color: "var(--text-1)", marginBottom: 2 }}>{r.name}</div>
                     <div className="tiny dim" style={{ marginBottom: 8 }}>{r.type} · kapasitas {r.capacity}</div>
-                    <div className="pill-row">
+                    <div className="pill-row" style={{ marginBottom: 8 }}>
                       {r.supportedServices.slice(0, 2).map((s) => (
                         <span key={s} className="chip" style={{ height: 22, fontSize: 10.5, padding: "0 8px" }}>{s}</span>
                       ))}
@@ -44,6 +53,7 @@ export default async function AdminRoomsPage() {
                         <span className="chip" style={{ height: 22, fontSize: 10.5, padding: "0 8px" }}>+{r.supportedServices.length - 2}</span>
                       )}
                     </div>
+                    <EditRoomButton room={r} compact />
                   </Card>
                 ))}
               </div>

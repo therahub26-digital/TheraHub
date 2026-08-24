@@ -338,44 +338,128 @@ export function Field({
 }
 
 // ---------------------------------------------------------------------
-// Switch / Checkbox are painted state, not controls: a <span> with no
-// onChange and no underlying input. Every settings toggle in the Admin,
-// Super Admin, Customer, and Manager → Outlet Settings screens uses one,
-// which is why *none* of them do anything when pressed — one component
-// explains a dozen "this button is broken" reports at once.
+// Switch / Checkbox — two modes in one component, on purpose.
 //
-// Wiring them up needs a save path per setting (backlog Gelombang 2), so
-// for now they at least stop pretending: the cursor says not-allowed, a
-// hover title says why, and screen readers are told the value is
-// read-only instead of announcing a switch that cannot be operated.
-// Pass an explicit `title` where the page can point somewhere better.
+// ORIGINALLY these were painted state and nothing else: a <span> with no
+// onChange and no underlying input. Every settings toggle in the Admin,
+// Super Admin, Customer, and Manager → Outlet Settings screens used one,
+// which is why *none* of them did anything when pressed — one component
+// explained a dozen "this button is broken" reports at once (backlog
+// 6.3).
+//
+// Now they take an optional `onChange`. That single prop is the whole
+// fix, and it is deliberately OPTIONAL rather than required:
+//
+//   - WITH onChange  -> a real <button role="switch"> / role="checkbox",
+//     keyboard-operable, announcing its own state, with `pending` to
+//     block double-submits while a Server Action is in flight.
+//   - WITHOUT it     -> the old honest read-only rendering: cursor
+//     not-allowed, an explanatory title, and a screen-reader label that
+//     says the value cannot be changed.
+//
+// Keeping the read-only mode matters. Dozens of call sites are painting
+// a value that has no column behind it yet (the notification and booking
+// -policy rows on /manager/settings, the feature flags in Super Admin).
+// Making onChange required would have forced every one of those to
+// invent a fake handler, which is exactly the lie this component was
+// fixed to stop telling. A toggle here is operable only where a real
+// save path exists.
 // ---------------------------------------------------------------------
 
 const UNWIRED_TOGGLE = "Belum bisa diubah — saklar ini baru penanda status, belum tersambung ke penyimpanan.";
 
-export function Switch({ on, title = UNWIRED_TOGGLE }: { on: boolean; title?: string }) {
+/** Shared styling so the interactive <button> is visually identical to the read-only <span>. */
+const RESET_BUTTON: CSSProperties = { background: "none", border: 0, padding: 0, font: "inherit" };
+
+export function Switch({
+  on,
+  onChange,
+  pending = false,
+  label,
+  title,
+}: {
+  on: boolean;
+  /** Omit to keep the read-only rendering — see this file's header. */
+  onChange?: (next: boolean) => void;
+  /** Blocks input while a save is in flight. */
+  pending?: boolean;
+  /** What this toggle controls, for screen readers (e.g. "Deposit booking"). */
+  label?: string;
+  title?: string;
+}) {
+  const stateWord = on ? "Aktif" : "Nonaktif";
+
+  if (!onChange) {
+    return (
+      <span
+        className={`switch ${on ? "on" : ""}`}
+        role="img"
+        aria-label={`${label ? `${label}: ` : ""}${stateWord} — belum bisa diubah`}
+        title={title ?? UNWIRED_TOGGLE}
+        style={{ cursor: "not-allowed" }}
+      />
+    );
+  }
+
   return (
-    <span
-      className={`switch ${on ? "on" : ""}`}
-      role="img"
-      aria-label={`${on ? "Aktif" : "Nonaktif"} — belum bisa diubah`}
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={label ? `${label} — ${stateWord}` : stateWord}
       title={title}
-      style={{ cursor: "not-allowed" }}
+      disabled={pending}
+      onClick={() => onChange(!on)}
+      className={`switch ${on ? "on" : ""}`}
+      style={{ ...RESET_BUTTON, cursor: pending ? "progress" : "pointer", opacity: pending ? 0.6 : 1 }}
     />
   );
 }
 
-export function Checkbox({ on, title = UNWIRED_TOGGLE }: { on: boolean; title?: string }) {
+export function Checkbox({
+  on,
+  onChange,
+  pending = false,
+  label,
+  title,
+}: {
+  on: boolean;
+  onChange?: (next: boolean) => void;
+  pending?: boolean;
+  label?: string;
+  title?: string;
+}) {
+  const stateWord = on ? "Dicentang" : "Tidak dicentang";
+  const mark = <Icon name="check" size={12} strokeWidth={3} />;
+
+  if (!onChange) {
+    return (
+      <span
+        className={`checkbox ${on ? "on" : ""}`}
+        role="img"
+        aria-label={`${label ? `${label}: ` : ""}${stateWord} — belum bisa diubah`}
+        title={title ?? UNWIRED_TOGGLE}
+        style={{ cursor: "not-allowed" }}
+      >
+        {mark}
+      </span>
+    );
+  }
+
   return (
-    <span
-      className={`checkbox ${on ? "on" : ""}`}
-      role="img"
-      aria-label={`${on ? "Dicentang" : "Tidak dicentang"} — belum bisa diubah`}
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={on}
+      aria-label={label ? `${label} — ${stateWord}` : stateWord}
       title={title}
-      style={{ cursor: "not-allowed" }}
+      disabled={pending}
+      onClick={() => onChange(!on)}
+      className={`checkbox ${on ? "on" : ""}`}
+      style={{ ...RESET_BUTTON, cursor: pending ? "progress" : "pointer", opacity: pending ? 0.6 : 1 }}
     >
-      <Icon name="check" size={12} strokeWidth={3} />
-    </span>
+      {mark}
+    </button>
   );
 }
 

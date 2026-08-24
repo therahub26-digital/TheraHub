@@ -5,6 +5,7 @@ import { getRoomsForOutlet } from "@/lib/data/rooms";
 import { getActiveSessionsForOutlet } from "@/lib/data/sessions";
 import { getOpenRoomAlerts } from "@/lib/data/alerts";
 import RoomMaintenanceButton from "./RoomMaintenanceButton";
+import { NewRoomButton, EditRoomButton } from "@/components/RoomEditor";
 
 // ---------------------------------------------------------------------
 // Was 100% lib/mock (PRIMARY_OUTLET, roomsOf, activeSessions) — flagged
@@ -16,11 +17,11 @@ import RoomMaintenanceButton from "./RoomMaintenanceButton";
 // Migrated to the same real data sources /manager (Today Overview)
 // already uses. "Maintenance" / "Aktifkan" is now a real write
 // (lib/actions/rooms.ts, RLS-scoped to this manager's own outlet).
-// "Room Baru" and "Edit" still need an actual form/modal — there is no
-// modal component anywhere in this codebase to build one on top of yet
-// — so they're disabled with a tooltip instead of looking clickable and
-// doing nothing. See the TheraHub progress doc (Bug 8) for that
-// follow-up.
+// 2026-08-24 (backlog 15): "Room Baru" and "Edit" are now real too,
+// backed by createRoom()/updateRoom() through components/RoomEditor.tsx.
+// They were previously disabled-with-a-tooltip, which was honest but
+// meant an outlet literally could not add a room without someone
+// editing the database by hand.
 // ---------------------------------------------------------------------
 
 const TYPE_ICON: Record<string, string> = {
@@ -49,11 +50,7 @@ export default async function RoomsPage() {
       <PageHead
         title="Rooms"
         desc={`${outlet.name} · Konfigurasi ruangan, kapasitas, layanan pendukung, dan status maintenance.`}
-        actions={
-          <button className="btn btn-primary btn-sm" disabled title="Belum tersedia — butuh form tambah room, belum dibangun.">
-            <Icon name="plus" size={14} /> Room Baru
-          </button>
-        }
+        actions={<NewRoomButton outletId={outlet.id} />}
       />
 
       <div className="grid grid-4" style={{ marginBottom: 20 }}>
@@ -124,9 +121,7 @@ export default async function RoomsPage() {
               </div>
 
               <div className="row g2">
-                <button className="btn btn-ghost btn-sm" style={{ flex: 1 }} disabled title="Belum tersedia — butuh form edit room, belum dibangun.">
-                  <Icon name="edit" size={12} /> Edit
-                </button>
+                <EditRoomButton room={r} compact />
                 <RoomMaintenanceButton roomId={r.id} roomStatus={r.status} disabled={r.status === "INACTIVE"} />
               </div>
             </Card>

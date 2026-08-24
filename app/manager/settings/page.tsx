@@ -1,46 +1,52 @@
-import Icon from "@/components/Icon";
 import { PageHead, Card, CardHead, Field, Switch, InfoNote } from "@/components/ui";
 import MockDataNotice from "@/components/MockDataNotice";
 import AlarmSoundSetting from "@/components/AlarmSoundSetting";
 import BookingWindowSetting from "@/components/BookingWindowSetting";
-import { PRIMARY_OUTLET, depositFor } from "@/lib/mock";
+import { TaxServiceEditor, DepositEditor } from "@/components/OutletSettingsEditor";
 import { getCurrentOutlet } from "@/lib/data/outlets";
-import { rp } from "@/lib/format";
-
-/** Nilai transaksi contoh untuk mendemokan perhitungan deposit. */
-const SIMULASI = [120_000, 200_000, 495_000];
 
 // ---------------------------------------------------------------------
-// This page is still almost entirely mock/read-only (Bug 8's remaining
-// scope — see the project progress doc; migrating the rest is a
-// separate, larger job). The one exception, added 2026-08-22: the
-// "Suara Alarm Sesi" card below is real, wired to the signed-in
-// manager's actual outlet — the user explicitly asked for this control,
-// and it doesn't depend on anything else on this page being real too.
-// `realOutlet` is deliberately separate from `outlet` (still
-// PRIMARY_OUTLET, mock) below, so the rest of the page's display is
-// unaffected.
+// Outlet Settings.
+//
+// Until 2026-08-24 this page had two separate problems layered on each
+// other: it rendered MOCK data (PRIMARY_OUTLET) rather than the outlet
+// the signed-in manager actually runs, AND its "Simpan Perubahan" button
+// was disabled, so nothing could be changed anyway. A Mekarwangi manager
+// opening it saw Cikawao's tax rate and deposit rule presented as their
+// own.
+//
+// Both are fixed. Everything on this page now reads the real outlet row
+// (getCurrentOutlet(), the same helper the rest of the manager portal
+// uses), and four cards write to it: Pajak & Service, Deposit Booking,
+// Suara Alarm Sesi, and Jendela Booking Customer App.
+//
+// Two cards are deliberately still read-only — "Kebijakan Booking" and
+// "Notifikasi Outlet". Those rows have NO columns on `outlets` at all,
+// so making them savable is a migration, not a wiring job. They are left
+// as read-only Switches (see components/ui.tsx) and labelled as such,
+// rather than given handlers that would throw the value away.
 // ---------------------------------------------------------------------
 
 export default async function OutletSettingsPage() {
-  const realOutlet = await getCurrentOutlet();
-  const outlet = PRIMARY_OUTLET;
-  const dep = outlet.deposit;
+  const outlet = await getCurrentOutlet();
 
   return (
     <>
       <PageHead
         title="Outlet Settings"
         desc={`${outlet.name} · Jam operasional, kebijakan booking, dan preferensi outlet.`}
-        actions={<button className="btn btn-primary btn-sm" disabled title="Belum tersedia — hanya kartu Suara Alarm Sesi dan Jendela Booking yang bisa disimpan di halaman ini."><Icon name="save" size={14} /> Simpan Perubahan</button>}
+        /* No page-level "Simpan Perubahan": each card saves itself, so one
+           global button would be ambiguous about what it covers — and its
+           predecessor here was a disabled button that covered nothing. */
       />
 
-      <MockDataNotice title="Hanya dua kartu di halaman ini yang bisa disimpan">
-        Yang benar-benar tersimpan: <strong>Suara Alarm Sesi</strong> dan
-        <strong>Jendela Booking Customer App</strong>. Selebihnya — Deposit Booking, Kebijakan Booking,
-        Notifikasi Outlet, dan tombol <strong>Simpan Perubahan</strong> di kanan atas — belum
-        tersambung; isian di kartu-kartu itu hilang saat halaman dimuat ulang. Perubahan pajak,
-        service charge, dan alamat outlet masih dilakukan langsung di database.
+      <MockDataNotice title="Dua kartu di halaman ini masih penanda rencana">
+        Yang benar-benar tersimpan ke outlet Anda: <strong>Pajak &amp; Service</strong>,
+        <strong>Deposit Booking</strong>, <strong>Suara Alarm Sesi</strong>, dan
+        <strong>Jendela Booking Customer App</strong>. Yang <strong>belum</strong>:
+        kartu <strong>Kebijakan Booking</strong> dan <strong>Notifikasi Outlet</strong> di bawah —
+        keduanya belum punya kolom di database, jadi saklarnya masih penanda rencana, bukan
+        pengaturan yang berlaku.
       </MockDataNotice>
 
       <div className="grid grid-3" style={{ alignItems: "start", marginBottom: 20 }}>
@@ -62,113 +68,29 @@ export default async function OutletSettingsPage() {
         </Card>
 
         <Card>
-          <CardHead title="Kebijakan Pajak & Service" />
-          <div className="card-body stack g3">
-            <Field label="Pajak (PB1)" hint="Diterapkan ke setiap transaksi"><input defaultValue={`${outlet.taxPct}%`} readOnly /></Field>
-            <Field label="Service Charge" hint="Ditambahkan sebelum pajak"><input defaultValue={`${outlet.serviceChargePct}%`} readOnly /></Field>
-            <Field label="Kebijakan Keterlambatan"><input defaultValue={outlet.latePolicy.replace(/_/g, " ")} readOnly /></Field>
-            <Field label="Grace Period"><input defaultValue={`${outlet.gracePeriodMin} menit`} readOnly /></Field>
+          <CardHead title="Kebijakan Pajak & Service" sub="Berlaku ke setiap transaksi kasir" />
+          <div className="card-body">
+            <TaxServiceEditor
+              outletId={outlet.id}
+              taxPct={outlet.taxPct}
+              serviceChargePct={outlet.serviceChargePct}
+              latePolicy={outlet.latePolicy}
+              gracePeriodMin={outlet.gracePeriodMin}
+            />
           </div>
         </Card>
       </div>
 
-      <div className="grid grid-3" style={{ alignItems: "start", marginBottom: 20 }}>
-        <Card style={{ gridColumn: "span 2" }}>
-          <CardHead
-            title="Deposit Booking"
-            sub="Nominal dan kebijakan deposit khusus outlet ini"
-            action={<Switch on={dep.enabled} />}
-          />
-          <div className="card-body stack g4">
-            <div className="grid grid-2">
-              <Field label="Metode Perhitungan" hint="Nominal tetap atau persentase dari harga layanan">
-                <select className="select" defaultValue={dep.type}>
-                  <option value="FIXED">Nominal tetap (Rupiah)</option>
-                  <option value="PERCENT">Persentase dari harga layanan</option>
-                </select>
-              </Field>
-              <Field
-                label={dep.type === "FIXED" ? "Nominal Deposit (Rp)" : "Persentase Deposit (%)"}
-                hint={dep.type === "FIXED" ? `Saat ini ${rp(dep.value)} per booking` : `Saat ini ${dep.value}% dari harga layanan`}
-              >
-                <input className="input" type="number" defaultValue={dep.value} />
-              </Field>
-              <Field label="Minimum Total Transaksi" hint={dep.minTicket > 0 ? `Deposit hanya diminta bila total ≥ ${rp(dep.minTicket)}` : "Diisi 0 = deposit berlaku untuk semua booking"}>
-                <input className="input" type="number" defaultValue={dep.minTicket} />
-              </Field>
-              <Field label="Batas Waktu Pembayaran (menit)" hint="Booking otomatis dibatalkan bila deposit belum dibayar">
-                <input className="input" type="number" defaultValue={dep.expiryMin} />
-              </Field>
-            </div>
-
-            <div>
-              <label className="small bold" style={{ color: "var(--text-2)", display: "block", marginBottom: 8 }}>
-                Berlaku untuk Sumber Booking
-              </label>
-              <div className="row g2 wrap">
-                {(["Customer App", "WhatsApp", "Phone", "Walk-in", "Kasir"] as const).map((src) => (
-                  <span key={src} className={`chip ${dep.appliesTo.includes(src) ? "on" : ""}`}>
-                    {dep.appliesTo.includes(src) && <Icon name="check" size={12} />}
-                    {src}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            <div className="row between" style={{ paddingTop: 4 }}>
-              <div style={{ minWidth: 0 }}>
-                <div className="small strong" style={{ color: "var(--text-1)" }}>Deposit dapat dikembalikan</div>
-                <div className="tiny dim">Bila tamu membatalkan sesuai kebijakan pembatalan outlet</div>
-              </div>
-              <Switch on={dep.refundable} />
-            </div>
-
-            <Field label="Catatan pada Halaman Booking" hint="Ditampilkan ke tamu sebelum konfirmasi booking">
-              <textarea className="textarea" defaultValue={dep.note} />
-            </Field>
-          </div>
-        </Card>
-
-        <Card className="card-pad">
-          <div className="row g2" style={{ marginBottom: 12 }}>
-            <Icon name="hand-coins" size={16} style={{ color: "var(--accent)" }} />
-            <h3>Simulasi Deposit</h3>
-          </div>
-          {dep.enabled ? (
-            <>
-              <div className="stack g3" style={{ marginBottom: 14 }}>
-                {SIMULASI.map((total) => {
-                  const d = depositFor(outlet.id, total);
-                  return (
-                    <div key={total} className="row between small" style={{ paddingBottom: 8, borderBottom: "1px solid var(--border)" }}>
-                      <span className="muted">Booking {rp(total, { short: true })}</span>
-                      {d > 0 ? (
-                        <span className="strong" style={{ color: "var(--accent)" }}>{rp(d)}</span>
-                      ) : (
-                        <span className="tiny dim">tanpa deposit</span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-              <InfoNote icon="info">
-                Deposit dipotong otomatis dari total tagihan saat pembayaran akhir di kasir.
-              </InfoNote>
-            </>
-          ) : (
-            <div className="stack g3">
-              <div className="small dim">Deposit nonaktif untuk outlet ini — semua booking dapat dibuat tanpa pembayaran di muka.</div>
-              <InfoNote tone="warning" icon="alert-triangle">
-                Tanpa deposit, risiko no-show cenderung lebih tinggi. Pantau angka no-show di menu Reports.
-              </InfoNote>
-            </div>
-          )}
-        </Card>
-      </div>
+      <Card style={{ marginBottom: 20 }}>
+        <CardHead title="Deposit Booking" sub="Nominal dan kebijakan deposit khusus outlet ini" />
+        <div className="card-body">
+          <DepositEditor outletId={outlet.id} deposit={outlet.deposit} />
+        </div>
+      </Card>
 
       <div className="grid grid-2" style={{ alignItems: "start" }}>
         <Card>
-          <CardHead title="Kebijakan Booking" />
+          <CardHead title="Kebijakan Booking" sub="Penanda rencana — belum tersambung ke penyimpanan" />
           <div className="card-body stack g3">
             {[
               { label: "Minimum Lead Time Booking", desc: "Jarak minimal booking dibuat sebelum jadwal", value: "30 menit", on: true },
@@ -183,14 +105,14 @@ export default async function OutletSettingsPage() {
                   <div className="small strong" style={{ color: "var(--text-1)" }}>{row.label}</div>
                   <div className="tiny dim">{row.desc}{row.value ? ` · ${row.value}` : ""}</div>
                 </div>
-                <Switch on={row.on} />
+                <Switch on={row.on} label={row.label} />
               </div>
             ))}
           </div>
         </Card>
 
         <Card>
-          <CardHead title="Notifikasi Outlet" />
+          <CardHead title="Notifikasi Outlet" sub="Penanda rencana — belum tersambung ke penyimpanan" />
           <div className="card-body stack g3">
             {[
               { label: "Alert Stok Menipis", desc: "Notifikasi saat stok di bawah minimum", on: true },
@@ -204,7 +126,7 @@ export default async function OutletSettingsPage() {
                   <div className="small strong" style={{ color: "var(--text-1)" }}>{row.label}</div>
                   <div className="tiny dim">{row.desc}</div>
                 </div>
-                <Switch on={row.on} />
+                <Switch on={row.on} label={row.label} />
               </div>
             ))}
           </div>
@@ -215,14 +137,14 @@ export default async function OutletSettingsPage() {
         <Card>
           <CardHead title="Suara Alarm Sesi" sub="Bunyi yang terdengar terapis saat waktu sesi habis" />
           <div className="card-body">
-            <AlarmSoundSetting outletId={realOutlet.id} currentUrl={realOutlet.alarmSoundUrl ?? null} />
+            <AlarmSoundSetting outletId={outlet.id} currentUrl={outlet.alarmSoundUrl ?? null} />
           </div>
         </Card>
 
         <Card>
           <CardHead title="Jendela Booking Customer App" sub="Berapa hari ke depan tamu boleh booking sendiri" />
           <div className="card-body">
-            <BookingWindowSetting outletId={realOutlet.id} currentDays={realOutlet.bookingWindowDays ?? 0} />
+            <BookingWindowSetting outletId={outlet.id} currentDays={outlet.bookingWindowDays ?? 0} />
           </div>
         </Card>
       </div>

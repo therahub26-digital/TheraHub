@@ -66,31 +66,38 @@ export default async function ScheduleCheckPage() {
       </InfoNote>
 
       <div style={{ marginTop: 20 }}>
+        {/* Cuti/libur terapis digabung jadi satu kotak (2026-08-24, umpan
+            balik pengguna) — sebelumnya dua Card terpisah untuk hal yang
+            sama-sama "cuti terapis", cuma beda apakah untuk hari ini
+            (butuh keputusan approve/reject) atau tanggal mendatang
+            (sekadar penandaan). Datanya tidak berubah, cuma dirapikan
+            jadi satu kartu dengan pembatas di antara dua bagian. */}
         <Card style={{ marginBottom: 20 }}>
           <CardHead
-            title="Pengajuan Cuti Terapis"
-            sub={`${leaveRequests.filter((r) => r.status === "PENDING").length} menunggu keputusan`}
+            title="Cuti & Libur Terapis"
+            sub={`${leaveRequests.filter((r) => r.status === "PENDING").length} pengajuan menunggu keputusan`}
           />
           <div className="card-body">
+            <div className="small strong" style={{ color: "var(--text-1)", marginBottom: 4 }}>
+              Pengajuan Cuti Terapis
+            </div>
             <LeaveRequestApprovalBoard
               therapists={therapistBoardProps}
               requests={leaveRequests.map((r) => ({ id: r.id, employeeId: r.employeeId, date: r.date, note: r.note, status: r.status, requestedAt: r.requestedAt }))}
             />
-          </div>
-        </Card>
 
-        <Card style={{ marginBottom: 20 }}>
-          <CardHead
-            title="Rencana Libur/Cuti ke Depan"
-            sub="Tandai OFF/LIBUR untuk tanggal mendatang — tidak perlu menunggu hari-H"
-          />
-          <div className="card-body">
-            <LeavePlanBoard
-              outletId={outlet.id}
-              minDate={plusDays(today, 1)}
-              therapists={therapistBoardProps}
-              rows={upcomingExceptions.map((e) => ({ id: e.id, employeeId: e.employeeId, date: e.date, type: e.type, note: e.note }))}
-            />
+            <div style={{ borderTop: "1px solid var(--border)", marginTop: 20, paddingTop: 16 }}>
+              <div className="small strong" style={{ color: "var(--text-1)" }}>Rencana Libur/Cuti ke Depan</div>
+              <div className="tiny dim" style={{ marginBottom: 10 }}>
+                Tandai OFF/LIBUR untuk tanggal mendatang — tidak perlu menunggu hari-H
+              </div>
+              <LeavePlanBoard
+                outletId={outlet.id}
+                minDate={plusDays(today, 1)}
+                therapists={therapistBoardProps}
+                rows={upcomingExceptions.map((e) => ({ id: e.id, employeeId: e.employeeId, date: e.date, type: e.type, note: e.note }))}
+              />
+            </div>
           </div>
         </Card>
 

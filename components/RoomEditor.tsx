@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import Icon from "@/components/Icon";
+import { FloatingPanel as Panel } from "@/components/FloatingPanel";
 import { createRoom, updateRoom, setRoomRetired, type RoomInput } from "@/lib/actions/rooms";
 import type { Room } from "@/lib/types";
 
@@ -16,7 +17,20 @@ import type { Room } from "@/lib/types";
 //
 // Same inline dropdown-panel pattern as StaffEditor/InventoryEditor
 // (this codebase still has no modal component, and adding one just for
-// this would be a bigger change than the feature).
+// this would be a bigger change than the feature) — with one difference:
+// the panel is rendered through a portal (see Panel below) instead of a
+// plain `position: absolute` sibling.
+//
+// Why: every room card is a `.card`, and `.card` is `overflow: hidden`
+// (globals: app/ui.css, needed for its rounded-corner top highlight).
+// A plain absolutely-positioned panel is clipped by that ancestor the
+// instant it renders — which made "Edit"/"Room Baru" LOOK completely
+// broken (reported 2026-08-24: clicking Edit on a room card appeared to
+// do nothing). It wasn't dead — the panel was opening, just invisible,
+// clipped to a sliver inside the card's own boundary. Portaling it to
+// document.body with `position: fixed`, positioned from the trigger
+// button's own getBoundingClientRect(), escapes that clipping
+// regardless of which grid column/row the card sits in.
 //
 // Note on delete: there deliberately isn't one. See lib/actions/rooms.ts
 // for why retiring (INACTIVE) is offered instead.
@@ -61,23 +75,6 @@ function ErrorNote({ error }: { error: string | null }) {
     <div className="tiny" style={{ color: "var(--danger)", marginTop: 2 }}>
       <Icon name="alert-triangle" size={11} style={{ verticalAlign: "-1px", marginRight: 3 }} />
       {error}
-    </div>
-  );
-}
-
-function Panel({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      className="stack g2"
-      style={{
-        position: "absolute", right: 0, top: "calc(100% + 6px)", zIndex: 30,
-        padding: "14px 16px", borderRadius: "var(--r-md)",
-        background: "var(--bg-panel, var(--bg-deep))", border: "1px solid var(--border)",
-        minWidth: 320, maxWidth: 320, maxHeight: "70vh", overflowY: "auto",
-        boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
-      }}
-    >
-      {children}
     </div>
   );
 }
@@ -164,50 +161,49 @@ function Fields({ v, setV, disabled }: { v: Draft; setV: (d: Draft) => void; dis
 
 export function NewRoomButton({ outletId, outletName }: { outletId: string; outletName?: string }) {
   const [open, setOpen] = useState(false);
+  const anchorRef = useRef<HTMLButtonElement>(null);
   const [v, setV] = useState<Draft>(EMPTY);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  if (!open) {
-    return (
+  return (
+    <>
       <button
+        ref={anchorRef}
         className="btn btn-primary btn-sm"
         onClick={() => { setV(EMPTY); setError(null); setOpen(true); }}
       >
         <Icon name="plus" size={14} /> Room Baru
       </button>
-    );
-  }
-
-  return (
-    <div style={{ position: "relative", display: "inline-block" }}>
-      <Panel>
-        <div className="small strong" style={{ color: "var(--text-1)" }}>
-          Room baru{outletName ? ` — ${outletName}` : ""}
-        </div>
-        <Fields v={v} setV={setV} disabled={isPending} />
-        <ErrorNote error={error} />
-        <div className="row g2">
-          <button
-            className="btn btn-primary btn-sm"
-            disabled={isPending}
-            onClick={() => {
-              setError(null);
-              startTransition(async () => {
-                const r = await createRoom(toInput(v, outletId));
-                if (!r.ok) { setError(r.error); return; }
-                setOpen(false);
-              });
-            }}
-          >
-            <Icon name="save" size={13} /> {isPending ? "Menyimpan…" : "Simpan Room"}
-          </button>
-          <button className="btn btn-ghost btn-sm" disabled={isPending} onClick={() => setOpen(false)}>
-            Batal
-          </button>
-        </div>
-      </Panel>
-    </div>
+      {open && (
+        <Panel anchorRef={anchorRef} onClose={() => setOpen(false)}>
+          <div className="small strong" style={{ color: "var(--text-1)" }}>
+            Room baru{outletName ? ` — ${outletName}` : ""}
+          </div>
+          <Fields v={v} setV={setV} disabled={isPending} />
+          <ErrorNote error={error} />
+          <div className="row g2">
+            <button
+              className="btn btn-primary btn-sm"
+              disabled={isPending}
+              onClick={() => {
+                setError(null);
+                startTransition(async () => {
+                  const r = await createRoom(toInput(v, outletId));
+                  if (!r.ok) { setError(r.error); return; }
+                  setOpen(false);
+                });
+              }}
+            >
+              <Icon name="save" size={13} /> {isPending ? "Menyimpan…" : "Simpan Room"}
+            </button>
+            <button className="btn btn-ghost btn-sm" disabled={isPending} onClick={() => setOpen(false)}>
+              Batal
+            </button>
+          </div>
+        </Panel>
+      )}
+    </>
   );
 }
 
@@ -215,77 +211,76 @@ export function NewRoomButton({ outletId, outletName }: { outletId: string; outl
 
 export function EditRoomButton({ room, compact = false }: { room: Room; compact?: boolean }) {
   const [open, setOpen] = useState(false);
+  const anchorRef = useRef<HTMLButtonElement>(null);
   const [v, setV] = useState<Draft>(() => toDraft(room));
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const retired = room.status === "INACTIVE";
 
-  if (!open) {
-    return (
+  return (
+    <>
       <button
+        ref={anchorRef}
         className="btn btn-ghost btn-sm"
         style={compact ? { flex: 1 } : undefined}
         onClick={() => { setV(toDraft(room)); setError(null); setOpen(true); }}
       >
         <Icon name="edit" size={12} /> Edit
       </button>
-    );
-  }
-
-  return (
-    <div style={{ position: "relative", display: "inline-block", ...(compact ? { flex: 1 } : {}) }}>
-      <Panel>
-        <div className="small strong" style={{ color: "var(--text-1)" }}>Edit room — {room.name}</div>
-        <Fields v={v} setV={setV} disabled={isPending} />
-        <ErrorNote error={error} />
-        <div className="row g2">
-          <button
-            className="btn btn-primary btn-sm"
-            disabled={isPending}
-            onClick={() => {
-              setError(null);
-              startTransition(async () => {
-                const r = await updateRoom(room.id, toInput(v, room.outletId));
-                if (!r.ok) { setError(r.error); return; }
-                setOpen(false);
-              });
-            }}
-          >
-            <Icon name="save" size={13} /> {isPending ? "Menyimpan…" : "Simpan"}
-          </button>
-          <button className="btn btn-ghost btn-sm" disabled={isPending} onClick={() => setOpen(false)}>
-            Batal
-          </button>
-        </div>
-
-        {/* Retire / un-retire lives inside the edit panel rather than on
-            the card: it is a rarer, more consequential action than
-            "Maintenance", and putting it behind one more click keeps it
-            from being hit by accident. */}
-        <div style={{ borderTop: "1px solid var(--border)", paddingTop: 10, marginTop: 2 }}>
-          <div className="tiny dim" style={{ marginBottom: 6 }}>
-            {retired
-              ? "Room ini sudah dipensiunkan — tidak muncul saat kasir memilih room."
-              : "Memensiunkan room menyembunyikannya dari pilihan check-in. Riwayat booking & sesi lamanya tetap utuh."}
+      {open && (
+        <Panel anchorRef={anchorRef} onClose={() => setOpen(false)}>
+          <div className="small strong" style={{ color: "var(--text-1)" }}>Edit room — {room.name}</div>
+          <Fields v={v} setV={setV} disabled={isPending} />
+          <ErrorNote error={error} />
+          <div className="row g2">
+            <button
+              className="btn btn-primary btn-sm"
+              disabled={isPending}
+              onClick={() => {
+                setError(null);
+                startTransition(async () => {
+                  const r = await updateRoom(room.id, toInput(v, room.outletId));
+                  if (!r.ok) { setError(r.error); return; }
+                  setOpen(false);
+                });
+              }}
+            >
+              <Icon name="save" size={13} /> {isPending ? "Menyimpan…" : "Simpan"}
+            </button>
+            <button className="btn btn-ghost btn-sm" disabled={isPending} onClick={() => setOpen(false)}>
+              Batal
+            </button>
           </div>
-          <button
-            className="btn btn-ghost btn-sm"
-            disabled={isPending}
-            onClick={() => {
-              setError(null);
-              startTransition(async () => {
-                const r = await setRoomRetired(room.id, !retired);
-                if (!r.ok) { setError(r.error); return; }
-                setOpen(false);
-              });
-            }}
-          >
-            <Icon name={retired ? "rotate-ccw" : "archive"} size={12} />
-            {retired ? " Aktifkan kembali" : " Pensiunkan room"}
-          </button>
-        </div>
-      </Panel>
-    </div>
+
+          {/* Retire / un-retire lives inside the edit panel rather than on
+              the card: it is a rarer, more consequential action than
+              "Maintenance", and putting it behind one more click keeps it
+              from being hit by accident. */}
+          <div style={{ borderTop: "1px solid var(--border)", paddingTop: 10, marginTop: 2 }}>
+            <div className="tiny dim" style={{ marginBottom: 6 }}>
+              {retired
+                ? "Room ini sudah dipensiunkan — tidak muncul saat kasir memilih room."
+                : "Memensiunkan room menyembunyikannya dari pilihan check-in. Riwayat booking & sesi lamanya tetap utuh."}
+            </div>
+            <button
+              className="btn btn-ghost btn-sm"
+              disabled={isPending}
+              onClick={() => {
+                setError(null);
+                startTransition(async () => {
+                  const r = await setRoomRetired(room.id, !retired);
+                  if (!r.ok) { setError(r.error); return; }
+                  setOpen(false);
+                });
+              }}
+            >
+              <Icon name={retired ? "rotate-ccw" : "archive"} size={12} />
+              {retired ? " Aktifkan kembali" : " Pensiunkan room"}
+            </button>
+          </div>
+        </Panel>
+      )}
+    </>
   );
 }

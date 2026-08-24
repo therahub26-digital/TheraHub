@@ -9,6 +9,7 @@ import {
   setEmployeePhotoUrl,
   type ActionResult,
 } from "@/lib/actions/employees";
+import { FloatingPanel as Panel } from "@/components/FloatingPanel";
 import type { JobRole } from "@/lib/types";
 
 // ---------------------------------------------------------------------
@@ -27,6 +28,14 @@ import type { JobRole } from "@/lib/types";
 // header on createEmployee/updateEmployeeProfile for why that needs its
 // own migration (new column + non-public Storage bucket), which is
 // drafted separately for the user to approve, not silently added here.
+//
+// Panel uses components/FloatingPanel.tsx — added 2026-08-24 after the
+// user reported "tombol edit tidak fungsi" on room/outlet cards, which
+// turned out to be every `.card` clipping a plain `position: absolute`
+// panel to invisibility (app/ui.css: .card { overflow: hidden }). This
+// file had the identical `position: absolute` pattern (both rows sit
+// inside a `.card`-wrapped table on /manager/therapists), so it gets the
+// same portal-based fix rather than waiting for its own bug report.
 // ---------------------------------------------------------------------
 
 const JOB_ROLES: JobRole[] = ["Terapis", "Kasir", "Manager", "Office Boy", "Admin Umum", "Supervisor"];
@@ -121,6 +130,7 @@ function FormFields({
 /** "Tambah Staff" — opens from the page header, covers both therapist and non-therapist roles. */
 export function NewStaffForm({ outletId, tenantId }: { outletId: string; tenantId: string }) {
   const [open, setOpen] = useState(false);
+  const anchorRef = useRef<HTMLButtonElement>(null);
   const empty: FormValues = {
     name: "", jobRole: "Terapis", grade: "", therapistGrade: "Junior",
     phone: "", email: "", joinDate: todayIso(), contractType: "Tetap",
@@ -133,54 +143,50 @@ export function NewStaffForm({ outletId, tenantId }: { outletId: string; tenantI
     setValues((v) => ({ ...v, ...p }));
   }
 
-  if (!open) {
-    return (
-      <button className="btn btn-primary btn-sm" onClick={() => { setValues(empty); setError(null); setOpen(true); }}>
+  return (
+    <>
+      <button
+        ref={anchorRef}
+        className="btn btn-primary btn-sm"
+        onClick={() => { setValues(empty); setError(null); setOpen(true); }}
+      >
         <Icon name="plus" size={14} /> Tambah Staff
       </button>
-    );
-  }
-
-  return (
-    <div
-      className="stack g2"
-      style={{
-        position: "absolute", right: 0, top: "calc(100% + 6px)", zIndex: 20,
-        padding: "14px 16px", borderRadius: "var(--r-md)", background: "var(--bg-panel, var(--bg-deep))",
-        border: "1px solid var(--border)", minWidth: 320, boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
-      }}
-    >
-      <div className="small strong" style={{ color: "var(--text-1)" }}>Staff / Terapis baru</div>
-      <FormFields values={values} disabled={isPending} onChange={patch} />
-      <ErrorNote error={error} />
-      <div className="row g2">
-        <button
-          className="btn btn-primary btn-sm"
-          disabled={isPending}
-          onClick={() => {
-            setError(null);
-            startTransition(async () => {
-              const r = await createEmployee({
-                outletId, tenantId,
-                name: values.name,
-                jobRole: values.jobRole,
-                isTherapist: values.jobRole === "Terapis",
-                therapistGrade: values.jobRole === "Terapis" ? values.therapistGrade : null,
-                phone: values.phone,
-                email: values.email,
-                joinDate: values.joinDate,
-                contractType: values.contractType,
-              });
-              if (r.ok) { setValues(empty); setOpen(false); }
-              else setError(r.error);
-            });
-          }}
-        >
-          <Icon name="check" size={13} /> {isPending ? "Menyimpan…" : "Simpan"}
-        </button>
-        <button className="btn btn-ghost btn-sm" disabled={isPending} onClick={() => setOpen(false)}>Batal</button>
-      </div>
-    </div>
+      {open && (
+        <Panel anchorRef={anchorRef} onClose={() => setOpen(false)}>
+          <div className="small strong" style={{ color: "var(--text-1)" }}>Staff / Terapis baru</div>
+          <FormFields values={values} disabled={isPending} onChange={patch} />
+          <ErrorNote error={error} />
+          <div className="row g2">
+            <button
+              className="btn btn-primary btn-sm"
+              disabled={isPending}
+              onClick={() => {
+                setError(null);
+                startTransition(async () => {
+                  const r = await createEmployee({
+                    outletId, tenantId,
+                    name: values.name,
+                    jobRole: values.jobRole,
+                    isTherapist: values.jobRole === "Terapis",
+                    therapistGrade: values.jobRole === "Terapis" ? values.therapistGrade : null,
+                    phone: values.phone,
+                    email: values.email,
+                    joinDate: values.joinDate,
+                    contractType: values.contractType,
+                  });
+                  if (r.ok) { setValues(empty); setOpen(false); }
+                  else setError(r.error);
+                });
+              }}
+            >
+              <Icon name="check" size={13} /> {isPending ? "Menyimpan…" : "Simpan"}
+            </button>
+            <button className="btn btn-ghost btn-sm" disabled={isPending} onClick={() => setOpen(false)}>Batal</button>
+          </div>
+        </Panel>
+      )}
+    </>
   );
 }
 
@@ -250,6 +256,7 @@ export function EditStaffButton({
   };
 }) {
   const [open, setOpen] = useState(false);
+  const anchorRef = useRef<HTMLButtonElement>(null);
   const startValues: FormValues = {
     name: initial.name,
     jobRole: initial.jobRole,
@@ -268,55 +275,51 @@ export function EditStaffButton({
     setValues((v) => ({ ...v, ...p }));
   }
 
-  if (!open) {
-    return (
-      <button className="btn btn-ghost btn-sm" onClick={() => { setValues(startValues); setError(null); setOpen(true); }}>
+  return (
+    <>
+      <button
+        ref={anchorRef}
+        className="btn btn-ghost btn-sm"
+        onClick={() => { setValues(startValues); setError(null); setOpen(true); }}
+      >
         <Icon name="edit" size={12} /> Edit
       </button>
-    );
-  }
+      {open && (
+        <Panel anchorRef={anchorRef} onClose={() => setOpen(false)}>
+          <div className="small strong" style={{ color: "var(--text-1)" }}>Edit profil — {initial.name}</div>
 
-  return (
-    <div
-      className="stack g2"
-      style={{
-        position: "absolute", zIndex: 20, right: 8,
-        padding: "14px 16px", borderRadius: "var(--r-md)", background: "var(--bg-panel, var(--bg-deep))",
-        border: "1px solid var(--border)", minWidth: 320, boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
-      }}
-    >
-      <div className="small strong" style={{ color: "var(--text-1)" }}>Edit profil — {initial.name}</div>
+          <ProfilePhotoUploader employeeId={employeeId} currentUrl={photoUrl} />
 
-      <ProfilePhotoUploader employeeId={employeeId} currentUrl={photoUrl} />
-
-      <FormFields values={values} disabled={isPending} onChange={patch} />
-      <ErrorNote error={error} />
-      <div className="row g2">
-        <button
-          className="btn btn-primary btn-sm"
-          disabled={isPending}
-          onClick={() => {
-            setError(null);
-            startTransition(async () => {
-              const r: ActionResult = await updateEmployeeProfile({
-                employeeId,
-                name: values.name,
-                jobRole: values.jobRole,
-                therapistGrade: values.jobRole === "Terapis" ? values.therapistGrade : null,
-                phone: values.phone,
-                email: values.email,
-                joinDate: values.joinDate,
-                contractType: values.contractType,
-              });
-              if (r.ok) setOpen(false);
-              else setError(r.error);
-            });
-          }}
-        >
-          <Icon name="check" size={13} /> {isPending ? "Menyimpan…" : "Simpan"}
-        </button>
-        <button className="btn btn-ghost btn-sm" disabled={isPending} onClick={() => setOpen(false)}>Batal</button>
-      </div>
-    </div>
+          <FormFields values={values} disabled={isPending} onChange={patch} />
+          <ErrorNote error={error} />
+          <div className="row g2">
+            <button
+              className="btn btn-primary btn-sm"
+              disabled={isPending}
+              onClick={() => {
+                setError(null);
+                startTransition(async () => {
+                  const r: ActionResult = await updateEmployeeProfile({
+                    employeeId,
+                    name: values.name,
+                    jobRole: values.jobRole,
+                    therapistGrade: values.jobRole === "Terapis" ? values.therapistGrade : null,
+                    phone: values.phone,
+                    email: values.email,
+                    joinDate: values.joinDate,
+                    contractType: values.contractType,
+                  });
+                  if (r.ok) setOpen(false);
+                  else setError(r.error);
+                });
+              }}
+            >
+              <Icon name="check" size={13} /> {isPending ? "Menyimpan…" : "Simpan"}
+            </button>
+            <button className="btn btn-ghost btn-sm" disabled={isPending} onClick={() => setOpen(false)}>Batal</button>
+          </div>
+        </Panel>
+      )}
+    </>
   );
 }

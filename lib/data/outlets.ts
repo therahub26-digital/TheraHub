@@ -41,6 +41,11 @@ type OutletRow = {
   grace_period_min: number;
   tax_pct: number | string;
   service_charge_pct: number | string;
+  // Optional: pre-0023 rows (before the migration runs) simply won't have
+  // these keys — mapOutlet() below treats absence as "still enabled",
+  // matching the column's own DB default.
+  tax_enabled?: boolean;
+  service_charge_enabled?: boolean;
   receipt_prefix: string;
   deposit_enabled: boolean;
   deposit_type: DepositPolicy["type"];
@@ -107,6 +112,8 @@ function mapOutlet(
     gracePeriodMin: row.grace_period_min,
     taxPct: Number(row.tax_pct),
     serviceChargePct: Number(row.service_charge_pct),
+    taxEnabled: row.tax_enabled ?? true,
+    serviceChargeEnabled: row.service_charge_enabled ?? true,
     receiptPrefix: row.receipt_prefix,
     deposit: {
       enabled: row.deposit_enabled,

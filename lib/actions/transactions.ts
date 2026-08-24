@@ -111,10 +111,16 @@ export async function payForSession(
 
   const { data: outlet, error: outletErr } = await supabase
     .from("outlets")
-    .select("tax_pct, service_charge_pct, receipt_prefix")
+    .select("tax_pct, service_charge_pct, tax_enabled, service_charge_enabled, receipt_prefix")
     .eq("id", session.outlet_id)
     .single();
   if (outletErr || !outlet) return { ok: false, error: "Outlet tidak ditemukan." };
+
+  // tax_enabled/service_charge_enabled default true at the DB level
+  // (migration 0023) — `!== false` treats a pre-migration null/undefined
+  // row the same as "still on", matching prior behavior.
+  const effectiveTaxPct = outlet.tax_enabled !== false ? Number(outlet.tax_pct) : 0;
+  const effectiveServiceChargePct = outlet.service_charge_enabled !== false ? Number(outlet.service_charge_pct) : 0;
 
   const packagePrice = Number(booking.price);
 
@@ -275,8 +281,8 @@ export async function payForSession(
   const extrasTotal = billedExtras.reduce((sum, e) => sum + e.unitPrice * e.qty, 0);
 
   const subtotal = packagePrice + extensionTotal + extrasTotal;
-  const serviceCharge = Math.round((subtotal * Number(outlet.service_charge_pct)) / 100);
-  const tax = Math.round(((subtotal + serviceCharge) * Number(outlet.tax_pct)) / 100);
+  const serviceCharge = Math.round((subtotal * effectiveServiceChargePct) / 100);
+  const tax = Math.round(((subtotal + serviceCharge) * effectiveTaxPct) / 100);
 
   const paidAt = nowIso();
   const date = paidAt.slice(0, 10);

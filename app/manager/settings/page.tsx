@@ -73,7 +73,9 @@ export default async function OutletSettingsPage() {
             <TaxServiceEditor
               outletId={outlet.id}
               taxPct={outlet.taxPct}
+              taxEnabled={outlet.taxEnabled ?? true}
               serviceChargePct={outlet.serviceChargePct}
+              serviceChargeEnabled={outlet.serviceChargeEnabled ?? true}
               latePolicy={outlet.latePolicy}
               gracePeriodMin={outlet.gracePeriodMin}
             />

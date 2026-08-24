@@ -25,6 +25,7 @@ const LATE_POLICY_LABEL: Record<Outlet["latePolicy"], string> = {
   FULL_DURATION: "Durasi penuh — sesi tetap sepanjang yang dibeli",
   FIXED_SLOT: "Slot tetap — sesi berakhir pada jam terjadwal",
   GRACE_PERIOD: "Grace period — toleransi terlambat sekian menit",
+  NONE: "Tidak ada — kebijakan keterlambatan dimatikan",
 };
 
 const BOOKING_SOURCES = ["Customer App", "WhatsApp", "Phone", "Walk-in", "Kasir"] as const;
@@ -75,19 +76,25 @@ function SaveRow({
 export function TaxServiceEditor({
   outletId,
   taxPct,
+  taxEnabled,
   serviceChargePct,
+  serviceChargeEnabled,
   latePolicy,
   gracePeriodMin,
 }: {
   outletId: string;
   taxPct: number;
+  taxEnabled: boolean;
   serviceChargePct: number;
+  serviceChargeEnabled: boolean;
   latePolicy: Outlet["latePolicy"];
   gracePeriodMin: number;
 }) {
   const initial = {
     tax: String(taxPct),
+    taxOn: taxEnabled,
     service: String(serviceChargePct),
+    serviceOn: serviceChargeEnabled,
     late: latePolicy,
     grace: String(gracePeriodMin),
   };
@@ -105,7 +112,9 @@ export function TaxServiceEditor({
     startTransition(async () => {
       const r = await setOutletPolicy(outletId, {
         taxPct: Number.parseFloat(v.tax),
+        taxEnabled: v.taxOn,
         serviceChargePct: Number.parseFloat(v.service),
+        serviceChargeEnabled: v.serviceOn,
         latePolicy: v.late,
         gracePeriodMin: Number.parseInt(v.grace, 10),
       });
@@ -117,7 +126,22 @@ export function TaxServiceEditor({
 
   return (
     <div className="stack g3">
-      <Field label="Pajak / PB1 (%)" hint="Diterapkan ke setiap transaksi di kasir">
+      <div className="row between" style={{ alignItems: "center" }}>
+        <div style={{ minWidth: 0 }}>
+          <div className="small strong" style={{ color: "var(--text-1)" }}>Pajak / PB1 diaktifkan</div>
+          <div className="tiny dim">Matikan bila outlet ini tidak memungut pajak</div>
+        </div>
+        <Switch
+          on={v.taxOn}
+          pending={isPending}
+          label="Pajak / PB1"
+          onChange={(next) => setV({ ...v, taxOn: next })}
+        />
+      </div>
+      <Field
+        label="Pajak / PB1 (%)"
+        hint={v.taxOn ? "Diterapkan ke setiap transaksi di kasir" : "Nonaktif — nilai ini disimpan tapi tidak diterapkan"}
+      >
         <input
           className="input"
           type="number"
@@ -129,7 +153,22 @@ export function TaxServiceEditor({
           onChange={(e) => setV({ ...v, tax: e.target.value })}
         />
       </Field>
-      <Field label="Service Charge (%)" hint="Ditambahkan ke subtotal sebelum pajak dihitung">
+      <div className="row between" style={{ alignItems: "center" }}>
+        <div style={{ minWidth: 0 }}>
+          <div className="small strong" style={{ color: "var(--text-1)" }}>Service Charge diaktifkan</div>
+          <div className="tiny dim">Matikan bila outlet ini tidak memungut service charge</div>
+        </div>
+        <Switch
+          on={v.serviceOn}
+          pending={isPending}
+          label="Service Charge"
+          onChange={(next) => setV({ ...v, serviceOn: next })}
+        />
+      </div>
+      <Field
+        label="Service Charge (%)"
+        hint={v.serviceOn ? "Ditambahkan ke subtotal sebelum pajak dihitung" : "Nonaktif — nilai ini disimpan tapi tidak diterapkan"}
+      >
         <input
           className="input"
           type="number"

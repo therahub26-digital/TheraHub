@@ -93,10 +93,19 @@ export interface Outlet {
   roomCount: number;
   therapistCount: number;
   managerName: string;
-  latePolicy: "FULL_DURATION" | "FIXED_SLOT" | "GRACE_PERIOD";
+  /** "NONE" = kebijakan keterlambatan dimatikan — added 2026-08-24, user: kebijakan ini "sifatnya optional bisa on/off". */
+  latePolicy: "FULL_DURATION" | "FIXED_SLOT" | "GRACE_PERIOD" | "NONE";
   gracePeriodMin: number;
   taxPct: number;
   serviceChargePct: number;
+  /**
+   * On/off per outlet — added 2026-08-24, user: "untuk kebijakan pajak,
+   * service charge ... sifatnya optional bisa on/off tergantung masing2
+   * outlet". Optional (defaults to true at every read site) so mock data
+   * (lib/mock/org.ts) and any pre-migration outlet row don't need to change.
+   */
+  taxEnabled?: boolean;
+  serviceChargeEnabled?: boolean;
   receiptPrefix: string;
   /** Deposit booking — dikonfigurasi per outlet. */
   deposit: DepositPolicy;

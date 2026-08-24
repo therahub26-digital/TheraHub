@@ -69,8 +69,8 @@ export default async function PosCartPage() {
           payables={payables}
           addons={posAddons}
           products={posProducts}
-          taxPct={outlet.taxPct}
-          serviceChargePct={outlet.serviceChargePct}
+          taxPct={outlet.taxEnabled === false ? 0 : outlet.taxPct}
+          serviceChargePct={outlet.serviceChargeEnabled === false ? 0 : outlet.serviceChargePct}
         />
       </>
     );

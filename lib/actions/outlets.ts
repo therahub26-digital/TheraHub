@@ -160,12 +160,14 @@ export async function setGeofence(outletId: string, input: GeofenceInput): Promi
 
 export type OutletPolicyInput = {
   taxPct: number;
+  taxEnabled: boolean;
   serviceChargePct: number;
-  latePolicy: "FULL_DURATION" | "FIXED_SLOT" | "GRACE_PERIOD";
+  serviceChargeEnabled: boolean;
+  latePolicy: "FULL_DURATION" | "FIXED_SLOT" | "GRACE_PERIOD" | "NONE";
   gracePeriodMin: number;
 };
 
-const LATE_POLICIES: OutletPolicyInput["latePolicy"][] = ["FULL_DURATION", "FIXED_SLOT", "GRACE_PERIOD"];
+const LATE_POLICIES: OutletPolicyInput["latePolicy"][] = ["FULL_DURATION", "FIXED_SLOT", "GRACE_PERIOD", "NONE"];
 
 /**
  * Tax (PB1) and service charge percentages, plus the late-arrival rule.
@@ -184,7 +186,7 @@ export async function setOutletPolicy(outletId: string, input: OutletPolicyInput
   const { supabase, error } = await requireStaff();
   if (error) return { ok: false, error };
 
-  const { taxPct, serviceChargePct, latePolicy, gracePeriodMin } = input;
+  const { taxPct, taxEnabled, serviceChargePct, serviceChargeEnabled, latePolicy, gracePeriodMin } = input;
 
   if (!Number.isFinite(taxPct) || taxPct < 0 || taxPct > 100) {
     return { ok: false, error: "Pajak harus antara 0 dan 100 persen." };
@@ -203,7 +205,9 @@ export async function setOutletPolicy(outletId: string, input: OutletPolicyInput
     .from("outlets")
     .update({
       tax_pct: taxPct,
+      tax_enabled: taxEnabled,
       service_charge_pct: serviceChargePct,
+      service_charge_enabled: serviceChargeEnabled,
       late_policy: latePolicy,
       grace_period_min: gracePeriodMin,
     })

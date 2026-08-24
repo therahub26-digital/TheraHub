@@ -25,7 +25,7 @@ di tabel ini **dan** header file `.sql`-nya di commit yang sama.
 | 0020 | `0020_inventory_expenses.sql` | **Live** (2026-08-23) | Inventory & Expenses manager berjalan dengan data asli |
 | 0021 | `0021_products_manager_write.sql` | **Live** (dikonfirmasi 2026-08-24) | `products_manager_insert` & `products_manager_update` ditemukan di `pg_policies` |
 | 0022 | `0022_employee_leave_requests.sql` | **Live** (2026-08-23) | Dijalankan user sendiri, diverifikasi lewat `to_regclass` + `pg_policies` |
-| 0023 | `0023_outlet_policy_toggles.sql` | **DRAFT — belum diterapkan** | Toggle on/off pajak & service charge per outlet + `late_policy = 'NONE'`. Kode checkout (`lib/actions/transactions.ts`) sudah bergantung pada kolom ini — jalankan sebelum mencoba transaksi POS baru |
+| 0023 | `0023_outlet_policy_toggles.sql` | **Live (2026-08-24)** | Toggle on/off pajak & service charge per outlet + `late_policy = 'NONE'` (nilai enum ditambah via `ALTER TYPE ... ADD VALUE`, revisi setelah percobaan pertama gagal karena late_policy adalah enum, bukan text+CHECK). Dikonfirmasi jalan di Supabase SQL Editor |
 
 ## 0021 — dikonfirmasi live (2026-08-24)
 

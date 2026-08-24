@@ -1,9 +1,9 @@
 -- ---------------------------------------------------------------------
 -- 0023_outlet_policy_toggles.sql
 --
--- STATUS: DRAFT — BELUM DITERAPKAN. Jalankan lewat Supabase SQL Editor,
--- lalu perbarui baris migrasi ini di supabase/migrations/README.md
--- (status + catatan) di commit yang sama, sesuai aturan file itu.
+-- STATUS: Live — diterapkan 2026-08-24 lewat Supabase SQL Editor (setelah
+-- revisi ALTER TYPE, lihat catatan revisi di bawah). Kolom tax_enabled,
+-- service_charge_enabled, dan nilai enum late_policy='NONE' sudah ada di DB.
 --
 -- Latar belakang
 -- --------------

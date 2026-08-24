@@ -83,7 +83,7 @@ export default async function ScheduleCheckPage() {
             </div>
             <LeaveRequestApprovalBoard
               therapists={therapistBoardProps}
-              requests={leaveRequests.map((r) => ({ id: r.id, employeeId: r.employeeId, date: r.date, note: r.note, status: r.status, requestedAt: r.requestedAt }))}
+              requests={leaveRequests.map((r) => ({ id: r.id, employeeId: r.employeeId, date: r.date, type: r.type, note: r.note, status: r.status, requestedAt: r.requestedAt }))}
             />
 
             <div style={{ borderTop: "1px solid var(--border)", marginTop: 20, paddingTop: 16 }}>

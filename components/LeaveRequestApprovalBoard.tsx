@@ -6,7 +6,7 @@ import Icon from "@/components/Icon";
 import { Badge, PersonCell } from "@/components/ui";
 import { approveLeaveRequest, rejectLeaveRequest } from "@/lib/actions/leaveRequests";
 import { fmtDateLong, fmtDateTime } from "@/lib/format";
-import type { LeaveRequestStatus } from "@/lib/data/leaveRequests";
+import type { LeaveRequestStatus, LeaveRequestType } from "@/lib/data/leaveRequests";
 
 // ---------------------------------------------------------------------
 // Manager/kasir side of the therapist leave-request workflow (user,
@@ -28,9 +28,15 @@ export type LeaveRequestRow = {
   id: string;
   employeeId: string;
   date: string;
+  type: LeaveRequestType;
   note: string | null;
   status: LeaveRequestStatus;
   requestedAt: string;
+};
+
+const TYPE_LABEL: Record<LeaveRequestType, string> = {
+  LEAVE: "Cuti/Sakit",
+  OFF: "Libur",
 };
 
 export default function LeaveRequestApprovalBoard({
@@ -83,7 +89,10 @@ export default function LeaveRequestApprovalBoard({
                 <div className="row g2" style={{ minWidth: 0 }}>
                   {t ? <PersonCell name={t.name} sub={t.code} toneKey={t.avatarTone} photoUrl={t.photoUrl ?? undefined} size={30} /> : <span className="small">Terapis tidak dikenal</span>}
                   <div>
-                    <div className="tiny bold" style={{ color: "var(--text-1)" }}>{fmtDateLong(r.date)}</div>
+                    <div className="row g1" style={{ alignItems: "center" }}>
+                      <span className="tiny bold" style={{ color: "var(--text-1)" }}>{fmtDateLong(r.date)}</span>
+                      <Badge tone={r.type === "OFF" ? "neutral" : "warning"}>{TYPE_LABEL[r.type]}</Badge>
+                    </div>
                     <div className="tiny dim">{r.note || "Tanpa catatan"} · diajukan {fmtDateTime(r.requestedAt)}</div>
                   </div>
                 </div>
@@ -109,7 +118,7 @@ export default function LeaveRequestApprovalBoard({
               const t = therapistById.get(r.employeeId);
               return (
                 <div key={r.id} className="row between tiny" style={{ padding: "4px 0" }}>
-                  <span className="dim">{t?.name ?? "—"} · {fmtDateLong(r.date)}</span>
+                  <span className="dim">{t?.name ?? "—"} · {fmtDateLong(r.date)} · {TYPE_LABEL[r.type]}</span>
                   <Badge tone={r.status === "APPROVED" ? "success" : "neutral"}>{r.status === "APPROVED" ? "Disetujui" : "Ditolak"}</Badge>
                 </div>
               );

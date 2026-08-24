@@ -53,8 +53,8 @@ function revalidateLeave() {
   revalidatePath("/kasir/schedule-check");
 }
 
-/** Therapist submits a leave/sick-day request for a future (or today's) date. */
-export async function requestLeave(date: string, note?: string): Promise<ActionResult> {
+/** Therapist submits a leave/sick-day OR plain day-off request for a future (or today's) date. */
+export async function requestLeave(date: string, type: "OFF" | "LEAVE", note?: string): Promise<ActionResult> {
   const { supabase, employee, error } = await resolveSignedInEmployee();
   if (error || !employee) return { ok: false, error: error ?? "Data karyawan tidak ditemukan." };
 
@@ -77,6 +77,7 @@ export async function requestLeave(date: string, note?: string): Promise<ActionR
     employee_id: employee.id,
     outlet_id: employee.outlet_id,
     date,
+    type,
     note: note?.trim() || null,
     status: "PENDING",
     requested_at: nowIso(),
@@ -103,7 +104,7 @@ export async function approveLeaveRequest(requestId: string, decisionNote?: stri
 
   const { data: reqRow, error: readErr } = await supabase
     .from("employee_leave_requests")
-    .select("id, employee_id, outlet_id, date, note, status")
+    .select("id, employee_id, outlet_id, date, note, status, type")
     .eq("id", requestId)
     .maybeSingle();
   if (readErr) {
@@ -130,8 +131,12 @@ export async function approveLeaveRequest(requestId: string, decisionNote?: stri
       employee_id: reqRow.employee_id,
       outlet_id: reqRow.outlet_id,
       date: reqRow.date,
-      type: "LEAVE",
-      note: reqRow.note || "Cuti disetujui",
+      // Was hardcoded to "LEAVE" until 2026-08-25 — a therapist who actually
+      // asked for "Libur" (plain day off, not cuti/sakit) would still land
+      // as LEAVE once approved. Now trusts the type the therapist picked
+      // when submitting (see migration 0024 + TherapistLeaveRequestForm.tsx).
+      type: (reqRow as { type?: "OFF" | "LEAVE" }).type ?? "LEAVE",
+      note: reqRow.note || (((reqRow as { type?: "OFF" | "LEAVE" }).type ?? "LEAVE") === "OFF" ? "Libur disetujui" : "Cuti disetujui"),
     },
     { onConflict: "employee_id,date" }
   );

@@ -122,7 +122,7 @@ export default async function AttendancePage() {
 
           <TherapistLeaveRequestForm
             minDate={today}
-            requests={myLeaveRequests.map((r) => ({ id: r.id, date: r.date, note: r.note, status: r.status }))}
+            requests={myLeaveRequests.map((r) => ({ id: r.id, date: r.date, type: r.type, note: r.note, status: r.status }))}
           />
 
           <div>

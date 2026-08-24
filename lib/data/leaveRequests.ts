@@ -15,11 +15,14 @@ import { createClient } from "@/lib/supabase/server";
 
 export type LeaveRequestStatus = "PENDING" | "APPROVED" | "REJECTED";
 
+export type LeaveRequestType = "OFF" | "LEAVE";
+
 export type LeaveRequest = {
   id: string;
   employeeId: string;
   outletId: string;
   date: string;
+  type: LeaveRequestType;
   note: string | null;
   status: LeaveRequestStatus;
   requestedAt: string;
@@ -33,6 +36,7 @@ type LeaveRequestRow = {
   employee_id: string;
   outlet_id: string;
   date: string;
+  type: string;
   note: string | null;
   status: string;
   requested_at: string;
@@ -47,6 +51,10 @@ function mapRow(row: LeaveRequestRow): LeaveRequest {
     employeeId: row.employee_id,
     outletId: row.outlet_id,
     date: row.date,
+    // Falls back to "LEAVE" for any row written before migration 0024 added
+    // this column (those rows predate the type choice and were always
+    // treated as LEAVE by approveLeaveRequest()'s old hardcode).
+    type: (row.type as LeaveRequestType) || "LEAVE",
     note: row.note,
     status: row.status as LeaveRequestStatus,
     requestedAt: row.requested_at,

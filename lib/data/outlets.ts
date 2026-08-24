@@ -263,16 +263,9 @@ export async function isLiveOutletsData(): Promise<boolean> {
   return (await loadOutletsData()).live;
 }
 
-// Pure formatting helpers — sengaja tidak melakukan lookup by-id ke array
-// mock (beda dengan depositLabel/depositFor di lib/mock/org.ts), supaya
-// aman dipakai untuk Outlet yang datang dari Supabase (id UUID sungguhan).
-export function formatDepositLabel(deposit: DepositPolicy): string {
-  if (!deposit.enabled) return "Tidak ada deposit";
-  return deposit.type === "FIXED" ? `Rp${deposit.value.toLocaleString("id-ID")}` : `${deposit.value}% dari harga layanan`;
-}
-
-export function calcDeposit(deposit: DepositPolicy, ticketTotal: number): number {
-  if (!deposit.enabled || ticketTotal < deposit.minTicket) return 0;
-  const raw = deposit.type === "FIXED" ? deposit.value : (ticketTotal * deposit.value) / 100;
-  return Math.round(raw / 1000) * 1000;
-}
+// Pure formatting/math helpers moved to lib/deposit.ts (2026-08-24) so
+// Client Components can import them without pulling in the server-only
+// Supabase client this file imports at the top. Re-exported here so
+// existing Server Component callers (app/admin/outlets, app/admin/settings)
+// don't need to change their import path.
+export { formatDepositLabel, calcDeposit } from "@/lib/deposit";

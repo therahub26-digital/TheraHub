@@ -6,7 +6,7 @@ import { Field, Switch, InfoNote } from "@/components/ui";
 import { setOutletPolicy, setDepositPolicy } from "@/lib/actions/outlets";
 import { rp } from "@/lib/format";
 import type { DepositPolicy, Outlet } from "@/lib/types";
-import { calcDeposit } from "@/lib/data/outlets";
+import { calcDeposit } from "@/lib/deposit";
 
 // ---------------------------------------------------------------------
 // The write-side of /manager/settings — new 2026-08-24 (backlog 14).

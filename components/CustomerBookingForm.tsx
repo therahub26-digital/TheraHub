@@ -9,6 +9,7 @@ import { createCustomerBooking } from "@/lib/actions/customerBookings";
 import TherapistProfileModal from "@/components/TherapistProfileModal";
 import DatePickerField from "@/components/DatePickerField";
 import { nowHHMM as wallNowHHMM } from "@/lib/wallclock";
+import { formatDepositLabel as depositLabel, calcDeposit } from "@/lib/deposit";
 
 /**
  * Round a "HH:mm" up to the next :00/:30 slot, clamped to 23:30 so a
@@ -30,12 +31,9 @@ function nextBookableSlot(hhmm: string): string {
 // instead of a single hard-coded "PRIMARY_OUTLET", since a real customer
 // can book at any outlet in their tenant.
 //
-// Deposit math is duplicated here (formatDepositLabel/calcDeposit
-// normally live in lib/data/outlets.ts) rather than imported, because
-// that module pulls in lib/supabase/server.ts (next/headers) — fine in a
-// Server Component, but it would break this Client Component's bundle.
-// Keep this in sync with lib/data/outlets.ts if the deposit formula ever
-// changes.
+// Deposit math (depositLabel/calcDeposit below) comes from lib/deposit.ts,
+// a pure module with no server-only imports — safe for this Client
+// Component's bundle. See lib/deposit.ts for why that split exists.
 // ---------------------------------------------------------------------
 
 type DepositPolicyLite = {
@@ -47,16 +45,7 @@ type DepositPolicyLite = {
   note: string;
 };
 
-function depositLabel(d: DepositPolicyLite): string {
-  if (!d.enabled) return "Tidak ada deposit";
-  return d.type === "FIXED" ? `Rp${d.value.toLocaleString("id-ID")}` : `${d.value}% dari harga layanan`;
-}
 
-function calcDeposit(d: DepositPolicyLite, ticketTotal: number): number {
-  if (!d.enabled || ticketTotal < d.minTicket) return 0;
-  const raw = d.type === "FIXED" ? d.value : (ticketTotal * d.value) / 100;
-  return Math.round(raw / 1000) * 1000;
-}
 
 export type OutletOption = {
   id: string;

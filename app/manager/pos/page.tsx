@@ -57,7 +57,7 @@ export default async function PosPage() {
       <PageHead
         title="POS / Transactions"
         desc={`${outlet.name} · ${today} · Riwayat transaksi kasir dan ringkasan penjualan.`}
-        actions={<button className="btn btn-primary btn-sm"><Icon name="shopping-cart" size={14} /> Buka POS Kasir</button>}
+        actions={<button className="btn btn-primary btn-sm" disabled title="Belum tersedia — POS hanya bisa dibuka dari akun kasir yang login."><Icon name="shopping-cart" size={14} /> Buka POS Kasir</button>}
       />
 
       <div className="grid grid-4" style={{ marginBottom: 20 }}>
@@ -69,7 +69,7 @@ export default async function PosPage() {
 
       <div className="grid grid-3" style={{ alignItems: "start", marginBottom: 20 }}>
         <Card style={{ gridColumn: "span 2" }}>
-          <CardHead title="Transaksi Hari Ini" sub={`${transactions.length} struk`} action={<button className="btn btn-quiet btn-sm"><Icon name="download" size={13} /> Export</button>} />
+          <CardHead title="Transaksi Hari Ini" sub={`${transactions.length} struk`} action={<button className="btn btn-quiet btn-sm" disabled title="Belum tersedia — ekspor laporan belum dibangun di aplikasi ini."><Icon name="download" size={13} /> Export</button>} />
           <div className="table-wrap">
             <table className="tbl">
               <thead><tr><th>Waktu</th><th>No. Struk</th><th>Customer</th><th>Kasir</th><th>Metode</th><th>Total</th><th>Status</th></tr></thead>

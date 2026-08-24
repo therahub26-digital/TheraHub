@@ -1,4 +1,5 @@
 import { PageHead, Card, CardHead, StatCard } from "@/components/ui";
+import MockDataNotice from "@/components/MockDataNotice";
 import { TrendArea, GroupedBars } from "@/components/Charts";
 import { MONTHLY_TREND, CONSOLIDATED_PNL, TENANT_PNL, OUTLETS } from "@/lib/mock";
 import { rp, pct } from "@/lib/format";
@@ -9,6 +10,13 @@ export default function RevenuePage() {
   return (
     <>
       <PageHead title="Revenue & Profitability" desc="P&L style summary dan tren konsolidasi seluruh outlet." />
+
+      <MockDataNotice>
+        Seluruh angka di halaman ini contoh tampilan, bukan hasil perhitungan lintas-outlet yang
+        sebenarnya. Portal Owner belum dimigrasi ke data asli karena bentuknya masih menunggu
+        keputusan Anda (pemilih outlet manual vs agregat semua outlet). Yang sudah nyata di portal
+        ini hanya <strong>Payroll</strong>; angka operasional lain ada di portal Manager.
+      </MockDataNotice>
 
       <div className="grid grid-4" style={{ marginBottom: 20 }}>
         <StatCard label="Revenue" value={rp(TENANT_PNL.revenue, { short: true })} icon="circle-dollar" toneKey="gold" />

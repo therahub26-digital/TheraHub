@@ -1,5 +1,6 @@
 import Icon from "@/components/Icon";
 import { PageHead, Card, Badge, StatCard } from "@/components/ui";
+import MockDataNotice from "@/components/MockDataNotice";
 import { APPROVALS, outletName } from "@/lib/mock";
 import { rp, fmtDateTime } from "@/lib/format";
 
@@ -16,6 +17,12 @@ export default function ApprovalsPage() {
     <>
       <PageHead title="Approvals" desc="Antrian persetujuan payroll, biaya, refund, discount, dan penyesuaian stok." />
 
+      <MockDataNotice title="Data contoh — alur persetujuan owner belum dibangun">
+        Antrian di halaman ini contoh tampilan, dan tombol <strong>Setujui</strong>/<strong>Tolak</strong>
+        belum tersambung ke apa pun — menekannya tidak menyetujui atau menolak apa pun. Sampai
+        modulnya dibangun, keputusan yang butuh persetujuan owner dilakukan di luar aplikasi.
+      </MockDataNotice>
+
       <div className="grid grid-4" style={{ marginBottom: 20 }}>
         <StatCard label="Total Menunggu" value={APPROVALS.length} icon="check-check" toneKey="amber" />
         <StatCard label="Prioritas Tinggi" value={high.length} icon="alert-triangle" toneKey="danger" />
@@ -23,7 +30,7 @@ export default function ApprovalsPage() {
         <StatCard label="Rata-rata Waktu Respons" value="4,2" unit=" jam" icon="clock" toneKey="teal" />
       </div>
 
-      <div className="row g2 wrap" style={{ marginBottom: 16 }}>
+      <div className="row g2 wrap" style={{ marginBottom: 16 }} title="Angkanya benar, tapi chip ini hanya penghitung — menekannya belum menyaring tabel.">
         <span className="chip on">Semua ({APPROVALS.length})</span>
         {Array.from(new Set(APPROVALS.map((a) => a.type))).map((t) => (
           <span key={t} className="chip">{t} ({APPROVALS.filter((a) => a.type === t).length})</span>
@@ -68,8 +75,8 @@ export default function ApprovalsPage() {
                   </div>
                 )}
                 <div className="row g2">
-                  <button className="btn btn-ghost btn-sm"><Icon name="x" size={13} /> Tolak</button>
-                  <button className="btn btn-primary btn-sm"><Icon name="check" size={13} /> Setujui</button>
+                  <button className="btn btn-ghost btn-sm" disabled title="Belum tersedia — alur persetujuan owner belum dibangun. Lakukan di luar aplikasi."><Icon name="x" size={13} /> Tolak</button>
+                  <button className="btn btn-primary btn-sm" disabled title="Belum tersedia — alur persetujuan owner belum dibangun. Lakukan di luar aplikasi."><Icon name="check" size={13} /> Setujui</button>
                 </div>
               </div>
             </div>

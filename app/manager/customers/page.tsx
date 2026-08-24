@@ -4,6 +4,7 @@ import { CUSTOMERS } from "@/lib/mock";
 import { getCurrentOutlet } from "@/lib/data/outlets";
 import { getCustomersForOutlet } from "@/lib/data/customers";
 import { rp, fmtDateShort } from "@/lib/format";
+import { waLink } from "@/lib/phone";
 
 const SEGMENT_TONE: Record<string, "success" | "accent" | "info" | "neutral"> = {
   VIP: "accent", Active: "success", New: "info", Dormant: "neutral",
@@ -96,7 +97,18 @@ export default async function CustomersPage() {
             {dormant.slice(0, 6).map((c) => (
               <div key={c.id} className="row between small" style={{ padding: "6px 0" }}>
                 <PersonCell name={c.name} sub={c.lastVisit ? `Terakhir ${fmtDateShort(c.lastVisit)}` : "Belum ada kunjungan"} toneKey={c.avatarTone} size={28} />
-                <button className="btn btn-ghost btn-sm"><Icon name="message-square" size={12} /> WA</button>
+                {/* Was a <button> with no handler: staff pressed "WA" and
+                    nothing opened, so the dormant-guest list could not
+                    actually be worked from. Same wa.me treatment the
+                    booking follow-up banner already uses — and the same
+                    honest fallback when the stored number is unusable. */}
+                {waLink(c.phone) ? (
+                  <a className="btn btn-ghost btn-sm" href={waLink(c.phone)!} target="_blank" rel="noopener noreferrer">
+                    <Icon name="message-square" size={12} /> WA
+                  </a>
+                ) : (
+                  <span className="tiny dim">No. HP tidak valid</span>
+                )}
               </div>
             ))}
             {dormant.length === 0 && <div className="small dim">Tidak ada customer dormant.</div>}

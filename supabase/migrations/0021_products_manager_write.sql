@@ -1,7 +1,9 @@
 -- ---------------------------------------------------------------------
 -- 0021_products_manager_write.sql
 --
--- DRAFT — BELUM DIJALANKAN KE PRODUKSI. Menunggu persetujuan eksplisit.
+-- STATUS: SUDAH DITERAPKAN (dikonfirmasi 2026-08-24 lewat pg_policies —
+-- policyname products_manager_insert & products_manager_update keduanya
+-- ada). Manager punya akses tulis ke tabel products.
 --
 -- Latar belakang
 -- --------------

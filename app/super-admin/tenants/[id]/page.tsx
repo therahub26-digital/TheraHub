@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import Icon from "@/components/Icon";
 import { Card, CardHead, StatusBadge, Avatar, Switch, BrandPicker } from "@/components/ui";
+import MockDataNotice from "@/components/MockDataNotice";
 import { TENANTS, planOf, MODULE_LIST, AUDIT_LOGS } from "@/lib/mock";
 import { OUTLETS } from "@/lib/mock/org";
 import { rp, fmtDate, fmtDateTime } from "@/lib/format";
@@ -16,6 +17,12 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
 
   return (
     <>
+      <MockDataNotice title="Data contoh — portal platform belum dibangun">
+        Super Admin adalah level platform (provisioning tenant, paket langganan, feature flag) yang
+        belum relevan selama TheraHub dipakai satu bisnis saja. Seluruh angka dan tabel di halaman
+        ini contoh tampilan, dan tidak ada tombol di sini yang menulis ke database.
+      </MockDataNotice>
+
       <Link href="/super-admin/tenants" className="row g2 small muted" style={{ marginBottom: 14, width: "fit-content" }}>
         <Icon name="arrow-left" size={14} /> Kembali ke Tenants
       </Link>
@@ -32,8 +39,8 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           </div>
         </div>
         <div className="row g2">
-          <button className="btn btn-ghost btn-sm"><Icon name="life-buoy" size={14} /> Support Mode</button>
-          <button className="btn btn-primary btn-sm"><Icon name="edit" size={14} /> Kelola Plan</button>
+          <button className="btn btn-ghost btn-sm" disabled title="Belum tersedia — portal platform (multi-tenant) belum dibangun."><Icon name="life-buoy" size={14} /> Support Mode</button>
+          <button className="btn btn-primary btn-sm" disabled title="Belum tersedia — portal platform (multi-tenant) belum dibangun."><Icon name="edit" size={14} /> Kelola Plan</button>
         </div>
       </div>
 

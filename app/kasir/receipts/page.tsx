@@ -1,5 +1,6 @@
 import Icon from "@/components/Icon";
 import { PageHead, Card, CardHead, StatCard, Badge } from "@/components/ui";
+import MockDataNotice from "@/components/MockDataNotice";
 import { PRINT_JOBS, PRINTER_PROFILES } from "@/lib/mock";
 import { getCurrentOutlet } from "@/lib/data/outlets";
 import { getTransactionsForOutlet } from "@/lib/data/transactions";
@@ -29,6 +30,13 @@ export default async function ReceiptsPage() {
         desc={`${outlet.name} · ${today} · Riwayat struk transaksi dan status printer.`}
       />
 
+      <MockDataNotice title="Sebagian halaman ini data contoh">
+        Kartu <strong>Struk Hari Ini</strong> menampilkan transaksi yang sungguhan (15 baris pertama).
+        Sisanya — <strong>Status Printer</strong>, <strong>Riwayat Print Job</strong>, dan kotak angka
+        Print Job/Gagal Cetak/Printer Online — adalah data contoh, dan tombol <strong>Reprint</strong>
+        belum berfungsi. Cetak ulang struk belum dibangun.
+      </MockDataNotice>
+
       <div className="grid grid-4" style={{ marginBottom: 20 }}>
         <StatCard label="Struk Hari Ini" value={transactions.length} icon="receipt" toneKey="teal" deltaLabel="Total transaksi" />
         <StatCard label="Print Job" value={jobs.length} icon="printer" toneKey="sky" deltaLabel="Riwayat terbaru" />
@@ -50,7 +58,7 @@ export default async function ReceiptsPage() {
                   <td className="num small">{rp(t.total)}</td>
                   <td><Badge tone="neutral">{t.paymentMethod}</Badge></td>
                   <td className="num small muted">{t.printedCount}×</td>
-                  <td><button className="btn btn-ghost btn-sm"><Icon name="printer" size={12} /> Reprint</button></td>
+                  <td><button className="btn btn-ghost btn-sm" disabled title="Belum tersedia — cetak & cetak ulang struk belum dibangun (belum ada tabel printer di database)."><Icon name="printer" size={12} /> Reprint</button></td>
                 </tr>
               ))}
               {transactions.length === 0 && (

@@ -60,6 +60,13 @@ const MAP: Record<string, React.ComponentType<{ size?: number | string; strokeWi
   "clipboard-x": ClipboardX, "badge-check": BadgeCheck, "circle-dot": CircleDot,
   "layers-3": Layers3, "party-popper": PartyPopper, "hand-coins": HandCoins,
   calculator: Calculator, moon: Moon, car: Car, wind: Wind, camera: Camera, images: Images,
+  // Aliases. An unknown name silently falls back to CircleEllipsis ("…"),
+  // so a typo is invisible in review and only shows up as a meaningless
+  // icon on screen. These two were already in use: every booking/cancel
+  // error message in the app asked for "triangle-alert" (lucide's newer
+  // spelling of AlertTriangle) and drew "…" next to the error text
+  // instead of a warning sign; the photo gallery asked for "image".
+  "triangle-alert": AlertTriangle, image: Images,
 };
 
 export default function Icon({

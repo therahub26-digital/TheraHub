@@ -2,6 +2,7 @@ import Icon from "@/components/Icon";
 import { Badge } from "@/components/ui";
 import MobileShell from "@/components/MobileShell";
 import { ME_THERAPIST, DAY_RANGE, bookingsOf, TODAY, outletOf } from "@/lib/mock";
+import { StartSessionButton } from "@/components/SessionActions";
 import { getSignedInTherapist } from "@/lib/data/commissions";
 import { getCurrentOutlet } from "@/lib/data/outlets";
 import { getBookingsForOutlet, getEffectiveToday } from "@/lib/data/bookings";
@@ -37,10 +38,55 @@ import type { Booking } from "@/lib/types";
 // card) moved into the "Lainnya" overflow menu.
 // ---------------------------------------------------------------------
 
+// UPDATE 2026-08-24 — the job cards here used to render a <button> with
+// no onClick at all: "Mulai Sesi" looked pressable, did nothing, and did
+// nothing even when signed in for real. A therapist who pressed it
+// believed the treatment had started while the guest waited in the room —
+// the one bug in the backlog that could strand a paying guest. Two
+// separate problems were hiding behind one control, so they are now two
+// separate controls:
+//   * ARRIVED/CHECKED_IN — the guest IS in the room, so this is a real
+//     action: the same <StartSessionButton> the Sesi tab uses, calling
+//     the same startSession() Server Action. Pressing it here now does
+//     exactly what pressing it there does.
+//   * BOOKED/CONFIRMED — the guest has not been checked in by the kasir
+//     yet, so there is nothing for the therapist to press. That is a
+//     state, not an action, so it renders as a state (JobWaitingNote
+//     below) instead of a button that lies about being pressable.
+// The demo "Ganti Role" branch keeps its buttons for the presentation,
+// but they are now `disabled` with a title saying why — the app-wide
+// convention borrowed from /manager/rooms.
 const ACTION_LABEL: Record<string, string> = {
   BOOKED: "Menunggu Tamu", CONFIRMED: "Menunggu Tamu", ARRIVED: "Mulai Sesi", CHECKED_IN: "Mulai Sesi",
   IN_SESSION: "Sedang Berjalan", COMPLETED: "Selesai", PAID: "Selesai",
 };
+
+const READY_TO_START = ["ARRIVED", "CHECKED_IN"];
+
+/**
+ * Deliberately not a <button>. The therapist cannot start a session the
+ * kasir has not checked in yet, so this says what is being waited on
+ * rather than offering a control that would only ever be refused.
+ */
+function JobWaitingNote() {
+  return (
+    <div
+      className="tiny dim"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 6,
+        height: 40,
+        borderRadius: "var(--r-md)",
+        background: "var(--bg-surface-3)",
+        border: "1px dashed var(--border-2)",
+      }}
+    >
+      <Icon name="clock" size={12} /> Menunggu kasir check-in tamu
+    </div>
+  );
+}
 
 function buildJobsByDay(bookings: Booking[], therapistId: string, week: string[]) {
   return week.map((date) => ({
@@ -148,10 +194,7 @@ export default async function ShiftPage() {
                       <Icon name="info" size={11} /> {b.notes}
                     </div>
                   )}
-                  <button className={`m-btn ${["ARRIVED", "CHECKED_IN"].includes(b.status) ? "m-btn-primary" : "m-btn-ghost"}`}>
-                    <Icon name={["ARRIVED", "CHECKED_IN"].includes(b.status) ? "play" : "clock"} size={14} />
-                    {ACTION_LABEL[b.status]}
-                  </button>
+                  {READY_TO_START.includes(b.status) ? <StartSessionButton bookingId={b.id} /> : <JobWaitingNote />}
                 </div>
               ))}
               {pending.length === 0 && <div className="small dim">Tidak ada job yang menunggu.</div>}
@@ -277,8 +320,12 @@ export default async function ShiftPage() {
                     <Icon name="info" size={11} /> {b.notes}
                   </div>
                 )}
-                <button className={`m-btn ${["ARRIVED", "CHECKED_IN"].includes(b.status) ? "m-btn-primary" : "m-btn-ghost"}`}>
-                  <Icon name={["ARRIVED", "CHECKED_IN"].includes(b.status) ? "play" : "clock"} size={14} />
+                <button
+                  className={`m-btn ${READY_TO_START.includes(b.status) ? "m-btn-primary" : "m-btn-ghost"}`}
+                  disabled
+                  title="Mode demo — masuk sebagai terapis untuk benar-benar memulai sesi."
+                >
+                  <Icon name={READY_TO_START.includes(b.status) ? "play" : "clock"} size={14} />
                   {ACTION_LABEL[b.status]}
                 </button>
               </div>

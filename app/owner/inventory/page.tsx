@@ -1,4 +1,5 @@
 import { PageHead, Card, CardHead, StatCard } from "@/components/ui";
+import MockDataNotice from "@/components/MockDataNotice";
 import { DonutChart, LegendList, BarsChart } from "@/components/Charts";
 import { PRODUCTS, OUTLETS, lowStock, STOCK_OPNAMES, TRANSFERS, outletName } from "@/lib/mock";
 import { rp } from "@/lib/format";
@@ -22,6 +23,11 @@ export default function OwnerInventoryPage() {
   return (
     <>
       <PageHead title="Inventory Summary" desc="Ringkasan nilai stok, variance, dan pergerakan antar outlet." />
+
+      <MockDataNotice>
+        Angka stok di halaman ini contoh tampilan. Data stok sungguhan ada di portal Manager &rarr;
+        <strong>Inventory</strong>.
+      </MockDataNotice>
 
       <div className="grid grid-4" style={{ marginBottom: 20 }}>
         <StatCard label="Nilai Stok Total" value={rp(totalValue, { short: true })} icon="package" toneKey="teal" foot={`${PRODUCTS.length} item master`} />

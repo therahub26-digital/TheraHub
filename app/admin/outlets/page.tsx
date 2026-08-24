@@ -10,7 +10,7 @@ export default async function OutletsPage() {
       <PageHead
         title="Outlets"
         desc="Kelola lokasi fisik operasional. Single/multi sesuai entitlement plan."
-        actions={<button className="btn btn-primary btn-sm"><Icon name="plus" size={14} /> Tambah Outlet</button>}
+        actions={<button className="btn btn-primary btn-sm" disabled title="Belum tersedia — untuk sekarang perubahan ini dilakukan langsung di database oleh admin teknis."><Icon name="plus" size={14} /> Tambah Outlet</button>}
       />
 
       <div className="grid grid-3" style={{ marginBottom: 20 }}>
@@ -25,7 +25,7 @@ export default async function OutletsPage() {
             <div className="card-pad" style={{ paddingBottom: 12 }}>
               <div className="between" style={{ marginBottom: 8 }}>
                 <Badge tone="success" dot>{o.status}</Badge>
-                <button className="btn btn-quiet btn-icon btn-sm"><Icon name="more" size={15} /></button>
+                <button className="btn btn-quiet btn-icon btn-sm" disabled title="Belum tersedia — fiturnya belum dibangun."><Icon name="more" size={15} /></button>
               </div>
               <h3 style={{ marginBottom: 3 }}>{o.name}</h3>
               <div className="small muted" style={{ marginBottom: 2 }}>{o.address}</div>
@@ -85,7 +85,7 @@ export default async function OutletsPage() {
             display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
             gap: 10, minHeight: 260, border: "1.5px dashed var(--border-3)", background: "transparent",
           }}
-        >
+         disabled title="Belum tersedia — untuk sekarang perubahan ini dilakukan langsung di database oleh admin teknis.">
           <span className="stat-icon" style={{ width: 44, height: 44, borderRadius: 14 }}>
             <Icon name="plus" size={20} />
           </span>

@@ -1,7 +1,10 @@
 -- ---------------------------------------------------------------------
 -- 0022_employee_leave_requests.sql
 --
--- DRAFT — BELUM DIJALANKAN KE PRODUKSI. Menunggu persetujuan eksplisit.
+-- SUDAH DITERAPKAN KE PRODUKSI 2026-08-23 — dijalankan sendiri oleh user
+-- lewat SQL Editor, diverifikasi ulang lewat to_regclass + pg_policies.
+-- (Status diperbarui 2026-08-24; header ini sempat tetap menulis "DRAFT"
+-- setelah migrasinya jalan dan sempat menyesatkan sesi berikutnya.)
 --
 -- Latar belakang
 -- --------------

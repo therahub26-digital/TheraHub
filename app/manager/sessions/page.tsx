@@ -8,8 +8,16 @@ import { getSessionsForOutlet, getExtensionRequestsForOutlet } from "@/lib/data/
 import { getEffectiveToday, getEffectiveNow } from "@/lib/data/bookings";
 import { minutesToHm, rp } from "@/lib/format";
 
+// `conflictCheck` is written as 'CLEAR' unconditionally — nothing in the
+// codebase actually looks for an overlapping booking before an extension
+// is approved (backlog 2.4: whether to build that detection is still the
+// user's call). Until it exists, 'CLEAR' means "nobody checked", not
+// "checked and clean", and the old wording — "Tidak ada konflik" next to
+// a green tick — asserted the opposite of the truth at the exact moment
+// the kasir decides. Saying nothing was checked is worse-looking and
+// more honest, and it points at the card that can answer the question.
 const CONFLICT_LABEL: Record<string, string> = {
-  CLEAR: "Tidak ada konflik",
+  CLEAR: "Belum dicek otomatis — periksa sendiri room & terapis di Sesi Berjalan",
   ROOM_CONFLICT: "Konflik room",
   THERAPIST_CONFLICT: "Konflik jadwal terapis",
 };
@@ -51,7 +59,7 @@ export default async function SessionsPage() {
         <StatCard label="Sesi Aktif" value={running.length} icon="timer" toneKey="teal" deltaLabel="Berjalan saat ini" />
         <StatCard label="Akan Berakhir" value={endingSoon.length} icon="hourglass" toneKey="amber" deltaLabel="≤ 10 menit lagi" />
         <StatCard label="Selesai Hari Ini" value={completed.length} icon="check-circle" toneKey="sky" deltaLabel="Sesi tercatat" />
-        <StatCard label="Extension Pending" value={pendingExtensions.length} icon="clock" toneKey="danger" deltaLabel={`${requests.filter((r) => r.conflictCheck !== "CLEAR").length} dengan konflik`} />
+        <StatCard label="Extension Pending" value={pendingExtensions.length} icon="clock" toneKey="danger" deltaLabel="Bentrok belum dicek otomatis" />
       </div>
 
       <div className="grid grid-3" style={{ alignItems: "start", marginBottom: 20 }}>
@@ -114,8 +122,8 @@ export default async function SessionsPage() {
                       {CONFLICT_LABEL[r.conflictCheck]}{r.reason ? ` — ${r.reason}` : ""}
                     </div>
                   ) : (
-                    <div className="row g2 tiny dim">
-                      <Icon name="check-circle" size={12} />
+                    <div className="row g2 tiny" style={{ color: "var(--warning)" }}>
+                      <Icon name="info" size={12} />
                       {CONFLICT_LABEL[r.conflictCheck]}
                     </div>
                   )}

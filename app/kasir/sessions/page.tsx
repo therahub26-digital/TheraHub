@@ -1,3 +1,4 @@
+import Link from "next/link";
 import Icon from "@/components/Icon";
 import { PageHead, Card, CardHead, StatCard, Badge, PersonCell, Progress } from "@/components/ui";
 import { PaySessionButton, ExtensionDecisionButtons, CompleteSessionButton } from "@/components/SessionActions";
@@ -8,8 +9,16 @@ import { getSessionsForOutlet, getExtensionRequestsForOutlet } from "@/lib/data/
 import { getEffectiveToday, getEffectiveNow } from "@/lib/data/bookings";
 import { rp } from "@/lib/format";
 
+// `conflictCheck` is written as 'CLEAR' unconditionally — nothing in the
+// codebase actually looks for an overlapping booking before an extension
+// is approved (backlog 2.4: whether to build that detection is still the
+// user's call). Until it exists, 'CLEAR' means "nobody checked", not
+// "checked and clean", and the old wording — "Tidak ada konflik" next to
+// a green tick — asserted the opposite of the truth at the exact moment
+// the kasir decides. Saying nothing was checked is worse-looking and
+// more honest, and it points at the card that can answer the question.
 const CONFLICT_LABEL: Record<string, string> = {
-  CLEAR: "Tidak ada konflik",
+  CLEAR: "Belum dicek otomatis — periksa sendiri room & terapis di Sesi Berjalan",
   ROOM_CONFLICT: "Konflik room",
   THERAPIST_CONFLICT: "Konflik jadwal terapis",
 };
@@ -94,8 +103,8 @@ export default async function SessionMonitorPage() {
                       {CONFLICT_LABEL[r.conflictCheck]}{r.reason ? ` — ${r.reason}` : ""}
                     </div>
                   ) : (
-                    <div className="row g2 tiny dim">
-                      <Icon name="check-circle" size={12} />
+                    <div className="row g2 tiny" style={{ color: "var(--warning)" }}>
+                      <Icon name="info" size={12} />
                       {CONFLICT_LABEL[r.conflictCheck]}{r.reason ? ` — ${r.reason}` : ""}
                     </div>
                   )}
@@ -148,7 +157,7 @@ export default async function SessionMonitorPage() {
         </Card>
 
         <Card>
-          <CardHead title="Siap Diproses Pembayaran" sub={`${awaitingPayment.length} menunggu · ${alreadyPaid.length} sudah dibayar`} action={<button className="btn btn-quiet btn-sm">Lihat POS</button>} />
+          <CardHead title="Siap Diproses Pembayaran" sub={`${awaitingPayment.length} menunggu · ${alreadyPaid.length} sudah dibayar`} action={<Link href="/kasir/pos" className="btn btn-quiet btn-sm">Lihat POS</Link>} />
           <div className="card-body stack g2">
             {completed.length === 0 && <div className="small dim">Belum ada sesi yang selesai.</div>}
             {completed.length > 0 && awaitingPayment.length === 0 && (

@@ -15,7 +15,7 @@ export default async function ManagerLayout({ children }: { children: React.Reac
   const pendingExtensions = extensionRequests.filter((r) => r.status === "PENDING").length;
 
   return (
-    <Shell role="manager" scopeLabel={PRIMARY_OUTLET.name} scopeSub={PRIMARY_OUTLET.city} brandKey={ACTIVE_TENANT.logoTone} notificationCount={pendingExtensions}>
+    <Shell role="manager" scopeLabel={PRIMARY_OUTLET.name} scopeSub={PRIMARY_OUTLET.city} brandKey={ACTIVE_TENANT.logoTone} notificationCount={pendingExtensions} notificationHref="/manager/sessions">
       <RoomAlertBanner outletId={outlet.id} alerts={alerts} />
       {children}
     </Shell>

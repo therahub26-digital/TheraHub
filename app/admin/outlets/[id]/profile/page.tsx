@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import Icon from "@/components/Icon";
 import { PageHead, Card, CardHead, Field, Switch, InfoNote, Badge, PersonCell } from "@/components/ui";
+import MockDataNotice from "@/components/MockDataNotice";
 import { therapistsOf } from "@/lib/mock";
 import { getOutletById } from "@/lib/data/outlets";
 import { MEDIA_SPECS, specLine } from "@/lib/media";
@@ -29,12 +30,19 @@ export default async function OutletProfilePage({ params }: { params: Promise<{ 
             <Link href={`/customer/outlets/${outlet.id}`} className="btn btn-ghost btn-sm">
               <Icon name="eye" size={14} /> Lihat Preview
             </Link>
-            <button className="btn btn-primary btn-sm">
+            <button className="btn btn-primary btn-sm" disabled title="Belum tersedia — belum ada jalur simpan, perubahan di halaman ini tidak tersimpan.">
               <Icon name="save" size={14} /> Simpan Perubahan
             </button>
           </>
         }
       />
+
+      <MockDataNotice title="Halaman ini hanya pratinjau">
+        Tombol <strong>Simpan Perubahan</strong>, semua tombol unggah/hapus foto,
+        <strong>Tambah Fasilitas</strong>, <strong>Tambah Foto</strong>, dan saklar publikasi belum
+        tersambung ke apa pun. Perubahan profil publik outlet masih harus dilakukan langsung di
+        database. Tombol <strong>Lihat Preview</strong> berfungsi.
+      </MockDataNotice>
 
       <Card style={{ marginBottom: 20 }}>
         <CardHead
@@ -58,8 +66,8 @@ export default async function OutletProfilePage({ params }: { params: Promise<{ 
           sub={`Foto besar di bagian atas halaman — ${specLine("cover")}`}
           action={
             <div className="row g2">
-              <button className="btn btn-ghost btn-sm"><Icon name="upload" size={13} /> {p.cover ? "Ganti Foto" : "Unggah Foto"}</button>
-              {p.cover && <button className="btn btn-quiet btn-sm"><Icon name="trash" size={13} /> Hapus</button>}
+              <button className="btn btn-ghost btn-sm" disabled title="Belum tersedia — untuk sekarang perubahan ini dilakukan langsung di database oleh admin teknis."><Icon name="upload" size={13} /> {p.cover ? "Ganti Foto" : "Unggah Foto"}</button>
+              {p.cover && <button className="btn btn-quiet btn-sm" disabled title="Belum tersedia — untuk sekarang perubahan ini dilakukan langsung di database oleh admin teknis."><Icon name="trash" size={13} /> Hapus</button>}
             </div>
           }
         />
@@ -108,7 +116,7 @@ export default async function OutletProfilePage({ params }: { params: Promise<{ 
                 alignItems: "center", justifyContent: "center", borderRadius: "var(--r-md)",
                 border: "1.5px dashed var(--border-3)", background: "transparent", color: "var(--text-3)",
               }}
-            >
+             disabled title="Belum tersedia — untuk sekarang perubahan ini dilakukan langsung di database oleh admin teknis.">
               <span className="stat-icon" style={{ width: 40, height: 40, borderRadius: 12 }}>
                 <Icon name="camera" size={19} />
               </span>
@@ -154,7 +162,7 @@ export default async function OutletProfilePage({ params }: { params: Promise<{ 
           </div>
           <div className="row g2">
             <input className="input" placeholder="Tambah poin unggulan baru…" style={{ maxWidth: 340 }} />
-            <button className="btn btn-ghost btn-sm">
+            <button className="btn btn-ghost btn-sm" disabled title="Belum tersedia — untuk sekarang perubahan ini dilakukan langsung di database oleh admin teknis.">
               <Icon name="plus" size={13} /> Tambah
             </button>
           </div>
@@ -165,7 +173,7 @@ export default async function OutletProfilePage({ params }: { params: Promise<{ 
         <CardHead
           title="Fasilitas"
           sub={`${p.facilities.length} fasilitas ditampilkan`}
-          action={<button className="btn btn-ghost btn-sm"><Icon name="plus" size={13} /> Tambah Fasilitas</button>}
+          action={<button className="btn btn-ghost btn-sm" disabled title="Belum tersedia — untuk sekarang perubahan ini dilakukan langsung di database oleh admin teknis."><Icon name="plus" size={13} /> Tambah Fasilitas</button>}
         />
         <div className="card-body">
           <div className="grid grid-3">
@@ -175,7 +183,7 @@ export default async function OutletProfilePage({ params }: { params: Promise<{ 
                   <span className="stat-icon" style={{ width: 30, height: 30, borderRadius: 9 }}>
                     <Icon name={f.icon} size={15} />
                   </span>
-                  <button className="btn btn-quiet btn-icon btn-sm"><Icon name="trash" size={13} /></button>
+                  <button className="btn btn-quiet btn-icon btn-sm" disabled title="Belum tersedia — untuk sekarang perubahan ini dilakukan langsung di database oleh admin teknis."><Icon name="trash" size={13} /></button>
                 </div>
                 <input className="input" defaultValue={f.name} style={{ height: 32, fontSize: 12.5, fontWeight: 600 }} />
                 <textarea className="textarea" defaultValue={f.desc} style={{ minHeight: 56, fontSize: 12 }} />
@@ -189,7 +197,7 @@ export default async function OutletProfilePage({ params }: { params: Promise<{ 
         <CardHead
           title="Galeri Foto Fasilitas"
           sub={`${p.gallery.length} foto · ${specLine("gallery")}`}
-          action={<button className="btn btn-ghost btn-sm"><Icon name="upload" size={13} /> Tambah Foto</button>}
+          action={<button className="btn btn-ghost btn-sm" disabled title="Belum tersedia — untuk sekarang perubahan ini dilakukan langsung di database oleh admin teknis."><Icon name="upload" size={13} /> Tambah Foto</button>}
         />
         <div className="card-body">
           <div className="grid grid-3">
@@ -211,7 +219,7 @@ export default async function OutletProfilePage({ params }: { params: Promise<{ 
                   <button
                     className="btn btn-quiet btn-icon btn-sm"
                     style={{ position: "absolute", top: 6, right: 6, background: "rgba(0,0,0,0.42)", color: "#fff" }}
-                  >
+                   disabled title="Belum tersedia — untuk sekarang perubahan ini dilakukan langsung di database oleh admin teknis.">
                     <Icon name="trash" size={12} />
                   </button>
                 </div>
@@ -226,7 +234,7 @@ export default async function OutletProfilePage({ params }: { params: Promise<{ 
                 borderRadius: "var(--r-md)", border: "1.5px dashed var(--border-3)",
                 background: "transparent", color: "var(--text-3)",
               }}
-            >
+             disabled title="Belum tersedia — untuk sekarang perubahan ini dilakukan langsung di database oleh admin teknis.">
               <span className="stat-icon" style={{ width: 34, height: 34, borderRadius: 10 }}>
                 <Icon name="camera" size={16} />
               </span>

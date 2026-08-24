@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Icon from "@/components/Icon";
 import { PageHead, Card, StatusBadge, Avatar, Badge } from "@/components/ui";
+import MockDataNotice from "@/components/MockDataNotice";
 import { TENANTS, PLANS } from "@/lib/mock";
 import { rp, fmtDate } from "@/lib/format";
 
@@ -14,17 +15,23 @@ export default function TenantsPage() {
           <>
             <div className="search-box">
               <Icon name="search" size={15} />
-              <input className="input" placeholder="Cari tenant, slug, atau kota…" style={{ width: 240 }} />
+              <input className="input" placeholder="Cari tenant, slug, atau kota…" disabled title="Belum tersedia — kotak pencarian di halaman ini belum menyaring tabel." style={{ width: 240 }} />
             </div>
-            <button className="btn btn-primary btn-sm">
+            <button className="btn btn-primary btn-sm" disabled title="Belum tersedia — provisioning tenant baru belum dibangun; tombol ini tidak membuat tenant apa pun.">
               <Icon name="plus" size={14} /> Provision Tenant Baru
             </button>
           </>
         }
       />
 
+      <MockDataNotice title="Data contoh — portal platform belum dibangun">
+        Super Admin adalah level platform (provisioning tenant, paket langganan, feature flag) yang
+        belum relevan selama TheraHub dipakai satu bisnis saja. Seluruh angka dan tabel di halaman
+        ini contoh tampilan, dan tidak ada tombol di sini yang menulis ke database.
+      </MockDataNotice>
+
       <div className="row g2 wrap" style={{ marginBottom: 16 }}>
-        <span className="chip on">Semua ({TENANTS.length})</span>
+        <span className="chip on" title="Angkanya benar, tapi chip ini hanya penghitung — menekannya belum menyaring tabel.">Semua ({TENANTS.length})</span>
         {["ACTIVE", "TRIAL", "GRACE", "SUSPENDED", "CHURNED"].map((s) => (
           <span className="chip" key={s}>{s} ({TENANTS.filter((t) => t.status === s).length})</span>
         ))}

@@ -24,14 +24,14 @@ export default async function UsersPage() {
           <>
             <div className="search-box">
               <Icon name="search" size={15} />
-              <input className="input" placeholder="Cari nama atau email…" style={{ width: 220 }} />
+              <input className="input" placeholder="Cari nama atau email…" disabled title="Belum tersedia — kotak pencarian di halaman ini belum menyaring tabel." style={{ width: 220 }} />
             </div>
-            <button className="btn btn-primary btn-sm"><Icon name="plus" size={14} /> Tambah User</button>
+            <button className="btn btn-primary btn-sm" disabled title="Belum tersedia — penambahan karyawan dilakukan Manager Outlet di menu Therapists & Staff."><Icon name="plus" size={14} /> Tambah User</button>
           </>
         }
       />
 
-      <div className="row g2 wrap" style={{ marginBottom: 16 }}>
+      <div className="row g2 wrap" style={{ marginBottom: 16 }} title="Angkanya benar, tapi chip ini hanya penghitung — menekannya belum menyaring tabel.">
         <span className="chip on">Semua ({EMPLOYEES.length})</span>
         <span className="chip">Manager ({EMPLOYEES.filter((e) => e.jobRole === "Manager").length})</span>
         <span className="chip">Kasir ({EMPLOYEES.filter((e) => e.jobRole === "Kasir").length})</span>
@@ -94,7 +94,7 @@ export default async function UsersPage() {
                   <td><StatusBadge status={e.status} /></td>
                   <td>
                     <div className="row g1">
-                      <button className="btn btn-quiet btn-icon btn-sm"><Icon name="more" size={14} /></button>
+                      <button className="btn btn-quiet btn-icon btn-sm" disabled title="Belum tersedia — fiturnya belum dibangun."><Icon name="more" size={14} /></button>
                     </div>
                   </td>
                 </tr>

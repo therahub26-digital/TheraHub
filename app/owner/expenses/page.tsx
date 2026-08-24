@@ -1,5 +1,6 @@
 import Icon from "@/components/Icon";
 import { PageHead, Card, CardHead, StatCard, StatusBadge } from "@/components/ui";
+import MockDataNotice from "@/components/MockDataNotice";
 import { DonutChart, LegendList, BarsChart } from "@/components/Charts";
 import { expensesOf, expenseByCategory, OUTLETS, PETTY_CASH } from "@/lib/mock";
 import { rp, fmtDate } from "@/lib/format";
@@ -19,8 +20,14 @@ export default function OwnerExpensesPage() {
       <PageHead
         title="Expenses"
         desc="Summary dan approval workflow biaya operasional seluruh outlet."
-        actions={<button className="btn btn-primary btn-sm"><Icon name="plus" size={14} /> Input Biaya</button>}
+        actions={<button className="btn btn-primary btn-sm" disabled title="Belum tersedia — pencatatan biaya dilakukan di portal Manager → Expenses."><Icon name="plus" size={14} /> Input Biaya</button>}
       />
+
+      <MockDataNotice>
+        Angka dan antrian di halaman ini contoh tampilan, dan tombol <strong>Setujui</strong>/
+        <strong>Tolak</strong> belum tersambung ke apa pun. Pencatatan dan persetujuan biaya yang
+        sungguhan dilakukan di portal Manager &rarr; <strong>Expenses</strong>.
+      </MockDataNotice>
 
       <div className="grid grid-4" style={{ marginBottom: 20 }}>
         <StatCard label="Total Biaya Bulan Ini" value={rp(totalThisMonth, { short: true })} icon="receipt" toneKey="rose" />
@@ -62,8 +69,8 @@ export default function OwnerExpensesPage() {
                   <td className="num strong">{rp(e.amount)}</td>
                   <td>
                     <div className="row g1">
-                      <button className="btn btn-primary btn-sm">Setujui</button>
-                      <button className="btn btn-ghost btn-icon btn-sm"><Icon name="x" size={13} /></button>
+                      <button className="btn btn-primary btn-sm" disabled title="Belum tersedia — persetujuan biaya dilakukan di portal Manager → Expenses.">Setujui</button>
+                      <button className="btn btn-ghost btn-icon btn-sm" disabled title="Belum tersedia — persetujuan biaya dilakukan di portal Manager → Expenses."><Icon name="x" size={13} /></button>
                     </div>
                   </td>
                 </tr>

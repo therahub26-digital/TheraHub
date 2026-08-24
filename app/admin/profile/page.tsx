@@ -1,5 +1,6 @@
 import Icon from "@/components/Icon";
 import { PageHead, Card, CardHead, Field, BrandPicker } from "@/components/ui";
+import MockDataNotice from "@/components/MockDataNotice";
 import ThemePresetPicker from "@/components/ThemePresetPicker";
 import { BUSINESS_PROFILE, ACTIVE_TENANT } from "@/lib/mock";
 
@@ -10,8 +11,15 @@ export default function BusinessProfilePage() {
       <PageHead
         title="Business Profile"
         desc="Logo, nama brand, kontak, dan identitas invoice. Tidak mengubah plan/entitlement."
-        actions={<button className="btn btn-primary btn-sm"><Icon name="save" size={14} /> Simpan Perubahan</button>}
+        actions={<button className="btn btn-primary btn-sm" disabled title="Belum tersedia — belum ada jalur simpan, perubahan di halaman ini tidak tersimpan."><Icon name="save" size={14} /> Simpan Perubahan</button>}
       />
+
+      <MockDataNotice title="Isian di halaman ini belum bisa disimpan">
+        Tombol <strong>Simpan Perubahan</strong> belum tersambung — semua isian identitas brand
+        hilang saat halaman dimuat ulang, begitu juga warna brand dan unggah logo. Satu-satunya
+        kontrol yang berfungsi di sini adalah pemilih tema, dan itu pun hanya berlaku di browser
+        Anda sendiri, bukan untuk semua pengguna.
+      </MockDataNotice>
 
       <div className="grid grid-3" style={{ alignItems: "start" }}>
         <div className="stack g5" style={{ gridColumn: "span 2" }}>

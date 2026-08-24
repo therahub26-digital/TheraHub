@@ -723,6 +723,12 @@ table.tbl .strong { color: var(--text-1); font-weight: 600; }
   transition: all var(--dur-1);
 }
 .chip:hover { border-color: var(--border-3); color: var(--text-1); }
+/* A .chip on an <a> is a real filter/navigation control; a .chip on a
+   <span> is a counter that nothing listens to. They looked identical and
+   both lit up on hover, so the counters read as pressable. Keep the
+   affordance only where there is something to press. */
+.chip:not(a):not(button) { cursor: default; }
+.chip:not(a):not(button):hover { border-color: var(--border-2); color: var(--text-3); }
 .chip.on { background: var(--accent-soft); border-color: rgba(16, 185, 129, 0.3); color: var(--accent); }
 
 .empty {
@@ -1129,6 +1135,9 @@ table.tbl .strong { color: var(--text-1); font-weight: 600; }
 .m-btn-primary { background: var(--accent-gradient); color: #04140f; box-shadow: var(--sh-accent); }
 .m-btn-ghost { background: var(--bg-surface-3); color: var(--text-2); border: 1px solid var(--border-2); }
 .m-btn-danger { background: var(--danger-soft); color: var(--danger); border: 1px solid rgba(239,68,68,0.3); }
+/* .m-btn had no disabled state, so a disabled mobile button still looked
+   pressable. Mirrors .btn:disabled above. */
+.m-btn:disabled { opacity: 0.45; pointer-events: none; }
 
 .m-row {
   display: flex;

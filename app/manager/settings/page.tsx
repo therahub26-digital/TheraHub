@@ -1,5 +1,6 @@
 import Icon from "@/components/Icon";
 import { PageHead, Card, CardHead, Field, Switch, InfoNote } from "@/components/ui";
+import MockDataNotice from "@/components/MockDataNotice";
 import AlarmSoundSetting from "@/components/AlarmSoundSetting";
 import BookingWindowSetting from "@/components/BookingWindowSetting";
 import { PRIMARY_OUTLET, depositFor } from "@/lib/mock";
@@ -31,8 +32,16 @@ export default async function OutletSettingsPage() {
       <PageHead
         title="Outlet Settings"
         desc={`${outlet.name} · Jam operasional, kebijakan booking, dan preferensi outlet.`}
-        actions={<button className="btn btn-primary btn-sm"><Icon name="save" size={14} /> Simpan Perubahan</button>}
+        actions={<button className="btn btn-primary btn-sm" disabled title="Belum tersedia — hanya kartu Suara Alarm Sesi dan Jendela Booking yang bisa disimpan di halaman ini."><Icon name="save" size={14} /> Simpan Perubahan</button>}
       />
+
+      <MockDataNotice title="Hanya dua kartu di halaman ini yang bisa disimpan">
+        Yang benar-benar tersimpan: <strong>Suara Alarm Sesi</strong> dan
+        <strong>Jendela Booking Customer App</strong>. Selebihnya — Deposit Booking, Kebijakan Booking,
+        Notifikasi Outlet, dan tombol <strong>Simpan Perubahan</strong> di kanan atas — belum
+        tersambung; isian di kartu-kartu itu hilang saat halaman dimuat ulang. Perubahan pajak,
+        service charge, dan alamat outlet masih dilakukan langsung di database.
+      </MockDataNotice>
 
       <div className="grid grid-3" style={{ alignItems: "start", marginBottom: 20 }}>
         <Card style={{ gridColumn: "span 2" }}>

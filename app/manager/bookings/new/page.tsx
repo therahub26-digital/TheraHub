@@ -38,6 +38,7 @@ export default async function NewBookingPage() {
           unavailableTherapistIds={unavailableTherapistIds}
           source="Kasir"
           backHref="/manager/bookings"
+          successHref="/manager/bookings?date={date}"
         />
       </Card>
     </>

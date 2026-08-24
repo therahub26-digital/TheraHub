@@ -1,5 +1,6 @@
 import Icon from "@/components/Icon";
 import { PageHead, Card, CardHead, StatCard, KV } from "@/components/ui";
+import MockDataNotice from "@/components/MockDataNotice";
 import { TrendArea, BarsChart, DonutChart, LegendList } from "@/components/Charts";
 import { PRIMARY_OUTLET, revenueSeries, bookingKpi, salesBreakdown, outletPnl, THERAPIST_RANKING, packagesOf, TODAY, CURRENT_PERIOD } from "@/lib/mock";
 import { rp, pct, monthLabel } from "@/lib/format";
@@ -19,8 +20,16 @@ export default function ReportsPage() {
       <PageHead
         title="Reports"
         desc={`${outlet.name} · ${monthLabel(CURRENT_PERIOD)} · Ringkasan operasional dan profitabilitas outlet.`}
-        actions={<button className="btn btn-ghost btn-sm"><Icon name="download" size={14} /> Export PDF</button>}
+        actions={<button className="btn btn-ghost btn-sm" disabled title="Belum tersedia — ekspor laporan belum dibangun di aplikasi ini."><Icon name="download" size={14} /> Export PDF</button>}
       />
+
+      <MockDataNotice>
+        Seluruh angka di halaman ini — Revenue, Operating Profit, No-show Rate, ranking terapis —
+        ditulis tetap di kode sebagai contoh tampilan. Halaman ini bahkan tidak mengikuti outlet
+        yang sedang Anda gunakan. Untuk angka sungguhan: pendapatan di <strong>Today</strong> dan
+        <strong>POS / Transactions</strong>, komisi di <strong>Komisi Terapis</strong>, biaya di
+        <strong>Expenses</strong>, performa terapis di <strong>Therapists &amp; Staff</strong>.
+      </MockDataNotice>
 
       <div className="grid grid-4" style={{ marginBottom: 20 }}>
         <StatCard label="Revenue Bulan Ini" value={rp(pnl.revenue, { short: true })} icon="circle-dollar" toneKey="teal" deltaLabel="Termasuk semua kategori item" />

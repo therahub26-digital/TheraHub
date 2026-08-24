@@ -1,5 +1,6 @@
 import Icon from "@/components/Icon";
 import { PageHead, Card, Badge } from "@/components/ui";
+import MockDataNotice from "@/components/MockDataNotice";
 import { INTEGRATIONS } from "@/lib/mock";
 import { fmtDateTime } from "@/lib/format";
 
@@ -7,6 +8,12 @@ export default function IntegrationsPage() {
   return (
     <>
       <PageHead title="Integrations" desc="Koneksi ke penyedia pihak ketiga: notifikasi, pembayaran, maps, dan print bridge." />
+
+      <MockDataNotice title="Belum ada satu pun integrasi yang aktif">
+        Halaman ini masih tampilan contoh. <strong>Tidak ada</strong> integrasi yang benar-benar
+        terhubung — termasuk Midtrans, WhatsApp Business API, Google Maps, dan Print Bridge.
+        Tombol di kartu-kartu di bawah belum tersambung ke apa pun.
+      </MockDataNotice>
 
       <div className="grid grid-2">
         {INTEGRATIONS.map((it) => (
@@ -35,8 +42,12 @@ export default function IntegrationsPage() {
               <span className="tiny dim">
                 {it.lastSync !== "—" ? `Sinkron terakhir ${fmtDateTime(it.lastSync)}` : "Belum terhubung"}
               </span>
-              <button className={`btn btn-sm ${it.status === "Connected" ? "btn-ghost" : "btn-primary"}`}>
-                {it.status === "Connected" ? "Kelola" : "Hubungkan"}
+              <button
+                className="btn btn-sm btn-ghost"
+                disabled
+                title="Belum tersedia — belum ada alur penyambungan integrasi, belum dibangun."
+              >
+                Hubungkan
               </button>
             </div>
           </Card>

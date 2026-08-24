@@ -1,5 +1,6 @@
 import Icon from "@/components/Icon";
 import { PageHead, Card, Badge } from "@/components/ui";
+import MockDataNotice from "@/components/MockDataNotice";
 import { PLANS, MODULE_LIST, TENANTS } from "@/lib/mock";
 import { rp } from "@/lib/format";
 
@@ -9,8 +10,14 @@ export default function PlansPage() {
       <PageHead
         title="Plans & Module Entitlements"
         desc="Kelola paket, harga, dan modul yang tersedia per plan. Module entitlement adalah kontrak kemampuan tenant."
-        actions={<button className="btn btn-primary btn-sm"><Icon name="plus" size={14} /> Tambah Plan</button>}
+        actions={<button className="btn btn-primary btn-sm" disabled title="Belum tersedia — portal platform (multi-tenant) belum dibangun."><Icon name="plus" size={14} /> Tambah Plan</button>}
       />
+
+      <MockDataNotice title="Data contoh — portal platform belum dibangun">
+        Super Admin adalah level platform (provisioning tenant, paket langganan, feature flag) yang
+        belum relevan selama TheraHub dipakai satu bisnis saja. Seluruh angka dan tabel di halaman
+        ini contoh tampilan, dan tidak ada tombol di sini yang menulis ke database.
+      </MockDataNotice>
 
       <div className="grid grid-4" style={{ marginBottom: 24, alignItems: "stretch" }}>
         {PLANS.map((p) => (

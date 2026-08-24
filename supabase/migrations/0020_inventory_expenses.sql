@@ -1,5 +1,9 @@
 -- ---------------------------------------------------------------------
--- 0020_inventory_expenses.sql   ***DRAFT — BELUM DITERAPKAN***
+-- 0020_inventory_expenses.sql   ***SUDAH DITERAPKAN 2026-08-23***
+--
+-- (Status diperbarui 2026-08-24. Header lama masih menulis "DRAFT — BELUM
+-- DITERAPKAN" lama setelah migrasinya dijalankan; lihat migrations/README.md
+-- untuk daftar status yang dijaga tetap mutakhir.)
 --
 -- Melengkapi skema untuk /manager/inventory dan /manager/expenses, dua
 -- halaman yang sampai sekarang masih 100% mock.

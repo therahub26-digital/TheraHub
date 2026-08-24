@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Icon from "@/components/Icon";
 import { PageHead, Card, CardHead, StatCard, StatusBadge, Avatar, Badge, Progress } from "@/components/ui";
+import MockDataNotice from "@/components/MockDataNotice";
 import { TrendArea, DonutChart, BarsChart, LegendList } from "@/components/Charts";
 import {
   PLATFORM_KPI,
@@ -25,7 +26,7 @@ export default function SuperAdminDashboard() {
         desc="Ringkasan seluruh sistem dan aktivitas platform TheraHub Cloud."
         actions={
           <>
-            <button className="btn btn-ghost btn-sm">
+            <button className="btn btn-ghost btn-sm" disabled title="Belum tersedia — pemilih periode belum dibangun; ini label tetap, bukan filter.">
               <Icon name="calendar" size={14} /> 1–31 Agustus 2026
             </button>
             <Link href="/super-admin/tenants" className="btn btn-primary btn-sm">
@@ -34,6 +35,12 @@ export default function SuperAdminDashboard() {
           </>
         }
       />
+
+      <MockDataNotice title="Data contoh — portal platform belum dibangun">
+        Super Admin adalah level platform (provisioning tenant, paket langganan, feature flag) yang
+        belum relevan selama TheraHub dipakai satu bisnis saja. Seluruh angka dan tabel di halaman
+        ini contoh tampilan, dan tidak ada tombol di sini yang menulis ke database.
+      </MockDataNotice>
 
       <div className="grid grid-4" style={{ marginBottom: 20 }}>
         <StatCard label="Tenant Aktif" value={PLATFORM_KPI.activeTenants} icon="building-2" toneKey="violet" delta={8.3} deltaLabel="vs bulan lalu" />

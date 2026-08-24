@@ -1,4 +1,5 @@
 import { PageHead, Card, CardHead, StatCard, Badge } from "@/components/ui";
+import MockDataNotice from "@/components/MockDataNotice";
 import { TrendArea, MultiLine, DonutChart, LegendList, BarsChart } from "@/components/Charts";
 import { PLATFORM_MRR_SERIES, PLATFORM_USAGE_SERIES, PLAN_MIX, TENANTS, PLATFORM_KPI } from "@/lib/mock";
 import { rp } from "@/lib/format";
@@ -9,6 +10,12 @@ export default function AnalyticsPage() {
   return (
     <>
       <PageHead title="Platform Analytics" desc="Analitik penggunaan dan performa sistem di seluruh tenant." />
+
+      <MockDataNotice title="Data contoh — portal platform belum dibangun">
+        Super Admin adalah level platform (provisioning tenant, paket langganan, feature flag) yang
+        belum relevan selama TheraHub dipakai satu bisnis saja. Seluruh angka dan tabel di halaman
+        ini contoh tampilan, dan tidak ada tombol di sini yang menulis ke database.
+      </MockDataNotice>
 
       <div className="grid grid-4" style={{ marginBottom: 20 }}>
         <StatCard label="MRR" value={rp(PLATFORM_KPI.mrr, { short: true })} icon="circle-dollar" toneKey="gold" delta={12.6} />

@@ -101,7 +101,14 @@ export default async function MembershipPage() {
         <div className="row g2" style={{ alignItems: "flex-start", padding: "12px 14px", borderRadius: "var(--r-md)", background: "var(--info-soft)", border: "1px solid rgba(56,189,248,0.25)" }}>
           <Icon name="info" size={15} style={{ color: "var(--info)", flexShrink: 0, marginTop: 1 }} />
           <div className="tiny muted" style={{ lineHeight: 1.6 }}>
-            Rp10.000 belanja = 1 poin loyalti. Tukarkan poin untuk diskon atau layanan gratis di menu Profil.
+            {/* Was: "Tukarkan poin untuk diskon atau layanan gratis di menu
+                Profil." There is no redemption anywhere in the Profil tab
+                — the sentence described a plan as though it were a
+                feature, so guests went looking for a button that has
+                never existed. Says where poin can actually be used until
+                the flow is built. */}
+            Rp10.000 belanja = 1 poin loyalti. Penukaran poin belum tersedia di aplikasi — sebutkan
+            saldo poin Anda ke kasir saat membayar di outlet.
           </div>
         </div>
       </div>

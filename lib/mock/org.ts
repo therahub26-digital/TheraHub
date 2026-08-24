@@ -234,11 +234,22 @@ export const SETUP_STEPS = [
   { key: "policy", label: "Policy Defaults", desc: "Booking lead time, late arrival, no-show, tax", done: false, owner: "Admin" },
 ];
 
+// UPDATE 2026-08-24 — four of these six used to say "Connected" with a
+// green tick and a plausible "last sync" timestamp. Not one integration
+// exists: there is no Midtrans code in the repo, no WhatsApp sender, the
+// map on /admin/geofence is a hand-drawn graphic rather than Google Maps,
+// and there is no printer or print-job table in the schema at all. The
+// audit flagged this as the single most misleading screen in the product
+// — someone reading it would reasonably conclude payments were already
+// wired up and plan around that. A mock page is fine; a mock page that
+// asserts a specific false fact about production is not. Statuses are
+// now uniformly "Not connected", which is simply true, and `desc` says
+// what each one is *planned* to do.
 export const INTEGRATIONS = [
-  { key: "wa", name: "WhatsApp Business API", provider: "Qontak", status: "Connected", desc: "Booking confirmation, reminder, receipt digital.", lastSync: "2026-08-18T15:02" },
-  { key: "payment", name: "Payment Gateway", provider: "Midtrans", status: "Connected", desc: "QRIS, kartu, e-wallet + webhook reconciliation.", lastSync: "2026-08-18T15:18" },
-  { key: "maps", name: "Maps & Geocoding", provider: "Google Maps", status: "Connected", desc: "Setup outlet, geofence, jarak absensi.", lastSync: "2026-08-14T09:30" },
-  { key: "print", name: "Print Bridge", provider: "TheraHub Device Bridge", status: "Connected", desc: "Bluetooth ESC/POS 58 mm & 80 mm LAN.", lastSync: "2026-08-18T14:47" },
-  { key: "accounting", name: "Accounting Export", provider: "Accurate Online", status: "Not connected", desc: "Export jurnal penjualan, biaya, dan payroll.", lastSync: "—" },
-  { key: "biometric", name: "Biometric / Device Integrity", provider: "—", status: "Not connected", desc: "Verifikasi device untuk absensi terapis.", lastSync: "—" },
+  { key: "wa", name: "WhatsApp Business API", provider: "Qontak", status: "Not connected", desc: "Rencana: booking confirmation, reminder, receipt digital. Belum ada integrasi.", lastSync: "—" },
+  { key: "payment", name: "Payment Gateway", provider: "Midtrans", status: "Not connected", desc: "Rencana: QRIS, kartu, e-wallet + webhook reconciliation. Belum ada integrasi.", lastSync: "—" },
+  { key: "maps", name: "Maps & Geocoding", provider: "Google Maps", status: "Not connected", desc: "Rencana: setup outlet, geofence, jarak absensi. Peta di halaman Geofence masih gambar buatan sendiri.", lastSync: "—" },
+  { key: "print", name: "Print Bridge", provider: "TheraHub Device Bridge", status: "Not connected", desc: "Rencana: Bluetooth ESC/POS 58 mm & 80 mm LAN. Cetak struk belum dibangun.", lastSync: "—" },
+  { key: "accounting", name: "Accounting Export", provider: "Accurate Online", status: "Not connected", desc: "Rencana: export jurnal penjualan, biaya, dan payroll.", lastSync: "—" },
+  { key: "biometric", name: "Biometric / Device Integrity", provider: "—", status: "Not connected", desc: "Rencana: verifikasi device untuk absensi terapis.", lastSync: "—" },
 ];

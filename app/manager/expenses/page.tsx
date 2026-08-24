@@ -55,7 +55,7 @@ export default async function ExpensesPage() {
 
       <div className="grid grid-3" style={{ alignItems: "start", marginBottom: 20 }}>
         <Card style={{ gridColumn: "span 2" }}>
-          <CardHead title="Riwayat Pengeluaran" sub={`${expenses.length} entri`} action={<button className="btn btn-quiet btn-sm"><Icon name="download" size={13} /> Export</button>} />
+          <CardHead title="Riwayat Pengeluaran" sub={`${expenses.length} entri`} action={<button className="btn btn-quiet btn-sm" disabled title="Belum tersedia — ekspor laporan belum dibangun di aplikasi ini."><Icon name="download" size={13} /> Export</button>} />
           <div className="table-wrap">
             <table className="tbl">
               <thead><tr><th>Tanggal</th><th>Kategori</th><th>Vendor</th><th>Metode</th><th>Jumlah</th><th>Status</th></tr></thead>

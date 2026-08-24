@@ -1,5 +1,6 @@
 import Icon from "@/components/Icon";
 import { PageHead, Card, Badge, Avatar } from "@/components/ui";
+import MockDataNotice from "@/components/MockDataNotice";
 import { AUDIT_LOGS } from "@/lib/mock";
 import { fmtDateTime } from "@/lib/format";
 
@@ -15,14 +16,20 @@ export default function AuditLogPage() {
           <>
             <div className="search-box">
               <Icon name="search" size={15} />
-              <input className="input" placeholder="Cari actor, action, atau entity…" style={{ width: 240 }} />
+              <input className="input" placeholder="Cari actor, action, atau entity…" disabled title="Belum tersedia — kotak pencarian di halaman ini belum menyaring tabel." style={{ width: 240 }} />
             </div>
-            <button className="btn btn-ghost btn-sm"><Icon name="download" size={14} /> Export CSV</button>
+            <button className="btn btn-ghost btn-sm" disabled title="Belum tersedia — ekspor laporan belum dibangun di aplikasi ini."><Icon name="download" size={14} /> Export CSV</button>
           </>
         }
       />
 
-      <div className="row g2 wrap" style={{ marginBottom: 16 }}>
+      <MockDataNotice title="Data contoh — portal platform belum dibangun">
+        Super Admin adalah level platform (provisioning tenant, paket langganan, feature flag) yang
+        belum relevan selama TheraHub dipakai satu bisnis saja. Seluruh angka dan tabel di halaman
+        ini contoh tampilan, dan tidak ada tombol di sini yang menulis ke database.
+      </MockDataNotice>
+
+      <div className="row g2 wrap" style={{ marginBottom: 16 }} title="Angkanya benar, tapi chip ini hanya penghitung — menekannya belum menyaring tabel.">
         <span className="chip on">Semua ({AUDIT_LOGS.length})</span>
         <span className="chip">Critical ({AUDIT_LOGS.filter((l) => l.severity === "critical").length})</span>
         <span className="chip">Warning ({AUDIT_LOGS.filter((l) => l.severity === "warning").length})</span>

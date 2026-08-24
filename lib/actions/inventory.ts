@@ -110,11 +110,12 @@ export async function createProduct(input: CreateProductInput): Promise<ActionRe
   if (error) {
     // 23505 = unique violation (SKU already taken).
     // 42501 = RLS refused the insert. Worth naming explicitly instead of
-    // hiding behind a generic failure: until migration 0021 is applied,
-    // `products_write` only admits admin/owner, so a manager pressing
-    // this button gets a refusal that has nothing to do with what they
-    // typed. Telling them the real reason is the difference between
-    // "the app is broken" and "my role cannot do this yet".
+    // hiding behind a generic failure: without migration 0021 (status
+    // unconfirmed — see that file's header) `products_write` only admits
+    // admin/owner, so a manager pressing this button gets a refusal that
+    // has nothing to do with what they typed. Telling them the real
+    // reason is the difference between "the app is broken" and "my role
+    // cannot do this yet".
     if (error.code === "23505") return { ok: false, error: "SKU sudah dipakai produk lain." };
     if (error.code === "42501") {
       return {

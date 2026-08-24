@@ -158,7 +158,7 @@ export default async function SessionControlPage() {
                 </div>
                 <span className="tiny bold" style={{ color: "var(--accent)" }}>{fmtTime(nextJob.scheduledStart)}</span>
               </div>
-              <button className="m-btn m-btn-primary"><Icon name="play" size={15} /> Mulai Sesi</button>
+              <button className="m-btn m-btn-primary" disabled title="Mode demo — masuk sebagai terapis untuk benar-benar memulai sesi."><Icon name="play" size={15} /> Mulai Sesi</button>
             </div>
           ) : (
             <div className="small dim" style={{ textAlign: "center" }}>Tidak ada job yang siap dimulai saat ini.</div>
@@ -197,8 +197,8 @@ export default async function SessionControlPage() {
         </div>
 
         <div className="stack g2">
-          <button className="m-btn m-btn-primary"><Icon name="check" size={15} /> Selesaikan Sesi</button>
-          <button className="m-btn m-btn-ghost"><Icon name="hourglass" size={15} /> Ajukan Extension</button>
+          <button className="m-btn m-btn-primary" disabled title="Mode demo — masuk sebagai terapis untuk benar-benar menutup sesi."><Icon name="check" size={15} /> Selesaikan Sesi</button>
+          <button className="m-btn m-btn-ghost" disabled title="Mode demo — masuk sebagai terapis untuk mengajukan extension."><Icon name="hourglass" size={15} /> Ajukan Extension</button>
         </div>
 
         {myExtensions.length > 0 && (

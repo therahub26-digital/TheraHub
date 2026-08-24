@@ -1,4 +1,5 @@
 import { PageHead, Card, CardHead, StatCard, Badge, Avatar, Progress } from "@/components/ui";
+import MockDataNotice from "@/components/MockDataNotice";
 import { BarsChart } from "@/components/Charts";
 import { THERAPIST_RANKING, outletName, THERAPISTS } from "@/lib/mock";
 import { rp, pct, num, minutesToHm } from "@/lib/format";
@@ -12,6 +13,13 @@ export default function TherapistPerformancePage() {
   return (
     <>
       <PageHead title="Therapist Performance" desc="Ranking, utilization, dan kontribusi revenue seluruh terapis." />
+
+      <MockDataNotice>
+        Seluruh angka di halaman ini contoh tampilan — termasuk kolom <strong>Utilization</strong> dan
+        <strong>Rating</strong>, yang belum punya sumber data di database sama sekali. Performa
+        terapis yang sungguhan ada di portal Manager &rarr; <strong>Therapists &amp; Staff</strong>
+        (kolom Treatment, Revenue, Komisi).
+      </MockDataNotice>
 
       <div className="grid grid-4" style={{ marginBottom: 20 }}>
         <StatCard label="Total Terapis" value={THERAPISTS.length} icon="sparkles" toneKey="rose" foot="3 outlet" />

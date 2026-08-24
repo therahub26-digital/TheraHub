@@ -2,16 +2,15 @@ import { createClient } from "@/lib/supabase/server";
 
 // ---------------------------------------------------------------------
 // Read layer for `employee_leave_requests` — see the migration header
-// (supabase/migrations/0022_employee_leave_requests.sql, DRAFT, NOT YET
-// APPLIED) for the full design rationale. User request 2026-08-23:
-// "di role terapis ajukan cuti dan disetujui manager" (manager & kasir
-// both approve, per the user's own follow-up answer).
+// (supabase/migrations/0022_employee_leave_requests.sql) for the full
+// design rationale. User request 2026-08-23: "di role terapis ajukan cuti
+// dan disetujui manager" (manager & kasir both approve, per the user's
+// own follow-up answer).
 //
-// TABLE MAY NOT EXIST YET: the migration is a draft awaiting approval,
-// so every read here tolerates a missing-relation error (Postgres
-// 42P01) the same way it tolerates zero rows — returns an empty list
-// rather than throwing, so the pages that call this stay usable before
-// and after the migration lands with no code change needed.
+// 0022 was APPLIED to production 2026-08-23. The missing-relation
+// tolerance below (Postgres 42P01, treated like zero rows) is kept as a
+// safety net for a database that has not run 0022 yet — it is no longer
+// the expected state of production.
 // ---------------------------------------------------------------------
 
 export type LeaveRequestStatus = "PENDING" | "APPROVED" | "REJECTED";

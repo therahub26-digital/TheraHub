@@ -21,12 +21,13 @@ import { NewProductForm, PurchaseOrderForm, ReceivePOButton, StockTransferForm, 
 // juga boleh (butuh migrasi)".
 //
 // The permission itself lives in supabase/migrations/0021_products_manager_write.sql,
-// which is a DRAFT AWAITING THE USER'S APPROVAL and has NOT been applied.
-// Until it is, this button still fails — but it now fails HONESTLY:
-// createProduct() maps Postgres error 42501 to a message naming the real
-// reason, instead of the generic "Gagal menyimpan produk." that made the
-// app look broken. Once 0021 is applied the same button starts working
-// with no code change.
+// whose applied-status is UNCONFIRMED (draft handed to the user
+// 2026-08-23; no record either way since). Do not assume it has run, and
+// do not assume it has not. Either way this button behaves correctly:
+// createProduct() maps Postgres 42501 to a message naming the real
+// reason instead of the generic "Gagal menyimpan produk." that made the
+// app look broken — so if 0021 is live the button just works, and if it
+// is not the manager is told exactly why.
 
 // ---------------------------------------------------------------------
 // UPDATE 2026-08-23 — was 100% lib/mock (PRODUCTS, movementsOf, lowStock,

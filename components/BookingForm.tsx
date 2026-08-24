@@ -30,6 +30,7 @@ export default function BookingForm({
   unavailableTherapistIds = [],
   source,
   backHref,
+  successHref,
 }: {
   outletId: string;
   today: string;
@@ -43,6 +44,17 @@ export default function BookingForm({
   unavailableTherapistIds?: string[];
   source: "Walk-in" | "Kasir";
   backHref: string;
+  /**
+   * Where to land after a successful save. Was hard-coded to
+   * `/manager/bookings?date=…` for every caller, which meant the kasir
+   * walk-in form threw the kasir at a manager route their route guard
+   * rejects — they saw a rejection/redirect right after a booking that
+   * had in fact saved correctly, and some re-entered it. The caller now
+   * names its own landing page; `{date}` in the string is replaced with
+   * the booking's date so a page that can show another day (manager's
+   * calendar) still lands on the right one. Defaults to `backHref`.
+   */
+  successHref?: string;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -107,7 +119,7 @@ export default function BookingForm({
         setError(result.error);
         return;
       }
-      router.push(`/manager/bookings?date=${date}`);
+      router.push((successHref ?? backHref).replace("{date}", date));
       router.refresh();
     });
   }

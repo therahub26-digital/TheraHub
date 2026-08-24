@@ -337,13 +337,43 @@ export function Field({
   );
 }
 
-export function Switch({ on }: { on: boolean }) {
-  return <span className={`switch ${on ? "on" : ""}`} />;
+// ---------------------------------------------------------------------
+// Switch / Checkbox are painted state, not controls: a <span> with no
+// onChange and no underlying input. Every settings toggle in the Admin,
+// Super Admin, Customer, and Manager → Outlet Settings screens uses one,
+// which is why *none* of them do anything when pressed — one component
+// explains a dozen "this button is broken" reports at once.
+//
+// Wiring them up needs a save path per setting (backlog Gelombang 2), so
+// for now they at least stop pretending: the cursor says not-allowed, a
+// hover title says why, and screen readers are told the value is
+// read-only instead of announcing a switch that cannot be operated.
+// Pass an explicit `title` where the page can point somewhere better.
+// ---------------------------------------------------------------------
+
+const UNWIRED_TOGGLE = "Belum bisa diubah — saklar ini baru penanda status, belum tersambung ke penyimpanan.";
+
+export function Switch({ on, title = UNWIRED_TOGGLE }: { on: boolean; title?: string }) {
+  return (
+    <span
+      className={`switch ${on ? "on" : ""}`}
+      role="img"
+      aria-label={`${on ? "Aktif" : "Nonaktif"} — belum bisa diubah`}
+      title={title}
+      style={{ cursor: "not-allowed" }}
+    />
+  );
 }
 
-export function Checkbox({ on }: { on: boolean }) {
+export function Checkbox({ on, title = UNWIRED_TOGGLE }: { on: boolean; title?: string }) {
   return (
-    <span className={`checkbox ${on ? "on" : ""}`}>
+    <span
+      className={`checkbox ${on ? "on" : ""}`}
+      role="img"
+      aria-label={`${on ? "Dicentang" : "Tidak dicentang"} — belum bisa diubah`}
+      title={title}
+      style={{ cursor: "not-allowed" }}
+    >
       <Icon name="check" size={12} strokeWidth={3} />
     </span>
   );
@@ -475,7 +505,7 @@ export function BrandPicker({
             {logoInitial}
           </span>
           <div className="stack g2">
-            <button className="btn btn-ghost btn-sm">
+            <button className="btn btn-ghost btn-sm" disabled title="Belum tersedia — unggah logo belum tersambung ke penyimpanan.">
               <Icon name="upload" size={13} /> Unggah Logo
             </button>
             <span className="tiny dim">PNG/SVG, disarankan rasio 1:1, maks 2 MB.</span>
@@ -551,7 +581,7 @@ export function BrandPicker({
             background: "transparent",
             color: "var(--text-3)",
           }}
-        >
+         disabled title="Belum tersedia — unggah latar sendiri belum tersambung ke penyimpanan.">
           <span className="stat-icon" style={{ width: 32, height: 32, borderRadius: 10 }}>
             <Icon name="camera" size={15} />
           </span>

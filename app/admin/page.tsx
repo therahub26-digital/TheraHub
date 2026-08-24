@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Icon from "@/components/Icon";
 import { PageHead, Card, Progress, Badge } from "@/components/ui";
+import MockDataNotice from "@/components/MockDataNotice";
 import { SETUP_STEPS, OUTLETS, ACTIVE_TENANT } from "@/lib/mock";
 
 const STEP_LINK: Record<string, string> = {
@@ -24,6 +25,12 @@ export default function AdminSetupPage() {
         title="Setup Progress"
         desc={`Onboarding bisnis ${ACTIVE_TENANT.name} setelah tenant diprovision oleh Super Admin.`}
       />
+
+      <MockDataNotice title="Kemajuan setup ini bukan kondisi tenant Anda">
+        Persentase dan status &quot;Selesai&quot;/&quot;Belum&quot; di halaman ini adalah angka tetap
+        di kode — tidak mengikuti apa pun dan tidak bisa dicentang. Pakai kartu di bawah sebagai
+        daftar rujukan langkah setup saja, bukan sebagai laporan kemajuan.
+      </MockDataNotice>
 
       <Card className="card-pad" style={{ marginBottom: 20 }}>
         <div className="between" style={{ marginBottom: 10 }}>

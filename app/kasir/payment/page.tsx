@@ -1,5 +1,6 @@
 import Icon from "@/components/Icon";
 import { PageHead, Card, CardHead, Badge, PersonCell, InfoNote } from "@/components/ui";
+import MockDataNotice from "@/components/MockDataNotice";
 import { PRIMARY_OUTLET, sessionsOf } from "@/lib/mock";
 import { rp } from "@/lib/format";
 
@@ -28,6 +29,13 @@ export default function PaymentPage() {
         desc={`${outlet.name} · Pilih metode pembayaran dan selesaikan transaksi.`}
       />
 
+      <MockDataNotice title="Layar contoh — jangan dipakai melayani tamu">
+        Nominal di halaman ini tidak mengikuti transaksi mana pun, dan <strong>kode QR di layar
+        bukan QR pembayaran asli</strong> — jangan pernah meminta tamu memindainya. Tidak ada
+        tombol di halaman ini yang berfungsi. Pembayaran sungguhan diproses lewat tab
+        <strong>POS</strong>, atau tombol Bayar di tab <strong>Session</strong>.
+      </MockDataNotice>
+
       <div className="grid grid-3" style={{ alignItems: "start" }}>
         <div className="stack g5" style={{ gridColumn: "span 2" }}>
           <Card>
@@ -46,7 +54,7 @@ export default function PaymentPage() {
                       border: `1.5px solid ${i === 1 ? "var(--accent)" : "var(--border)"}`,
                       color: i === 1 ? "var(--accent)" : "var(--text-2)",
                     }}
-                  >
+                   disabled title="Layar contoh — pembayaran sungguhan diproses di tab POS.">
                     <Icon name={m.icon} size={22} />
                     <span className="small bold">{m.label}</span>
                   </button>
@@ -110,8 +118,8 @@ export default function PaymentPage() {
             </div>
           </div>
           <div className="stack g2">
-            <button className="btn btn-primary" style={{ width: "100%" }}><Icon name="check" size={15} /> Konfirmasi Pembayaran</button>
-            <button className="btn btn-ghost" style={{ width: "100%" }}><Icon name="arrow-left" size={13} /> Kembali ke Cart</button>
+            <button className="btn btn-primary" style={{ width: "100%" }} disabled title="Layar contoh — pembayaran sungguhan diproses di tab POS."><Icon name="check" size={15} /> Konfirmasi Pembayaran</button>
+            <button className="btn btn-ghost" style={{ width: "100%" }} disabled title="Layar contoh — pembayaran sungguhan diproses di tab POS."><Icon name="arrow-left" size={13} /> Kembali ke Cart</button>
           </div>
         </Card>
       </div>

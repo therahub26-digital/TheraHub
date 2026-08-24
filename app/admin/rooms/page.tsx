@@ -11,7 +11,7 @@ export default async function AdminRoomsPage() {
       <PageHead
         title="Rooms"
         desc="Room master per outlet — nama, tipe, kapasitas, dan status."
-        actions={<button className="btn btn-primary btn-sm"><Icon name="plus" size={14} /> Tambah Room</button>}
+        actions={<button className="btn btn-primary btn-sm" disabled title="Belum tersedia — untuk menandai room maintenance gunakan portal Manager → Rooms; menambah/mengubah master room dilakukan langsung di database."><Icon name="plus" size={14} /> Tambah Room</button>}
       />
 
       <div className="stack g6">

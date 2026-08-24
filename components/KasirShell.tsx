@@ -119,10 +119,20 @@ export default function KasirShell({
           <Icon name="repeat" size={14} />
         </button>
         <ThemeToggle className="kasir-icon-btn" />
-        <button className="btn btn-quiet btn-icon kasir-icon-btn" aria-label="Notifikasi" style={{ position: "relative" }}>
+        {/* The dot here counts pending extension requests, and the bell
+            used to be a <button> with no handler — it showed there was
+            something to deal with and then refused to take you to it.
+            Now it goes to the page that actually holds them. */}
+        <Link
+          href="/kasir/sessions"
+          className="btn btn-quiet btn-icon kasir-icon-btn"
+          aria-label={notificationCount ? `${notificationCount} permintaan extension menunggu` : "Notifikasi"}
+          title={notificationCount ? `${notificationCount} permintaan extension menunggu — buka Session` : "Buka Session"}
+          style={{ position: "relative" }}
+        >
           <Icon name="bell" size={18} />
           {!!notificationCount && notificationCount > 0 && <i className="kasir-notif-dot" />}
-        </button>
+        </Link>
       </header>
 
       {switcher && (

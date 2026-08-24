@@ -1,5 +1,6 @@
 import Icon from "@/components/Icon";
 import { PageHead, Card, CardHead, Badge, Avatar } from "@/components/ui";
+import MockDataNotice from "@/components/MockDataNotice";
 import { AUDIT_LOGS } from "@/lib/mock";
 import { fmtDateTime } from "@/lib/format";
 
@@ -23,6 +24,12 @@ export default function OwnerAuditPage() {
     <>
       <PageHead title="Audit & Export" desc="Jejak audit bisnis dan ekspor laporan untuk keperluan akuntansi." />
 
+      <MockDataNotice title="Data contoh — ekspor laporan belum dibangun">
+        Audit log di halaman ini contoh tampilan. Seluruh tombol <strong>PDF</strong>,
+        <strong>Excel</strong>, dan <strong>Export CSV</strong> di sini belum berfungsi — tidak ada
+        file yang akan terunduh. Belum ada fitur ekspor di mana pun di aplikasi ini.
+      </MockDataNotice>
+
       <Card style={{ marginBottom: 20 }}>
         <CardHead title="Export Laporan" sub="Unduh dalam format PDF atau Excel" />
         <div className="card-body">
@@ -35,8 +42,8 @@ export default function OwnerAuditPage() {
                 <div className="strong" style={{ color: "var(--text-1)", marginBottom: 3 }}>{e.label}</div>
                 <div className="tiny dim" style={{ marginBottom: 12, minHeight: 32 }}>{e.desc}</div>
                 <div className="row g2">
-                  <button className="btn btn-ghost btn-sm" style={{ flex: 1 }}><Icon name="file-text" size={12} /> PDF</button>
-                  <button className="btn btn-ghost btn-sm" style={{ flex: 1 }}><Icon name="download" size={12} /> Excel</button>
+                  <button className="btn btn-ghost btn-sm" style={{ flex: 1 }} disabled title="Belum tersedia — ekspor laporan belum dibangun di aplikasi ini."><Icon name="file-text" size={12} /> PDF</button>
+                  <button className="btn btn-ghost btn-sm" style={{ flex: 1 }} disabled title="Belum tersedia — ekspor laporan belum dibangun di aplikasi ini."><Icon name="download" size={12} /> Excel</button>
                 </div>
               </Card>
             ))}
@@ -48,7 +55,7 @@ export default function OwnerAuditPage() {
         <CardHead
           title="Audit Log Bisnis"
           sub={`${critical.length} entri kritikal dari ${AUDIT_LOGS.length} total`}
-          action={<button className="btn btn-ghost btn-sm"><Icon name="download" size={13} /> Export CSV</button>}
+          action={<button className="btn btn-ghost btn-sm" disabled title="Belum tersedia — ekspor laporan belum dibangun di aplikasi ini."><Icon name="download" size={13} /> Export CSV</button>}
         />
         <div className="table-wrap">
           <table className="tbl">

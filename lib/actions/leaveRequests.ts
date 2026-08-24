@@ -6,16 +6,16 @@ import { nowIso, todayIsoDate } from "@/lib/wallclock";
 
 // ---------------------------------------------------------------------
 // Write half of the therapist leave-request workflow. See
-// supabase/migrations/0022_employee_leave_requests.sql (DRAFT, NOT YET
-// APPLIED) for the schema/RLS rationale and lib/data/leaveRequests.ts
-// for the read layer.
+// supabase/migrations/0022_employee_leave_requests.sql for the schema/RLS
+// rationale and lib/data/leaveRequests.ts for the read layer.
 //
-// TABLE MAY NOT EXIST YET. Every action here maps Postgres 42P01
-// (relation does not exist) to an honest message naming the real reason
-// — same discipline as createProduct()'s 42501 handling
-// (lib/actions/inventory.ts) — instead of a generic "gagal" that would
-// make the app look broken when the real answer is "the migration this
-// depends on hasn't been approved yet".
+// 0022 was APPLIED to production 2026-08-23 (verified via to_regclass +
+// pg_policies). The 42P01 handling below is now a leftover safety net,
+// not an expected path — it stays because a fresh/branch database that
+// has not run 0022 should still fail with a sentence that names the
+// reason rather than a generic "gagal". If a user ever actually sees
+// MISSING_TABLE_MSG on production, something regressed; treat it as a
+// report, not as normal.
 // ---------------------------------------------------------------------
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
@@ -25,7 +25,7 @@ function isMissingTable(error: { code?: string } | null): boolean {
 }
 
 const MISSING_TABLE_MSG =
-  "Fitur ajukan cuti belum aktif — migrasi 0022_employee_leave_requests.sql belum diterapkan ke database. Hubungi admin untuk menerapkannya.";
+  "Fitur ajukan cuti tidak bisa diakses — tabel employee_leave_requests tidak ditemukan di database ini (migrasi 0022). Seharusnya tidak terjadi di produksi; laporkan ke admin.";
 
 async function resolveSignedInEmployee() {
   const supabase = await createClient();

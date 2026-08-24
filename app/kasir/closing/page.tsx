@@ -1,5 +1,6 @@
 import Icon from "@/components/Icon";
 import { PageHead, Card, CardHead, StatCard, Badge, KV, InfoNote, Field } from "@/components/ui";
+import MockDataNotice from "@/components/MockDataNotice";
 import { PRIMARY_OUTLET, CASHIER_SHIFTS, TODAY, salesBreakdown } from "@/lib/mock";
 import { rp, fmtDateTime } from "@/lib/format";
 
@@ -16,8 +17,15 @@ export default function ClosingPage() {
       <PageHead
         title="Shift Closing"
         desc={`${outlet.name} · Rekonsiliasi kas dan penutupan shift kasir.`}
-        actions={<button className="btn btn-primary btn-sm"><Icon name="lock" size={14} /> Tutup Shift</button>}
+        actions={<button className="btn btn-primary btn-sm" disabled title="Belum tersedia — rekonsiliasi kas & tutup shift belum dibangun. Catat manual di luar aplikasi."><Icon name="lock" size={14} /> Tutup Shift</button>}
       />
+
+      <MockDataNotice title="Data contoh — jangan pakai untuk rekonsiliasi kas">
+        Modal Awal, Penjualan Cash, Ekspektasi Kas, dan Riwayat Shift di halaman ini adalah angka
+        karangan — <strong>bukan kas outlet Anda</strong>. Kotak &quot;Kas Hasil Hitung Fisik&quot;
+        bisa diketik tapi tidak tersimpan ke mana pun, dan tombol Tutup Shift belum berfungsi.
+        Sampai modulnya dibangun, catat penutupan kas manual di luar aplikasi.
+      </MockDataNotice>
 
       <div className="grid grid-4" style={{ marginBottom: 20 }}>
         <StatCard label="Modal Awal" value={rp(shift.openingFloat, { short: true })} icon="wallet" toneKey="teal" deltaLabel={`Dibuka ${fmtDateTime(shift.openedAt)}`} />

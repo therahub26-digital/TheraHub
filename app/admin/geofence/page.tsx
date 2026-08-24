@@ -1,4 +1,5 @@
 import { PageHead, Card, CardHead, Field, Badge, InfoNote } from "@/components/ui";
+import MockDataNotice from "@/components/MockDataNotice";
 import { getOutlets } from "@/lib/data/outlets";
 
 export default async function GeofencePage() {
@@ -7,6 +8,13 @@ export default async function GeofencePage() {
   return (
     <>
       <PageHead title="Geofence & Attendance" desc="Latitude/longitude, radius, dan accuracy threshold untuk absensi GPS." />
+
+      <MockDataNotice title="Perubahan di halaman ini tidak tersimpan">
+        Koordinat dan radius di tabel bawah adalah data outlet yang <strong>asli</strong> dan berguna
+        untuk verifikasi — tapi halaman ini tidak punya tombol simpan sama sekali. Menggeser slider
+        radius, mengubah koordinat, atau mencentang kebijakan absensi tidak menyimpan apa pun.
+        Peta yang ditampilkan juga bukan peta asli, melainkan gambar buatan sendiri.
+      </MockDataNotice>
 
       <div className="grid grid-3" style={{ alignItems: "start", marginBottom: 20 }}>
         <Card style={{ gridColumn: "span 2" }}>

@@ -1,5 +1,6 @@
 import Icon from "@/components/Icon";
 import { PageHead, Card, StatusBadge, Avatar, Meter, StatCard } from "@/components/ui";
+import MockDataNotice from "@/components/MockDataNotice";
 import { TENANTS, planOf } from "@/lib/mock";
 import { rp, fmtDate } from "@/lib/format";
 
@@ -11,6 +12,12 @@ export default function SubscriptionsPage() {
   return (
     <>
       <PageHead title="Subscriptions & Limits" desc="Status billing, siklus penagihan, dan batas penggunaan tiap tenant." />
+
+      <MockDataNotice title="Data contoh — portal platform belum dibangun">
+        Super Admin adalah level platform (provisioning tenant, paket langganan, feature flag) yang
+        belum relevan selama TheraHub dipakai satu bisnis saja. Seluruh angka dan tabel di halaman
+        ini contoh tampilan, dan tidak ada tombol di sini yang menulis ke database.
+      </MockDataNotice>
 
       <div className="grid grid-4" style={{ marginBottom: 20 }}>
         <StatCard label="Total MRR Tertagih" value={rp(totalMrr, { short: true })} icon="circle-dollar" toneKey="gold" />
@@ -37,7 +44,7 @@ export default function SubscriptionsPage() {
                 </div>
                 <div className="row g2">
                   <StatusBadge status={t.status} />
-                  <button className="btn btn-ghost btn-sm">Hubungi</button>
+                  <button className="btn btn-ghost btn-sm" disabled title="Belum tersedia — portal platform (multi-tenant) belum dibangun.">Hubungi</button>
                 </div>
               </div>
             ))}

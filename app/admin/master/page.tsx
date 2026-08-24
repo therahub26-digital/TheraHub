@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Icon from "@/components/Icon";
 import { PageHead, Card, CardHead, StatCard, Badge, StatusBadge, InfoNote, PersonCell } from "@/components/ui";
+import MockDataNotice from "@/components/MockDataNotice";
 import { CATEGORIES, SERVICE_TYPES, packagesOf, PRIMARY_OUTLET, THERAPISTS, SKILL_LIST, outletName } from "@/lib/mock";
 import { rp, minutesToHm } from "@/lib/format";
 
@@ -17,11 +18,17 @@ export default function MasterDataPage() {
         desc="Data master awal tenant: kategori layanan, jenis layanan, starter package, dan import terapis."
         actions={
           <>
-            <button className="btn btn-ghost btn-sm"><Icon name="upload" size={14} /> Import CSV</button>
-            <button className="btn btn-primary btn-sm"><Icon name="plus" size={14} /> Kategori Baru</button>
+            <button className="btn btn-ghost btn-sm" disabled title="Belum tersedia — import terapis lewat CSV belum dibangun. Tambahkan lewat Manager → Therapists & Staff."><Icon name="upload" size={14} /> Import CSV</button>
+            <button className="btn btn-primary btn-sm" disabled title="Belum tersedia — master kategori dikelola Manager Outlet di menu Catalog."><Icon name="plus" size={14} /> Kategori Baru</button>
           </>
         }
       />
+
+      <MockDataNotice>
+        Seluruh isi halaman ini contoh tampilan, dan tombol <strong>Import CSV</strong>,
+        <strong>Kategori Baru</strong>, serta <strong>Unduh template</strong> belum berfungsi.
+        Setup katalog yang sungguhan dilakukan Manager Outlet di menu <strong>Catalog</strong>.
+      </MockDataNotice>
 
       <div className="grid grid-4" style={{ marginBottom: 20 }}>
         <StatCard label="Kategori Layanan" value={CATEGORIES.length} icon="layers" toneKey="teal" deltaLabel="Dipakai seluruh outlet" />
@@ -109,7 +116,7 @@ export default function MasterDataPage() {
           <CardHead
             title="4 · Import Terapis"
             sub={`${THERAPISTS.length} terapis berhasil diimport`}
-            action={<button className="btn btn-quiet btn-sm"><Icon name="download" size={13} /> Unduh template</button>}
+            action={<button className="btn btn-quiet btn-sm" disabled title="Belum tersedia — belum ada template untuk diunduh."><Icon name="download" size={13} /> Unduh template</button>}
           />
           <div className="table-wrap">
             <table className="tbl">

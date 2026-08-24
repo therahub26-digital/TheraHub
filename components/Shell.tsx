@@ -13,6 +13,58 @@ import { ACTIVE_TENANT } from "@/lib/mock";
 import { createClient } from "@/lib/supabase/client";
 import type { Role } from "@/lib/types";
 
+const NOTIF_DOT: React.CSSProperties = {
+  position: "absolute",
+  top: 7,
+  right: 8,
+  width: 7,
+  height: 7,
+  borderRadius: "50%",
+  background: "var(--danger)",
+  border: "1.5px solid var(--bg-deep)",
+};
+
+/**
+ * The topbar bell. The red dot counts pending extension requests, but the
+ * bell used to be a <button> with no handler at all: it told you there
+ * was something waiting and then refused to take you to it. Now it is a
+ * link when the caller says where the items live, and an explicitly
+ * disabled control when they do not — never a control that looks live
+ * and silently does nothing.
+ */
+function NotificationBell({ href, count }: { href?: string; count?: number }) {
+  const dot = !!count && count > 0;
+  const label = dot ? `${count} permintaan extension menunggu` : "Notifikasi";
+
+  if (!href) {
+    return (
+      <button
+        className="btn btn-quiet btn-icon"
+        aria-label={label}
+        disabled
+        title="Belum tersedia — belum ada pusat notifikasi untuk portal ini."
+        style={{ position: "relative" }}
+      >
+        <Icon name="bell" size={17} />
+        {dot && <i style={NOTIF_DOT} />}
+      </button>
+    );
+  }
+
+  return (
+    <Link
+      href={href}
+      className="btn btn-quiet btn-icon"
+      aria-label={label}
+      title={dot ? `${label} — buka Sessions` : "Buka Sessions"}
+      style={{ position: "relative" }}
+    >
+      <Icon name="bell" size={17} />
+      {dot && <i style={NOTIF_DOT} />}
+    </Link>
+  );
+}
+
 export default function Shell({
   role,
   scopeLabel,
@@ -20,6 +72,7 @@ export default function Shell({
   brandKey,
   bgKey,
   notificationCount,
+  notificationHref,
   children,
 }: {
   role: Role;
@@ -41,6 +94,10 @@ export default function Shell({
    * yet (admin/owner/super-admin today) simply doesn't pass this prop.
    */
   notificationCount?: number;
+  /** Where the bell goes. The dot counts pending extension requests, so
+   *  manager passes /manager/sessions. Without it the bell is rendered
+   *  disabled rather than as a control that silently does nothing. */
+  notificationHref?: string;
   children: React.ReactNode;
 }) {
   const def = roleByKey(role);
@@ -179,23 +236,7 @@ export default function Shell({
               <Icon name="chevron-down" size={13} />
             </button>
             <ThemeToggle />
-            <button className="btn btn-quiet btn-icon" aria-label="Notifikasi" style={{ position: "relative" }}>
-              <Icon name="bell" size={17} />
-              {!!notificationCount && notificationCount > 0 && (
-                <i
-                  style={{
-                    position: "absolute",
-                    top: 7,
-                    right: 8,
-                    width: 7,
-                    height: 7,
-                    borderRadius: "50%",
-                    background: "var(--danger)",
-                    border: "1.5px solid var(--bg-deep)",
-                  }}
-                />
-              )}
-            </button>
+            <NotificationBell href={notificationHref} count={notificationCount} />
           </div>
         </header>
 

@@ -198,7 +198,7 @@ export default async function AttendancePage() {
           <div className="tiny dim" style={{ marginBottom: 14 }}>
             {today?.checkInAt ? `Pukul ${fmtTime(today.checkInAt)} · ${today.distanceFromGeofence}m dari titik outlet` : "Radius geofence " + outlet.geofenceRadius + "m dari outlet"}
           </div>
-          <button className="m-btn m-btn-primary">
+          <button className="m-btn m-btn-primary" disabled title="Mode demo — masuk sebagai terapis untuk mencatat absensi sungguhan.">
             <Icon name={checkedIn ? "log-out" : "map-pin-check"} size={16} /> {checkedIn ? "Check-out" : "Check-in Sekarang"}
           </button>
         </div>

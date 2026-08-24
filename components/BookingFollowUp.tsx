@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import Icon from "@/components/Icon";
 import { confirmBookingStaff } from "@/lib/actions/bookings";
+import { waLink } from "@/lib/phone";
 import { KASIR_REMINDER_LEAD_MIN, type FollowUpItem } from "@/lib/bookingRules";
 
 // ---------------------------------------------------------------------
@@ -23,21 +24,10 @@ import { KASIR_REMINDER_LEAD_MIN, type FollowUpItem } from "@/lib/bookingRules";
 // props.
 // ---------------------------------------------------------------------
 
-/**
- * Indonesian mobile numbers are stored in this app in whatever shape the
- * kasir typed them ("+62 812-0000-0001", "0812 0000 0001", …), but
- * wa.me only accepts bare international digits. Local "0…" numbers are
- * rewritten to "62…"; anything already starting with 62 is left alone.
- * Returns null when there is nothing dialable, so the caller can render
- * plain text instead of a dead link.
- */
-export function waLink(phone: string): string | null {
-  const digits = (phone || "").replace(/\D/g, "");
-  if (digits.length < 8) return null;
-  if (digits.startsWith("62")) return `https://wa.me/${digits}`;
-  if (digits.startsWith("0")) return `https://wa.me/62${digits.slice(1)}`;
-  return `https://wa.me/${digits}`;
-}
+// waLink now lives in lib/phone.ts so Server Components can import it too
+// (/manager/customers needed it); re-exported here because existing
+// callers import it from this file.
+export { waLink };
 
 function ConfirmBookingButton({ id }: { id: string }) {
   const [isPending, startTransition] = useTransition();

@@ -18,12 +18,17 @@ import { nowIso } from "@/lib/wallclock";
 // (createBooking, checkInBooking) rather than being directly callable
 // from the client.
 //
-// Requires migration 0019_notifications_insert_staff.sql (adds the
-// missing INSERT policy on `notifications` — today's RLS only has
-// SELECT/UPDATE "self" policies, so this insert will 42501/silently
-// fail until that migration is applied). See that migration's header —
-// it is a DRAFT, not yet applied, pending user approval per this
-// project's standing rule on new schema/RLS changes.
+// Requires an INSERT policy on `notifications` for staff (the original
+// 0001 baseline shipped only SELECT/UPDATE "self" policies, so this
+// insert would 42501 and fail silently without it).
+//
+// NOTE for whoever reads this next: the comment used to point at
+// "0019_notifications_insert_staff.sql, a DRAFT, not yet applied".
+// There is no 0019 file in supabase/migrations at all — the repo jumps
+// 0017 → 0020 — and check-in notifications do reach therapists in
+// production, so the policy was evidently applied straight through the
+// dashboard the way the 0001 baseline was (see 0020's header for the
+// same story). The status line was stale; the requirement is real.
 // ---------------------------------------------------------------------
 
 type NotifySeverity = "info" | "warning" | "danger";

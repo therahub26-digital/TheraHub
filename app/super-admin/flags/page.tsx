@@ -1,5 +1,6 @@
 import Icon from "@/components/Icon";
 import { PageHead, Card, Badge, Switch, Progress } from "@/components/ui";
+import MockDataNotice from "@/components/MockDataNotice";
 import { FEATURE_FLAGS } from "@/lib/mock";
 
 export default function FlagsPage() {
@@ -10,8 +11,14 @@ export default function FlagsPage() {
       <PageHead
         title="Platform Feature Flags"
         desc="Rollout bertahap tanpa fork code. Aktifkan fitur per tenant atau outlet sesuai kesiapan."
-        actions={<button className="btn btn-primary btn-sm"><Icon name="plus" size={14} /> Buat Flag Baru</button>}
+        actions={<button className="btn btn-primary btn-sm" disabled title="Belum tersedia — portal platform (multi-tenant) belum dibangun."><Icon name="plus" size={14} /> Buat Flag Baru</button>}
       />
+
+      <MockDataNotice title="Data contoh — portal platform belum dibangun">
+        Super Admin adalah level platform (provisioning tenant, paket langganan, feature flag) yang
+        belum relevan selama TheraHub dipakai satu bisnis saja. Seluruh angka dan tabel di halaman
+        ini contoh tampilan, dan tidak ada tombol di sini yang menulis ke database.
+      </MockDataNotice>
 
       <div className="stack g5">
         {groups.map((g) => (

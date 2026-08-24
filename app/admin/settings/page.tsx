@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Icon from "@/components/Icon";
 import { PageHead, Card, CardHead, Field, Switch, Badge } from "@/components/ui";
+import MockDataNotice from "@/components/MockDataNotice";
 import { getOutlets, formatDepositLabel } from "@/lib/data/outlets";
 import { rp } from "@/lib/format";
 
@@ -12,8 +13,15 @@ export default async function TenantSettingsPage() {
       <PageHead
         title="Tenant Settings"
         desc="Pengaturan default tenant: kebijakan booking, pajak, printer, dan notifikasi."
-        actions={<button className="btn btn-primary btn-sm"><Icon name="save" size={14} /> Simpan</button>}
+        actions={<button className="btn btn-primary btn-sm" disabled title="Belum tersedia — belum ada jalur simpan, perubahan di halaman ini tidak tersimpan."><Icon name="save" size={14} /> Simpan</button>}
       />
+
+      <MockDataNotice title="Isian di halaman ini belum bisa disimpan">
+        Tombol <strong>Simpan</strong> belum tersambung, dan semua saklar di halaman ini hanya
+        gambar status. Perubahan pajak, service charge, dan kebijakan booking yang sungguhan masih
+        harus dilakukan langsung di database. (Kartu Deposit Booking per Outlet menampilkan data
+        outlet yang asli, tapi baca-saja.)
+      </MockDataNotice>
 
       <div className="grid grid-2" style={{ alignItems: "start" }}>
         <Card>

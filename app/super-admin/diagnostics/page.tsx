@@ -1,5 +1,6 @@
 import Icon from "@/components/Icon";
 import { PageHead, Card, CardHead, InfoNote, Badge, StatCard } from "@/components/ui";
+import MockDataNotice from "@/components/MockDataNotice";
 import { TENANTS, PLATFORM_INCIDENTS, PLATFORM_KPI } from "@/lib/mock";
 import { fmtDateTime } from "@/lib/format";
 
@@ -14,6 +15,12 @@ export default function DiagnosticsPage() {
   return (
     <>
       <PageHead title="Support Diagnostics" desc="Akses troubleshooting terbatas, time-bound, dan selalu diaudit." />
+
+      <MockDataNotice title="Data contoh — akses support tidak benar-benar dibuka">
+        Tiket dan insiden di halaman ini contoh tampilan. Tombol <strong>Buka Akses</strong> tidak
+        membuka sesi support apa pun <strong>dan tidak mencatat apa pun ke Audit Log</strong>,
+        meskipun teks di formulir menjanjikan sesi terbatas waktu yang tercatat penuh.
+      </MockDataNotice>
 
       <InfoNote tone="warning" icon="shield-check" title="Mode Support">
         Membuka mode diagnostik memberi akses read-only sementara ke data operasional tenant untuk keperluan
@@ -85,7 +92,7 @@ export default function DiagnosticsPage() {
             <label>Alasan (wajib, tercatat di audit)</label>
             <input className="input" placeholder="Contoh: Investigasi laporan keuangan tidak muncul" />
           </div>
-          <button className="btn btn-primary">
+          <button className="btn btn-primary" disabled title="Belum tersedia — tidak membuka sesi support apa pun dan tidak mencatat apa pun ke Audit Log.">
             <Icon name="shield-check" size={15} /> Buka Akses
           </button>
         </div>

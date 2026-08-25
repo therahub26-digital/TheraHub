@@ -205,46 +205,27 @@ export default async function CustomerHomePage() {
 
         <div>
           <div className="m-section">Pilih Outlet Favorit Anda</div>
-          {/* Dilebarkan + diberi foto tampak depan ruko dari cover profil outlet. */}
-          <div className="row g2" style={{ overflowX: "auto", paddingBottom: 4 }}>
+          {/*
+            Adjie (2026-08-25): "kotak pilih outlet favourite anda di buat
+            selebar layar tapi dibagi 2 kotak, sebelah kiri tulisan
+            (cikawao, bandung, lihat profil) dan di sebelah kanannya kotak
+            gambar... kalau ada outlet baru nanti dibawahnya".
+            Jadi: bukan lagi baris yang di-scroll ke samping, tapi daftar
+            bertumpuk ke bawah, tiap kartu selebar layar dan dibagi dua —
+            teks di kiri, foto tampak depan ruko di kanan.
+          */}
+          <div className="stack g2">
             {published.map((o) => (
               <Link
                 key={o.id}
                 href={`/customer/outlets/${o.id}`}
-                className="stack"
+                className="row"
                 style={{
-                  width: 232, minWidth: 232, flexShrink: 0, borderRadius: "var(--r-md)",
+                  width: "100%", alignItems: "stretch", gap: 0, borderRadius: "var(--r-md)",
                   overflow: "hidden", background: "var(--bg-surface-2)", border: "1px solid var(--border)",
                 }}
               >
-                <div style={{ position: "relative", width: "100%", aspectRatio: "16 / 9", background: "var(--bg-surface-3)" }}>
-                  {o.profile.cover ? (
-                    <>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={o.profile.cover}
-                        alt={`Tampak depan ${o.name}`}
-                        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
-                      />
-                      <div
-                        aria-hidden
-                        style={{
-                          position: "absolute", inset: 0,
-                          background: "linear-gradient(180deg, transparent 55%, rgba(3,7,12,0.62) 100%)",
-                        }}
-                      />
-                    </>
-                  ) : (
-                    <div
-                      className="stack g1"
-                      style={{ position: "absolute", inset: 0, alignItems: "center", justifyContent: "center", color: "var(--text-3)" }}
-                    >
-                      <Icon name="camera" size={18} />
-                      <span className="tiny dim">Belum ada foto</span>
-                    </div>
-                  )}
-                </div>
-                <div className="stack g1" style={{ padding: 12 }}>
+                <div className="stack g1" style={{ flex: 1, minWidth: 0, padding: 12, justifyContent: "center" }}>
                   <div className="row g2">
                     <Icon name="map-pin" size={13} style={{ color: "var(--accent)", flexShrink: 0 }} />
                     <span className="small bold truncate" style={{ color: "var(--text-1)" }}>
@@ -255,6 +236,30 @@ export default async function CustomerHomePage() {
                   <span className="tiny row g1" style={{ color: "var(--accent)", marginTop: 2 }}>
                     Lihat profil <Icon name="chevron-right" size={11} />
                   </span>
+                </div>
+
+                <div
+                  style={{
+                    position: "relative", flexShrink: 0, width: "42%", minHeight: 92,
+                    background: "var(--bg-surface-3)",
+                  }}
+                >
+                  {o.profile.cover ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={o.profile.cover}
+                      alt={`Tampak depan ${o.name}`}
+                      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
+                    />
+                  ) : (
+                    <div
+                      className="stack g1"
+                      style={{ position: "absolute", inset: 0, alignItems: "center", justifyContent: "center", color: "var(--text-3)" }}
+                    >
+                      <Icon name="camera" size={16} />
+                      <span className="tiny dim">Belum ada foto</span>
+                    </div>
+                  )}
                 </div>
               </Link>
             ))}

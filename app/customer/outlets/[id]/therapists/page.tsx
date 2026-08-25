@@ -7,6 +7,7 @@ import TherapistGalleryGrid from "@/components/TherapistGalleryGrid";
 import { getOutletById, getOutlets } from "@/lib/data/outlets";
 import { getTherapistsForOutlet } from "@/lib/data/employees";
 import { getCurrentCustomer } from "@/lib/data/customers";
+import { getTenantTheme } from "@/lib/data/tenant";
 import { OUTLETS as MOCK_OUTLETS, outletOf, therapistsOf, therapistDayStatus, DAY_RANGE, TODAY as MOCK_TODAY } from "@/lib/mock";
 import { fmtDayShort, fmtDateShort } from "@/lib/format";
 
@@ -34,6 +35,7 @@ export default async function OutletTherapistGalleryPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ date?: string }>;
 }) {
+  const theme = await getTenantTheme();
   const { id } = await params;
   const customer = await getCurrentCustomer();
   const live = customer !== null;
@@ -47,7 +49,7 @@ export default async function OutletTherapistGalleryPage({
     const therapists = (await getTherapistsForOutlet(outlet.id)).sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0));
 
     return (
-      <MobileShell role="customer" title={outlet.name.replace("Amethyst — ", "")} subtitle="Galeri Terapis" showBack>
+      <MobileShell role="customer" brandKey={theme.brandKey} bgKey={theme.bgKey} title={outlet.name.replace("Amethyst — ", "")} subtitle="Galeri Terapis" showBack>
         <div className="stack g5">
           <div className="m-section">Terapis · {therapists.length}</div>
           {therapists.length > 0 ? (
@@ -90,7 +92,7 @@ export default async function OutletTherapistGalleryPage({
   const unavailable = withStatus.filter((x) => x.status !== "AVAILABLE");
 
   return (
-    <MobileShell role="customer" title={outlet.name.replace("Amethyst — ", "")} subtitle="Galeri Terapis" showBack>
+    <MobileShell role="customer" brandKey={theme.brandKey} bgKey={theme.bgKey} title={outlet.name.replace("Amethyst — ", "")} subtitle="Galeri Terapis" showBack>
       <div className="stack g5">
         <div>
           <div className="m-section">Pilih Tanggal</div>

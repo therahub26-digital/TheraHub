@@ -6,6 +6,7 @@ import MobileShell from "@/components/MobileShell";
 import { getOutletById, getOutlets } from "@/lib/data/outlets";
 import { getTherapistsForOutlet } from "@/lib/data/employees";
 import { getCurrentCustomer } from "@/lib/data/customers";
+import { getTenantTheme } from "@/lib/data/tenant";
 import { OUTLETS as MOCK_OUTLETS, outletOf, featuredTherapistsOf } from "@/lib/mock";
 
 // ---------------------------------------------------------------------
@@ -18,6 +19,7 @@ import { OUTLETS as MOCK_OUTLETS, outletOf, featuredTherapistsOf } from "@/lib/m
 // ---------------------------------------------------------------------
 
 export default async function OutletPublicProfilePage({ params }: { params: Promise<{ id: string }> }) {
+  const theme = await getTenantTheme();
   const { id } = await params;
   const customer = await getCurrentCustomer();
   const live = customer !== null;
@@ -31,7 +33,7 @@ export default async function OutletPublicProfilePage({ params }: { params: Prom
 
   return (
     <MobileShell
-      role="customer"
+      role="customer" brandKey={theme.brandKey} bgKey={theme.bgKey}
       title={outlet.name.replace("Amethyst — ", "")}
       subtitle="Profil Outlet"
       showBack

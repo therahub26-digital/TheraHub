@@ -1,9 +1,10 @@
 -- ---------------------------------------------------------------------
 -- 0027_therapist_self_photo_upload.sql
 --
--- STATUS: DRAFT — BELUM DITERAPKAN. Jalankan manual lewat Supabase SQL
--- Editor, lalu update header ini jadi "SUDAH DITERAPKAN" setelah
--- diverifikasi (pola yang sama seperti 0022-0026).
+-- STATUS: SUDAH DITERAPKAN (2026-08-25). Dikonfirmasi lewat query
+-- read-only terhadap pg_policy di production: policy
+-- therapist_photos_insert sekarang sudah mengandung klausa
+-- `or (storage.foldername(name))[1] = _current_employee_id()::text`.
 --
 -- Latar belakang
 -- --------------

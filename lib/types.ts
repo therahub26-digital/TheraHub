@@ -149,9 +149,16 @@ export interface OutletProfile {
   cover: string;
   /** Poin-poin singkat, mis. "Free parkir luas", "Ruang tunggu ber-AC". */
   highlights: string[];
-  facilities: { name: string; icon: string; desc: string }[];
-  /** Foto fasilitas — spesifikasi di `MEDIA_SPECS.gallery` (lib/media.ts). */
-  gallery: { label: string; src: string }[];
+  /**
+   * `id` = primary key baris `outlet_facilities` di database. Optional
+   * karena data mock (lib/mock/org.ts) tidak punya baris database sama
+   * sekali — editor di /admin/outlets/[id]/profile hanya aktif kalau
+   * datanya live (lihat isLiveOutletsData()), jadi ketiadaan id di mode
+   * demo memang benar, bukan celah.
+   */
+  facilities: { id?: string; name: string; icon: string; desc: string }[];
+  /** Foto fasilitas — spesifikasi di `MEDIA_SPECS.gallery` (lib/media.ts). `id` sama seperti di atas. */
+  gallery: { id?: string; label: string; src: string }[];
 }
 
 /**

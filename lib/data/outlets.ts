@@ -68,8 +68,8 @@ type OutletProfileRow = {
   highlights: string[] | null;
 };
 
-type FacilityRow = { outlet_id: string; name: string; icon: string; description: string; sort_order: number };
-type GalleryRow = { outlet_id: string; label: string; url: string; sort_order: number };
+type FacilityRow = { id: string; outlet_id: string; name: string; icon: string; description: string; sort_order: number };
+type GalleryRow = { id: string; outlet_id: string; label: string; url: string; sort_order: number };
 
 type RoomRow = {
   id: string;
@@ -133,8 +133,8 @@ function mapOutlet(
       description: profile?.description ?? "",
       cover: profile?.cover_url ?? "",
       highlights: profile?.highlights ?? [],
-      facilities: facilities.map((f) => ({ name: f.name, icon: f.icon, desc: f.description })),
-      gallery: gallery.map((g) => ({ label: g.label, src: g.url })),
+      facilities: facilities.map((f) => ({ id: f.id, name: f.name, icon: f.icon, desc: f.description })),
+      gallery: gallery.map((g) => ({ id: g.id, label: g.label, src: g.url })),
     },
   };
 }

@@ -6,6 +6,7 @@ import { getOutlets } from "@/lib/data/outlets";
 import { getPromotionsForOutlet } from "@/lib/data/promotions";
 import { ME_CUSTOMER, PROMOTIONS as MOCK_PROMOTIONS, PRIMARY_OUTLET } from "@/lib/mock";
 import { fmtDateShort } from "@/lib/format";
+import { getTenantTheme } from "@/lib/data/tenant";
 
 // ---------------------------------------------------------------------
 // Added 2026-08-23 — replaces "Riwayat" in the bottom nav (see
@@ -25,6 +26,7 @@ import { fmtDateShort } from "@/lib/format";
 const GENERAL_TYPES = ["Promo", "Voucher", "Loyalty"] as const;
 
 export default async function PromoPage() {
+  const theme = await getTenantTheme();
   const customer = await getCurrentCustomer();
   const live = customer !== null;
   const me = customer ?? ME_CUSTOMER;
@@ -41,7 +43,7 @@ export default async function PromoPage() {
   }
 
   return (
-    <MobileShell role="customer" title="Promo" subtitle="Voucher dan penawaran aktif" avatarName={me.name} avatarTone={me.avatarTone}>
+    <MobileShell role="customer" brandKey={theme.brandKey} bgKey={theme.bgKey} title="Promo" subtitle="Voucher dan penawaran aktif" avatarName={me.name} avatarTone={me.avatarTone}>
       <div className="stack g4">
         {promos.length === 0 ? (
           <div className="m-card" style={{ textAlign: "center", padding: "28px 16px" }}>

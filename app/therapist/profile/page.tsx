@@ -5,6 +5,7 @@ import { getTherapistPersonalData } from "@/lib/data/therapistProfile";
 import { canEditTherapistProfile } from "@/lib/actions/therapistProfile";
 import TherapistProfileView from "@/components/TherapistProfileView";
 import { ME_THERAPIST } from "@/lib/mock";
+import { getTenantTheme } from "@/lib/data/tenant";
 
 // ---------------------------------------------------------------------
 // "Profil Terapis" — self-service entry point in the therapist portal
@@ -21,6 +22,7 @@ import { ME_THERAPIST } from "@/lib/mock";
 // ---------------------------------------------------------------------
 
 export default async function TherapistProfilePage() {
+  const theme = await getTenantTheme();
   const signedIn = await getSignedInTherapist();
 
   if (signedIn) {
@@ -34,7 +36,7 @@ export default async function TherapistProfilePage() {
     const phone = employee?.phone ?? "";
 
     return (
-      <MobileShell role="therapist" title="Profil Saya" avatarName={name} avatarUrl={employee?.photoUrl ?? signedIn.photoUrl} avatarTone={employee?.avatarTone} showBack>
+      <MobileShell role="therapist" brandKey={theme.brandKey} bgKey={theme.bgKey} title="Profil Saya" avatarName={name} avatarUrl={employee?.photoUrl ?? signedIn.photoUrl} avatarTone={employee?.avatarTone} showBack>
         <div style={{ padding: 14 }}>
           <TherapistProfileView
             employeeId={signedIn.id}
@@ -54,7 +56,7 @@ export default async function TherapistProfilePage() {
   // ---- Demo "Ganti Role" viewer: read-only, mock persona ----------
   const me = ME_THERAPIST;
   return (
-    <MobileShell role="therapist" title="Profil Saya" avatarName={me.name} avatarUrl={me.photoUrl} avatarTone={me.avatarTone} showBack>
+    <MobileShell role="therapist" brandKey={theme.brandKey} bgKey={theme.bgKey} title="Profil Saya" avatarName={me.name} avatarUrl={me.photoUrl} avatarTone={me.avatarTone} showBack>
       <div style={{ padding: 14 }}>
         <TherapistProfileView
           employeeId={me.id}

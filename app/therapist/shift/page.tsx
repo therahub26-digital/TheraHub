@@ -8,6 +8,7 @@ import { getCurrentOutlet } from "@/lib/data/outlets";
 import { getBookingsForOutlet, getEffectiveToday } from "@/lib/data/bookings";
 import { fmtDayShort, fmtDateLong, fmtTime, addDays } from "@/lib/format";
 import type { Booking } from "@/lib/types";
+import { getTenantTheme } from "@/lib/data/tenant";
 
 // ---------------------------------------------------------------------
 // UPDATE 2026-08-23 — was 100% mock (ME_THERAPIST/bookingsOf/TODAY),
@@ -98,6 +99,7 @@ function buildJobsByDay(bookings: Booking[], therapistId: string, week: string[]
 }
 
 export default async function ShiftPage() {
+  const theme = await getTenantTheme();
   const signedIn = await getSignedInTherapist();
 
   if (signedIn) {
@@ -119,7 +121,7 @@ export default async function ShiftPage() {
     const done = activeJobs.filter((b) => ["COMPLETED", "PAID"].includes(b.status));
 
     return (
-      <MobileShell role="therapist" title="Jadwal & Job" subtitle={outlet.name} avatarName={signedIn.name} avatarUrl={signedIn.photoUrl} avatarTone="teal">
+      <MobileShell role="therapist" brandKey={theme.brandKey} bgKey={theme.bgKey} title="Jadwal & Job" subtitle={outlet.name} avatarName={signedIn.name} avatarUrl={signedIn.photoUrl} avatarTone="teal">
         <div className="stack g4">
           <div className="row g2" style={{ overflowX: "auto", paddingBottom: 4 }}>
             {jobsByDay.map((d) => (
@@ -245,7 +247,7 @@ export default async function ShiftPage() {
   const done = activeJobs.filter((b) => ["COMPLETED", "PAID"].includes(b.status));
 
   return (
-    <MobileShell role="therapist" title="Jadwal & Job" subtitle={outlet.name} avatarName={me.name} avatarUrl={me.photoUrl} avatarTone={me.avatarTone}>
+    <MobileShell role="therapist" brandKey={theme.brandKey} bgKey={theme.bgKey} title="Jadwal & Job" subtitle={outlet.name} avatarName={me.name} avatarUrl={me.photoUrl} avatarTone={me.avatarTone}>
       <div className="stack g4">
         <div className="row g2" style={{ overflowX: "auto", paddingBottom: 4 }}>
           {jobsByDay.map((d) => (

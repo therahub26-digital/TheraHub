@@ -6,6 +6,7 @@ import { getOutlets } from "@/lib/data/outlets";
 import { getPromotionsForOutlet } from "@/lib/data/promotions";
 import { ME_CUSTOMER, PROMOTIONS as MOCK_PROMOTIONS, PRIMARY_OUTLET } from "@/lib/mock";
 import { rp } from "@/lib/format";
+import { getTenantTheme } from "@/lib/data/tenant";
 
 const TIERS = [
   { key: "None", label: "Reguler", min: 0 },
@@ -24,6 +25,7 @@ const TIERS = [
 // ---------------------------------------------------------------------
 
 export default async function MembershipPage() {
+  const theme = await getTenantTheme();
   const customer = await getCurrentCustomer();
   const live = customer !== null;
   const me = customer ?? ME_CUSTOMER;
@@ -42,7 +44,7 @@ export default async function MembershipPage() {
   }
 
   return (
-    <MobileShell role="customer" title="Membership" subtitle="Prepaid package, tier, dan loyalty point" avatarName={me.name} avatarTone={me.avatarTone}>
+    <MobileShell role="customer" brandKey={theme.brandKey} bgKey={theme.bgKey} title="Membership" subtitle="Prepaid package, tier, dan loyalty point" avatarName={me.name} avatarTone={me.avatarTone}>
       <div className="stack g4">
         <div className="m-card" style={{ textAlign: "center", background: "var(--accent-gradient)", border: "none" }}>
           <Icon name="gem" size={28} style={{ color: "#04140f", marginBottom: 8 }} />

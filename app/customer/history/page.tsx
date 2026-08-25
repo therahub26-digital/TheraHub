@@ -8,6 +8,7 @@ import { ME_CUSTOMER, BOOKINGS as MOCK_BOOKINGS, TODAY as MOCK_TODAY } from "@/l
 import { rp, fmtDateShort, fmtTime } from "@/lib/format";
 import { wallClockIso } from "@/lib/wallclock";
 import { guestCanStillChange } from "@/lib/bookingRules";
+import { getTenantTheme } from "@/lib/data/tenant";
 
 // ---------------------------------------------------------------------
 // UPDATE 2026-08-22 — migrated off ME_CUSTOMER/BOOKINGS mock fixtures to
@@ -23,6 +24,7 @@ import { guestCanStillChange } from "@/lib/bookingRules";
 // ---------------------------------------------------------------------
 
 export default async function HistoryPage() {
+  const theme = await getTenantTheme();
   const customer = await getCurrentCustomer();
   const live = customer !== null;
   const me = customer ?? ME_CUSTOMER;
@@ -37,7 +39,7 @@ export default async function HistoryPage() {
   const totalSpend = past.filter((b) => b.status === "PAID").reduce((s, b) => s + b.price, 0);
 
   return (
-    <MobileShell role="customer" title="Riwayat" subtitle={`${bookings.length} total booking`} avatarName={me.name} avatarTone={me.avatarTone}>
+    <MobileShell role="customer" brandKey={theme.brandKey} bgKey={theme.bgKey} title="Riwayat" subtitle={`${bookings.length} total booking`} avatarName={me.name} avatarTone={me.avatarTone}>
       <div className="stack g4">
         <div className="row g2">
           <div className="m-stat">

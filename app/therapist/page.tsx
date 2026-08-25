@@ -10,6 +10,7 @@ import { getNotificationsForTherapist } from "@/lib/data/notifications";
 import { getTodayAttendanceForTherapist } from "@/lib/data/attendance";
 import { getBookingsForOutlet, getEffectiveToday, getEffectiveNow } from "@/lib/data/bookings";
 import { rp, fmtTime } from "@/lib/format";
+import { getTenantTheme } from "@/lib/data/tenant";
 
 // ---------------------------------------------------------------------
 // Live-wired 2026-08-22 (was 100% mock before, unlike /therapist/session
@@ -32,6 +33,7 @@ import { rp, fmtTime } from "@/lib/format";
 // ---------------------------------------------------------------------
 
 export default async function TherapistHomePage() {
+  const theme = await getTenantTheme();
   const signedIn = await getSignedInTherapist();
   const me = signedIn ?? ME_THERAPIST;
   const avatarTone = signedIn ? "teal" : ME_THERAPIST.avatarTone;
@@ -55,7 +57,7 @@ export default async function TherapistHomePage() {
 
     return (
       <MobileShell
-        role="therapist"
+        role="therapist" brandKey={theme.brandKey} bgKey={theme.bgKey}
         title={`Halo, ${me.name.split(" ")[0]}`}
         subtitle={`${today} · ${now}`}
         avatarName={me.name} avatarUrl={me.photoUrl}
@@ -199,7 +201,7 @@ export default async function TherapistHomePage() {
 
   return (
     <MobileShell
-      role="therapist"
+      role="therapist" brandKey={theme.brandKey} bgKey={theme.bgKey}
       title={`Halo, ${me.name.split(" ")[0]}`}
       subtitle={`${TODAY} · ${NOW_HHMM}`}
       avatarName={me.name} avatarUrl={me.photoUrl}

@@ -9,6 +9,7 @@ import { getBookingsForCustomer } from "@/lib/data/bookings";
 import { getOutlets } from "@/lib/data/outlets";
 import { ME_CUSTOMER, PRIMARY_OUTLET } from "@/lib/mock";
 import { fmtDateShort } from "@/lib/format";
+import { getTenantTheme } from "@/lib/data/tenant";
 
 // ---------------------------------------------------------------------
 // UPDATE 2026-08-22 — migrated off ME_CUSTOMER/PRIMARY_OUTLET mock
@@ -31,6 +32,7 @@ import { fmtDateShort } from "@/lib/format";
 // ---------------------------------------------------------------------
 
 export default async function ProfilePage() {
+  const theme = await getTenantTheme();
   const customer = await getCurrentCustomer();
   const live = customer !== null;
   const me = customer ?? ME_CUSTOMER;
@@ -45,7 +47,7 @@ export default async function ProfilePage() {
   }
 
   return (
-    <MobileShell role="customer" title="Profil" subtitle={me.phone} avatarName={me.name} avatarTone={me.avatarTone}>
+    <MobileShell role="customer" brandKey={theme.brandKey} bgKey={theme.bgKey} title="Profil" subtitle={me.phone} avatarName={me.name} avatarTone={me.avatarTone}>
       <div className="stack g4">
         <div className="m-card" style={{ textAlign: "center" }}>
           <span className="avatar" style={{ width: 64, height: 64, margin: "0 auto 10px", fontSize: 22, background: "var(--accent-gradient)" }}>

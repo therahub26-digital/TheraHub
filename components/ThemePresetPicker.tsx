@@ -7,12 +7,23 @@ import { brandByKey } from "@/lib/brand";
 
 /**
  * Curated appearance + brand-colour bundles an Admin can apply in one
- * click. Unlike the rest of this page (static mock forms), this control
- * is genuinely live: it drives the same ThemeProvider / BrandOverride
- * mechanism the sun/moon toggle uses, so picking a preset re-paints the
- * whole app immediately, for this browser, and persists across reload —
- * a real way to preview "what would our app look like as X" before
- * committing to it as the tenant default.
+ * click. Two things happen at once: (1) the same ThemeProvider /
+ * BrandOverride mechanism the sun/moon toggle uses re-paints THIS
+ * browser immediately (dark/light + the swatches below), and (2) —
+ * UPDATE 2026-08-25, user feedback: "kemudian buatkan agar bisa
+ * diterapkan ke semua tampilan role" plus "kosep visual ini kan harus
+ * optional: pakai yg sudah jadi tema, atau pakai warna brand dan
+ * background yg disediakan? atau bisa mix? tidak jelas" — clicking a
+ * preset now ALSO calls onApply(brandKey, bgKey), which the parent
+ * (BusinessProfileForm) wires to the same setTenantBrand() the
+ * standalone swatches below use. So a preset is just a shortcut that
+ * fills in both swatches at once and saves — it is not a separate
+ * system from them, and previously there was no code path connecting
+ * the two (a preset only ever set a client-only localStorage override,
+ * never the saved tenant row), which is exactly what made this
+ * confusing. Mixing is fully supported either way: pick a preset, then
+ * still override just the background (or just the colour) with the
+ * swatches below if you want a combination no preset offers.
  */
 const PRESETS = [
   {
@@ -125,7 +136,12 @@ function PresetSwatch({
   );
 }
 
-export default function ThemePresetPicker() {
+export default function ThemePresetPicker({
+  onApply,
+}: {
+  /** Called with the preset's (brandKey, bgKey) so the caller can persist it as the tenant default too — see file header. */
+  onApply?: (brandKey: string, bgKey: string) => void;
+}) {
   const { theme, setTheme } = useTheme();
   const { override, setOverride, clearOverride } = useBrandOverride();
   const activeBrandKey = override.brandKey ?? "teal";
@@ -144,6 +160,7 @@ export default function ThemePresetPicker() {
                 setTheme(p.theme);
                 if (p.key === "signature") clearOverride();
                 else setOverride(p.brandKey, p.bgKey);
+                onApply?.(p.brandKey, p.bgKey);
               }}
               className="stack g2"
               style={{
@@ -171,9 +188,10 @@ export default function ThemePresetPicker() {
         })}
       </div>
       <span className="hint">
-        Klik untuk pratinjau langsung di browser Anda — seluruh aplikasi (semua portal) ikut berubah seketika. Ini
-        pratinjau pribadi Anda, belum jadi default semua pengguna; untuk menjadikannya default tenant, samakan
-        pilihan Warna Brand &amp; Background di bawah lalu klik &quot;Simpan Perubahan&quot;.
+        Klik satu preset untuk langsung mengatur Warna Brand &amp; Background di bawah sekaligus, dan menyimpannya
+        sebagai tampilan resmi untuk semua orang di semua portal (Owner, Manager, Kasir, Terapis, Customer). Preset
+        cuma jalan pintas — kalau mau kombinasi sendiri, pilih Warna Brand dan Background secara terpisah di bawah;
+        keduanya independen dan boleh dicampur bebas (mis. warna Lotus Rose dengan background Aurora).
       </span>
     </div>
   );

@@ -10,6 +10,7 @@ import { getAttendanceHistoryForTherapist } from "@/lib/data/attendance";
 import { getMyLeaveRequests } from "@/lib/data/leaveRequests";
 import { getEffectiveToday } from "@/lib/data/bookings";
 import { fmtTime, fmtDateShort, minutesToHm } from "@/lib/format";
+import { getTenantTheme } from "@/lib/data/tenant";
 
 const STATUS_LABEL: Record<string, string> = {
   VALID: "Lokasi Valid", OUTSIDE: "Di Luar Geofence", LOW_ACCURACY: "Akurasi Rendah", SUSPICIOUS: "Mencurigakan",
@@ -30,6 +31,7 @@ const STATUS_LABEL: Record<string, string> = {
 // ---------------------------------------------------------------------
 
 export default async function AttendancePage() {
+  const theme = await getTenantTheme();
   const signedIn = await getSignedInTherapist();
 
   if (signedIn) {
@@ -43,7 +45,7 @@ export default async function AttendancePage() {
     const checkedOut = !!todayRow?.checkOutAt;
 
     return (
-      <MobileShell role="therapist" title="Absensi GPS" subtitle={outlet.name} avatarName={signedIn.name} avatarUrl={signedIn.photoUrl} avatarTone="teal">
+      <MobileShell role="therapist" brandKey={theme.brandKey} bgKey={theme.bgKey} title="Absensi GPS" subtitle={outlet.name} avatarName={signedIn.name} avatarUrl={signedIn.photoUrl} avatarTone="teal">
         <div className="stack g4">
           <div
             className="m-card"
@@ -158,7 +160,7 @@ export default async function AttendancePage() {
   const checkedIn = today?.status === "CHECKED_IN" || today?.status === "CHECKED_OUT";
 
   return (
-    <MobileShell role="therapist" title="Absensi GPS" subtitle={outlet.name} avatarName={me.name} avatarUrl={me.photoUrl} avatarTone={me.avatarTone}>
+    <MobileShell role="therapist" brandKey={theme.brandKey} bgKey={theme.bgKey} title="Absensi GPS" subtitle={outlet.name} avatarName={me.name} avatarUrl={me.photoUrl} avatarTone={me.avatarTone}>
       <div className="stack g4">
         <div
           className="m-card"

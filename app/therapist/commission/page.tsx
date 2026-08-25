@@ -4,8 +4,10 @@ import { ME_THERAPIST } from "@/lib/mock";
 import { getCommissionsForTherapist, getEffectivePeriod, getSignedInTherapist } from "@/lib/data/commissions";
 import { getEffectiveToday } from "@/lib/data/bookings";
 import { rp, fmtDateShort, monthLabel } from "@/lib/format";
+import { getTenantTheme } from "@/lib/data/tenant";
 
 export default async function CommissionPage() {
+  const theme = await getTenantTheme();
   // Live: the therapist who is actually signed in. Demo/"Ganti Role":
   // the ME_THERAPIST persona, so the showcase still has a face. Without
   // this resolution a real therapist would be shown someone else's
@@ -60,7 +62,7 @@ export default async function CommissionPage() {
     .sort((a, b) => b[0].localeCompare(a[0]));
 
   return (
-    <MobileShell role="therapist" title="Komisi Saya" subtitle={monthLabel(period)} avatarName={me.name} avatarUrl={me.photoUrl} avatarTone={avatarTone}>
+    <MobileShell role="therapist" brandKey={theme.brandKey} bgKey={theme.bgKey} title="Komisi Saya" subtitle={monthLabel(period)} avatarName={me.name} avatarUrl={me.photoUrl} avatarTone={avatarTone}>
       <div className="stack g4">
         <div className="m-card" style={{ textAlign: "center", background: "var(--accent-soft)", border: "1px solid var(--accent)" }}>
           <div className="tiny dim uppercase" style={{ marginBottom: 4 }}>Total Komisi Bulan Ini</div>

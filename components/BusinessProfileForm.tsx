@@ -55,24 +55,30 @@ export default function BusinessProfileForm({ tenant }: { tenant: TenantProfile 
     });
   }
 
-  function selectBrand(key: string) {
-    const prev = logoTone;
-    setLogoTone(key);
+  function applyBrand(nextLogoTone: string, nextBgTone: string) {
+    const prevLogo = logoTone;
+    const prevBg = bgTone;
+    setLogoTone(nextLogoTone);
+    setBgTone(nextBgTone);
     setBrandMsg(null);
     startTransition(async () => {
-      const r = await setTenantBrand(key, bgTone);
-      if (!r.ok) { setLogoTone(prev); setBrandMsg({ ok: false, text: r.error }); }
+      const r = await setTenantBrand(nextLogoTone, nextBgTone);
+      if (!r.ok) { setLogoTone(prevLogo); setBgTone(prevBg); setBrandMsg({ ok: false, text: r.error }); }
     });
   }
 
+  // selectBrand/selectBackground change ONE of the pair — each reads the
+  // OTHER value fresh off state at call time (not off a stale closure),
+  // which matters now that ThemePresetPicker's onApply calls both in a
+  // row: selectBrand's setTenantBrand call always sees the bgTone that
+  // was true right before it ran, not a value captured when this render
+  // happened.
+  function selectBrand(key: string) {
+    applyBrand(key, bgTone);
+  }
+
   function selectBackground(key: string) {
-    const prev = bgTone;
-    setBgTone(key);
-    setBrandMsg(null);
-    startTransition(async () => {
-      const r = await setTenantBrand(logoTone, key);
-      if (!r.ok) { setBgTone(prev); setBrandMsg({ ok: false, text: r.error }); }
-    });
+    applyBrand(logoTone, key);
   }
 
   return (
@@ -132,7 +138,7 @@ export default function BusinessProfileForm({ tenant }: { tenant: TenantProfile 
         <div className="stack g5">
           <Card className="card-pad">
             <h3 style={{ marginBottom: 12 }}>Brand, Logo &amp; Background</h3>
-            <ThemePresetPicker />
+            <ThemePresetPicker onApply={(brandKey, bgKey) => { selectBrand(brandKey); selectBackground(bgKey); }} />
             <div style={{ height: 1, background: "var(--border)", margin: "16px 0" }} />
             {brandMsg && !brandMsg.ok && (
               <div className="tiny" style={{ color: "var(--danger)", marginBottom: 8 }}>{brandMsg.text}</div>
@@ -156,12 +162,15 @@ export default function BusinessProfileForm({ tenant }: { tenant: TenantProfile 
               <h4>Kenapa identitas visual penting?</h4>
             </div>
             <p className="small muted" style={{ lineHeight: 1.7 }}>
-              Setiap spa punya identitas visual sendiri. Warna, logo, dan background yang dipilih di sini
-              disimpan sebagai identitas resmi tenant Anda. <strong>Catatan:</strong> saat ini baru halaman ini
-              yang membaca nilai tersimpan secara langsung — penerapan otomatis ke sidebar/tombol di portal
-              Owner, Manager, Kasir, Terapis, dan Customer PWA masih memakai preset bawaan dan menyusul di
-              pembaruan berikutnya.
+              Setiap spa punya identitas visual sendiri. Warna Brand dan Background yang dipilih di sini
+              langsung berlaku untuk SEMUA orang di SEMUA portal (Owner, Manager, Kasir, Terapis, dan Customer
+              PWA) — bukan cuma pratinjau di halaman ini. Ada tiga cara memilihnya, dan boleh dicampur bebas:
             </p>
+            <ul className="small muted" style={{ lineHeight: 1.8, margin: "6px 0 0", paddingLeft: 18 }}>
+              <li><strong>Tema Siap Pakai</strong> — satu klik mengatur Warna Brand + Background sekaligus.</li>
+              <li><strong>Warna Brand</strong> &amp; <strong>Background Aplikasi</strong> di bawah — pilih sendiri-sendiri, independen dari Tema Siap Pakai manapun.</li>
+              <li><strong>Logo</strong> &amp; <strong>foto Background kustom</strong> — opsional, menimpa tampilan logo/background secara visual tanpa mengubah pilihan warna.</li>
+            </ul>
           </Card>
         </div>
       </div>

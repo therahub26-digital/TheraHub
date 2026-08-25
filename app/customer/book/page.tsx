@@ -10,6 +10,7 @@ import { getBookingsForCustomer, getEffectiveToday } from "@/lib/data/bookings";
 import { getUnavailableTherapistIdsForCustomer } from "@/lib/data/scheduleExceptions";
 import { ME_CUSTOMER, OUTLETS as MOCK_OUTLETS, packagesOf, therapistsOf, TODAY as MOCK_TODAY } from "@/lib/mock";
 import { fmtDateShort, fmtTime } from "@/lib/format";
+import { getTenantTheme } from "@/lib/data/tenant";
 
 // ---------------------------------------------------------------------
 // UPDATE 2026-08-22 — the old version of this page was a fully static
@@ -33,6 +34,7 @@ import { fmtDateShort, fmtTime } from "@/lib/format";
 // ---------------------------------------------------------------------
 
 export default async function BookPage({ searchParams }: { searchParams: Promise<{ outlet?: string }> }) {
+  const theme = await getTenantTheme();
   const sp = await searchParams;
   const customer = await getCurrentCustomer();
   const live = customer !== null;
@@ -127,7 +129,7 @@ export default async function BookPage({ searchParams }: { searchParams: Promise
   }
 
   return (
-    <MobileShell role="customer" title="Booking" subtitle="Lengkapi langkah untuk memesan layanan" avatarName={me.name} avatarTone={me.avatarTone}>
+    <MobileShell role="customer" brandKey={theme.brandKey} bgKey={theme.bgKey} title="Booking" subtitle="Lengkapi langkah untuk memesan layanan" avatarName={me.name} avatarTone={me.avatarTone}>
       {upcomingBookings.length > 0 && (
         <div className="stack g2" style={{ marginBottom: 16 }}>
           <div className="m-section">Booking Anda yang Akan Datang</div>

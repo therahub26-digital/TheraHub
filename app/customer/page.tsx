@@ -8,6 +8,7 @@ import { getOutlets } from "@/lib/data/outlets";
 import { getPromotionsForOutlet } from "@/lib/data/promotions";
 import { ME_CUSTOMER, BOOKINGS as MOCK_BOOKINGS, PROMOTIONS as MOCK_PROMOTIONS, PRIMARY_OUTLET, OUTLETS as MOCK_OUTLETS, TODAY as MOCK_TODAY } from "@/lib/mock";
 import { rp, fmtTime, fmtDateLong } from "@/lib/format";
+import { getTenantTheme } from "@/lib/data/tenant";
 
 // ---------------------------------------------------------------------
 // UPDATE 2026-08-22 — migrated off the hard-coded ME_CUSTOMER/BOOKINGS/
@@ -26,6 +27,7 @@ import { rp, fmtTime, fmtDateLong } from "@/lib/format";
 // ---------------------------------------------------------------------
 
 export default async function CustomerHomePage() {
+  const theme = await getTenantTheme();
   const customer = await getCurrentCustomer();
   const live = customer !== null;
 
@@ -46,7 +48,7 @@ export default async function CustomerHomePage() {
 
   return (
     <MobileShell
-      role="customer"
+      role="customer" brandKey={theme.brandKey} bgKey={theme.bgKey}
       title={`Halo, ${me.name.split(" ")[0]}`}
       subtitle="Amethyst"
       avatarName={me.name}

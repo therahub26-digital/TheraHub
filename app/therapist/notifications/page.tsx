@@ -5,6 +5,7 @@ import { getSignedInTherapist } from "@/lib/data/commissions";
 import { getCurrentOutlet } from "@/lib/data/outlets";
 import { getNotificationsForTherapist, MOCK_NOTIFICATIONS } from "@/lib/data/notifications";
 import { fmtDateTime } from "@/lib/format";
+import { getTenantTheme } from "@/lib/data/tenant";
 
 const SEVERITY_BG: Record<string, string> = {
   info: "var(--info-soft)",
@@ -23,6 +24,7 @@ const TYPE_ICON: Record<string, string> = {
 };
 
 export default async function TherapistNotificationsPage() {
+  const theme = await getTenantTheme();
   const signedIn = await getSignedInTherapist();
   const me = signedIn ?? ME_THERAPIST;
   const avatarTone = signedIn ? "teal" : ME_THERAPIST.avatarTone;
@@ -35,7 +37,7 @@ export default async function TherapistNotificationsPage() {
 
   return (
     <MobileShell
-      role="therapist"
+      role="therapist" brandKey={theme.brandKey} bgKey={theme.bgKey}
       title="Notifikasi"
       subtitle={`${notifications.filter((n) => !n.read).length} belum dibaca`}
       avatarName={me.name} avatarUrl={me.photoUrl}

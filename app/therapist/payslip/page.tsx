@@ -7,6 +7,7 @@ import { getSignedInTherapist } from "@/lib/data/commissions";
 import { getSavingsForEmployee, balanceOf } from "@/lib/data/savings";
 import { activeComponents, splitComponents } from "@/lib/payroll";
 import { rp, monthLabel } from "@/lib/format";
+import { getTenantTheme } from "@/lib/data/tenant";
 
 // ---------------------------------------------------------------------
 // The therapist's own payslip.
@@ -27,6 +28,7 @@ import { rp, monthLabel } from "@/lib/format";
 // ---------------------------------------------------------------------
 
 export default async function PayslipPage() {
+  const theme = await getTenantTheme();
   const signedIn = await getSignedInTherapist();
   const me = signedIn ?? ME_THERAPIST;
   // A therapist's payslip must read their OWN outlet's payroll_settings —
@@ -60,7 +62,7 @@ export default async function PayslipPage() {
 
   return (
     <MobileShell
-      role="therapist"
+      role="therapist" brandKey={theme.brandKey} bgKey={theme.bgKey}
       title="Payslip"
       subtitle={latest ? monthLabel(latest.period) : ""}
       avatarName={me.name} avatarUrl={me.photoUrl}

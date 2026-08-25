@@ -1,4 +1,6 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
+import { ACTIVE_TENANT } from "@/lib/mock";
 
 // ---------------------------------------------------------------------
 // Read layer for the current signed-in staff member's tenant row. Backs
@@ -88,3 +90,41 @@ export async function getCurrentTenant(): Promise<TenantProfile | null> {
   if (error || !data) return null;
   return mapRow(data as TenantRow);
 }
+
+
+export type TenantTheme = {
+  brandKey: string;
+  bgKey: string;
+  logoUrl: string | null;
+  backgroundPhotoUrl: string | null;
+};
+
+// ---------------------------------------------------------------------
+// Applies the tenant's saved Business Profile brand/background to every
+// portal (Owner/Manager/Kasir/Terapis/Customer), not just this reading
+// page. User (2026-08-25): the warna/background dipilih di
+// /admin/profile sebelumnya cuma tersimpan di database — tidak ada
+// portal lain yang benar-benar membacanya, semua masih hardcode
+// ACTIVE_TENANT.logoTone/bgTone dari data contoh. Fungsi ini yang
+// dipanggil dari tiap layout/halaman portal (bukan cuma /admin/profile)
+// untuk itu.
+//
+// `cache()` (React's per-request memo, sama pola dengan
+// lib/data/employees.ts) supaya satu request halaman yang merender
+// beberapa <MobileShell>/<Shell> sekaligus (mis. app/therapist/session/
+// page.tsx yang punya 4 titik render berbeda) tidak query `tenants`
+// berkali-kali.
+//
+// Fallback ke ACTIVE_TENANT (preset demo) saat tidak ada sesi/tenant —
+// sama seperti perilaku SEBELUM fitur ini ada, jadi mode demo "Ganti
+// Role" tidak berubah tampilannya sama sekali.
+// ---------------------------------------------------------------------
+export const getTenantTheme = cache(async (): Promise<TenantTheme> => {
+  const tenant = await getCurrentTenant();
+  return {
+    brandKey: tenant?.logoTone ?? ACTIVE_TENANT.logoTone,
+    bgKey: tenant?.bgTone ?? ACTIVE_TENANT.bgTone,
+    logoUrl: tenant?.logoUrl ?? null,
+    backgroundPhotoUrl: tenant?.backgroundPhotoUrl ?? null,
+  };
+});

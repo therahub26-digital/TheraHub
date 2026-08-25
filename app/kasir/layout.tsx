@@ -1,15 +1,17 @@
 import KasirShell from "@/components/KasirShell";
 import RoomAlertBanner from "@/components/RoomAlertBanner";
-import { ACTIVE_TENANT, PRIMARY_OUTLET } from "@/lib/mock";
+import { PRIMARY_OUTLET } from "@/lib/mock";
 import { getCurrentOutlet } from "@/lib/data/outlets";
 import { getOpenRoomAlerts } from "@/lib/data/alerts";
 import { getExtensionRequestsForOutlet } from "@/lib/data/sessions";
+import { getTenantTheme } from "@/lib/data/tenant";
 
 export default async function KasirLayout({ children }: { children: React.ReactNode }) {
   const outlet = await getCurrentOutlet();
-  const [alerts, extensionRequests] = await Promise.all([
+  const [alerts, extensionRequests, theme] = await Promise.all([
     getOpenRoomAlerts(outlet.id),
     getExtensionRequestsForOutlet(outlet.id),
+    getTenantTheme(),
   ]);
   // UPDATE 2026-08-23 — user caught the header bell showing a permanent
   // dot with nothing behind it (see Shell.tsx's header). This is what
@@ -20,7 +22,7 @@ export default async function KasirLayout({ children }: { children: React.ReactN
   const pendingExtensions = extensionRequests.filter((r) => r.status === "PENDING").length;
 
   return (
-    <KasirShell scopeLabel={PRIMARY_OUTLET.name} scopeSub={PRIMARY_OUTLET.city} brandKey={ACTIVE_TENANT.logoTone} notificationCount={pendingExtensions}>
+    <KasirShell scopeLabel={PRIMARY_OUTLET.name} scopeSub={PRIMARY_OUTLET.city} brandKey={theme.brandKey} bgKey={theme.bgKey} notificationCount={pendingExtensions}>
       <RoomAlertBanner outletId={outlet.id} alerts={alerts} />
       {children}
     </KasirShell>

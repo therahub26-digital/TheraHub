@@ -10,6 +10,7 @@ import {
   type TherapistPersonalDataInput,
 } from "@/lib/actions/therapistProfile";
 import type { TherapistPersonalData } from "@/lib/data/therapistProfile";
+import { BANKS, BANK_OTHER } from "@/lib/constants/banks";
 
 // ---------------------------------------------------------------------
 // Shared UI for "Profil Terapis" — one component, three entry points
@@ -56,6 +57,73 @@ function Field({
         <span className="small" style={{ color: "var(--text-1)", minHeight: 20 }}>
           {value || <span className="dim">— belum diisi —</span>}
         </span>
+      )}
+    </label>
+  );
+}
+
+// Nama Bank dipilih dari daftar tertutup (lib/constants/banks.ts) supaya
+// ejaannya seragam untuk daftar transfer payroll. Dua hal yang ditangani
+// di sini supaya tidak ada data yang hilang:
+//
+//  1. Data LAMA yang terlanjur diketik bebas (mis. "bca" huruf kecil)
+//     tidak cocok dengan opsi mana pun. Nilai itu tetap ditampilkan
+//     sebagai opsi sendiri bertanda "data lama" — kalau tidak, membuka
+//     form lalu menyimpan akan diam-diam mengosongkan bank terapis.
+//  2. Bank yang tidak ada di daftar (BPR, bank daerah lain) tetap bisa
+//     lewat opsi "Lainnya", yang memunculkan kolom ketik.
+function BankField({
+  value, onChange, canEdit,
+}: { value: string; onChange: (v: string) => void; canEdit: boolean }) {
+  const known = BANKS.includes(value);
+  const isLegacy = value !== "" && !known;
+  // "Lainnya" aktif kalau user memilihnya sendiri, atau kalau nilai
+  // tersimpan memang di luar daftar.
+  const [other, setOther] = useState(isLegacy);
+
+  if (!canEdit) {
+    return (
+      <label className="stack g1">
+        <span className="tiny uppercase dim">Nama Bank</span>
+        <span className="small" style={{ color: "var(--text-1)", minHeight: 20 }}>
+          {value || <span className="dim">— belum diisi —</span>}
+        </span>
+      </label>
+    );
+  }
+
+  return (
+    <label className="stack g1">
+      <span className="tiny uppercase dim">Nama Bank</span>
+      <select
+        className="input"
+        value={other ? BANK_OTHER : value}
+        onChange={(e) => {
+          const v = e.target.value;
+          if (v === BANK_OTHER) {
+            setOther(true);
+            onChange("");
+          } else {
+            setOther(false);
+            onChange(v);
+          }
+        }}
+      >
+        <option value="">— pilih bank —</option>
+        {BANKS.map((b) => (
+          <option key={b} value={b}>{b}</option>
+        ))}
+        {isLegacy && !other && <option value={value}>{value} (data lama)</option>}
+        <option value={BANK_OTHER}>Lainnya…</option>
+      </select>
+      {other && (
+        <input
+          className="input"
+          value={value}
+          placeholder="Tulis nama bank"
+          style={{ marginTop: 6 }}
+          onChange={(e) => onChange(e.target.value)}
+        />
       )}
     </label>
   );
@@ -187,7 +255,7 @@ export default function TherapistProfileView({
       <Card>
         <CardHead title="Rekening Bank" sub="Untuk keperluan payroll & reimbursement." />
         <div className="grid grid-2" style={{ gap: 12 }}>
-          <Field label="Nama Bank" value={values.bankName} onChange={(v) => patch({ bankName: v })} canEdit={canEdit} placeholder="mis. BCA" />
+          <BankField value={values.bankName} onChange={(v) => patch({ bankName: v })} canEdit={canEdit} />
           <Field label="Nomor Rekening" value={values.bankAccountNumber} onChange={(v) => patch({ bankAccountNumber: v })} canEdit={canEdit} />
           <Field label="Atas Nama" value={values.bankAccountHolder} onChange={(v) => patch({ bankAccountHolder: v })} canEdit={canEdit} placeholder="Nama pemilik rekening" />
         </div>

@@ -1,8 +1,11 @@
 import Icon from "@/components/Icon";
-import { PageHead } from "@/components/ui";
-import { getEmployees, outletNameMap } from "@/lib/data/employees";
+import { PageHead, InfoNote } from "@/components/ui";
+import { getEmployees, outletNameMap, isLiveEmployeesData } from "@/lib/data/employees";
+import { getOutlets } from "@/lib/data/outlets";
+import { getCurrentTenant } from "@/lib/data/tenant";
 import { EmployeeSalaryEditor } from "@/components/EmployeeSalaryEditor";
 import { EmployeeReferralEditor } from "@/components/EmployeeReferralEditor";
+import { NewUserForm } from "@/components/UserEditor";
 import UsersTable from "@/components/UsersTable";
 
 const ROLE_TONE: Record<string, "purple" | "gold" | "info" | "accent" | "neutral"> = {
@@ -11,9 +14,13 @@ const ROLE_TONE: Record<string, "purple" | "gold" | "info" | "accent" | "neutral
 };
 
 export default async function UsersPage() {
-  const EMPLOYEES = await getEmployees();
-  const outletNameById = await outletNameMap();
-  const nonTherapist = EMPLOYEES.filter((e) => e.jobRole !== "Terapis");
+  const [EMPLOYEES, outletNameById, outlets, tenant, live] = await Promise.all([
+    getEmployees(),
+    outletNameMap(),
+    getOutlets(),
+    getCurrentTenant(),
+    isLiveEmployeesData(),
+  ]);
   const therapists = EMPLOYEES.filter((e) => e.jobRole === "Terapis");
 
   // Server-rendered per-row cells (salary/referral editors are themselves
@@ -38,23 +45,32 @@ export default async function UsersPage() {
       ),
   }));
 
+  // "Tambah User" needs a real signed-in session (creates a real Supabase
+  // Auth login) — a demo/"Ganti Role" viewer has no tenant to attach the
+  // new user to, so it stays disabled there instead of silently failing.
+  const canCreate = live && !!tenant?.id && outlets.length > 0;
+
   return (
     <>
       <PageHead
         title="Users & Assignment"
         desc="Manajemen user, role assignment, dan outlet scope untuk seluruh karyawan tenant."
         actions={
-          <button className="btn btn-primary btn-sm" disabled title="Belum tersedia — penambahan karyawan dilakukan Manager Outlet di menu Therapists & Staff."><Icon name="plus" size={14} /> Tambah User</button>
+          canCreate ? (
+            <NewUserForm outlets={outlets.map((o) => ({ id: o.id, name: o.name }))} tenantId={tenant!.id} />
+          ) : (
+            <button className="btn btn-primary btn-sm" disabled title="Perlu sesi login asli untuk membuat user baru — tidak tersedia di mode contoh/demo."><Icon name="plus" size={14} /> Tambah User</button>
+          )
         }
       />
 
-      <div className="row g2 wrap" style={{ marginBottom: 16 }} title="Angkanya benar, tapi chip ini hanya penghitung — menekannya belum menyaring tabel.">
-        <span className="chip on">Semua ({EMPLOYEES.length})</span>
-        <span className="chip">Manager ({EMPLOYEES.filter((e) => e.jobRole === "Manager").length})</span>
-        <span className="chip">Kasir ({EMPLOYEES.filter((e) => e.jobRole === "Kasir").length})</span>
-        <span className="chip">Terapis ({therapists.length})</span>
-        <span className="chip">Lainnya ({nonTherapist.length - EMPLOYEES.filter((e) => e.jobRole === "Manager" || e.jobRole === "Kasir").length})</span>
-      </div>
+      {!live && (
+        <div style={{ marginBottom: 16 }}>
+          <InfoNote tone="warning" icon="alert-triangle" title="Sedang melihat data contoh">
+            Daftar user di bawah ini data contoh, bukan karyawan outlet Anda — login dengan akun asli untuk mengelola user sungguhan.
+          </InfoNote>
+        </div>
+      )}
 
       <UsersTable rows={rows} roleTone={ROLE_TONE} />
     </>

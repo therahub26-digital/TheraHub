@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 // ---------------------------------------------------------------------
 // Editing an employee's fixed-pay fields.
@@ -375,3 +376,166 @@ export async function setEmployeeGalleryUrls(employeeId: string, urls: string[])
 
   return { ok: true };
 }
+
+// ---------------------------------------------------------------------
+// "+ Tambah User" on /admin/users — Adjie (2026-08-25): "tombol tambah
+// user ... belum berfungsi", clarified afterwards that this button
+// specifically must create "Karyawan + akun login sekaligus" (an
+// employee row AND a real login account together, not just one or the
+// other).
+//
+// Not every job role has anywhere to log in to (Office Boy / Admin Umum
+// / Supervisor have no dedicated portal), so `accessRole` is a separate,
+// optional choice from `jobRole` rather than derived automatically for
+// every row — leaving it "" creates the employee only (same effect as
+// createEmployee() above), matching what Manager already does on
+// /manager/therapists. When an accessRole IS chosen, email becomes
+// required and this creates, in order: the employee row, the Supabase
+// Auth user (service-role — this is the one step a normal RLS-scoped
+// session can never do), then the app_users row that links all three
+// together. Any failure after the employee row exists rolls back what
+// was already created rather than leaving an orphaned half-user behind.
+//
+// The temporary password is generated here (never chosen by the caller,
+// never logged) and handed back once in the result so the admin can
+// relay it to the new user — there is no outgoing-email infra in this
+// project yet, so this is the only channel for it today.
+// ---------------------------------------------------------------------
+
+export type AccessRole = "" | "admin" | "owner" | "manager" | "kasir" | "therapist";
+
+const ACCESS_ROLE_LABELS: Record<Exclude<AccessRole, "">, string> = {
+  admin: "Admin", owner: "Owner", manager: "Manager", kasir: "Kasir", therapist: "Terapis",
+};
+
+function generateTempPassword(): string {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+  let out = "";
+  for (let i = 0; i < 12; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
+  return out;
+}
+
+export type CreateUserWithLoginInput = {
+  outletId: string;
+  tenantId: string;
+  name: string;
+  jobRole: string;
+  grade?: string;
+  therapistGrade?: "Junior" | "Senior" | "Master" | null;
+  phone?: string;
+  email?: string;
+  joinDate: string;
+  contractType: "Tetap" | "Kontrak" | "Harian";
+  /** "" = karyawan saja, tanpa akun login (sama seperti createEmployee()). */
+  accessRole: AccessRole;
+};
+
+export type CreateUserWithLoginResult =
+  | { ok: true; employeeId: string; loginCreated: false }
+  | { ok: true; employeeId: string; loginCreated: true; email: string; tempPassword: string }
+  | { ok: false; error: string };
+
+export async function createUserWithLogin(input: CreateUserWithLoginInput): Promise<CreateUserWithLoginResult> {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Sesi tidak ditemukan — silakan login ulang." };
+
+  const coreErr = validateEmployeeCore(input);
+  if (coreErr) return { ok: false, error: coreErr };
+
+  const email = input.email?.trim() ?? "";
+
+  if (input.accessRole) {
+    // Membuat akun login adalah tindakan admin/owner (app_users_write_admin
+    // di RLS 0002 sudah menegakkan ini juga — cek ini di sini semata supaya
+    // manager yang mencoba lewat jalur ini dapat pesan yang jelas, bukan
+    // error Postgres mentah setelah user Auth-nya sudah kadung dibuat).
+    const { data: me } = await supabase.from("app_users").select("role, tenant_id").eq("auth_user_id", user.id).maybeSingle();
+    if (!me?.tenant_id) return { ok: false, error: "Akun ini tidak terhubung ke tenant manapun — hubungi admin." };
+    if (me.role !== "admin" && me.role !== "owner" && me.role !== "super-admin") {
+      return { ok: false, error: "Hanya Admin/Owner yang bisa membuat akun login." };
+    }
+    if (!email) return { ok: false, error: "Email wajib diisi untuk membuat akun login." };
+
+    const { data: existing } = await supabase.from("app_users").select("id").eq("email", email).maybeSingle();
+    if (existing) return { ok: false, error: `Email ${email} sudah dipakai user lain.` };
+  }
+
+  const isTherapist = input.jobRole === "Terapis";
+  const code = await nextEmployeeCode(supabase, input.tenantId, isTherapist);
+  const avatarTone = AVATAR_TONES[Math.floor(Math.random() * AVATAR_TONES.length)];
+
+  const row = {
+    tenant_id: input.tenantId,
+    outlet_id: input.outletId,
+    code,
+    name: input.name.trim(),
+    job_role: input.jobRole,
+    grade: input.grade?.trim() || null,
+    phone: input.phone?.trim() || null,
+    email: email || null,
+    join_date: input.joinDate,
+    status: "ACTIVE",
+    contract_type: input.contractType,
+    base_salary: 0,
+    fixed_allowance: 0,
+    avatar_tone: avatarTone,
+    is_therapist: isTherapist,
+    skills: isTherapist ? [] : null,
+    therapist_grade: isTherapist ? input.therapistGrade ?? null : null,
+  };
+
+  let { data: emp, error: empErr } = await supabase.from("employees").insert(row).select("id").single();
+  if (empErr && empErr.code === "23505") {
+    const retryCode = `${code}-${Date.now().toString().slice(-4)}`;
+    ({ data: emp, error: empErr } = await supabase.from("employees").insert({ ...row, code: retryCode }).select("id").single());
+  }
+  if (empErr || !emp) {
+    return { ok: false, error: "Gagal menyimpan — pastikan akun Anda punya hak tambah karyawan." };
+  }
+
+  if (!input.accessRole) {
+    revalidatePath("/admin/users");
+    revalidatePath("/manager/therapists");
+    return { ok: true, employeeId: emp.id, loginCreated: false };
+  }
+
+  const admin = createAdminClient();
+  const tempPassword = generateTempPassword();
+  const { data: authUser, error: authErr } = await admin.auth.admin.createUser({
+    email,
+    password: tempPassword,
+    email_confirm: true,
+  });
+  if (authErr || !authUser?.user) {
+    // Karyawan sudah kadung tersimpan — batalkan supaya tidak ada baris
+    // karyawan yatim tanpa akun login yang gagal dibuat di sampingnya.
+    await supabase.from("employees").delete().eq("id", emp.id);
+    return { ok: false, error: `Gagal membuat akun login: ${authErr?.message ?? "tidak diketahui"}.` };
+  }
+
+  const { error: appUserErr } = await supabase.from("app_users").insert({
+    auth_user_id: authUser.user.id,
+    tenant_id: input.tenantId,
+    outlet_id: input.outletId,
+    role: input.accessRole,
+    name: input.name.trim(),
+    email,
+    phone: input.phone?.trim() || null,
+    employee_id: emp.id,
+  });
+  if (appUserErr) {
+    await admin.auth.admin.deleteUser(authUser.user.id);
+    await supabase.from("employees").delete().eq("id", emp.id);
+    return { ok: false, error: "Gagal menyimpan akun login — karyawan dibatalkan, silakan coba lagi." };
+  }
+
+  revalidatePath("/admin/users");
+  revalidatePath("/manager/therapists");
+  return { ok: true, employeeId: emp.id, loginCreated: true, email, tempPassword };
+}
+
+export { ACCESS_ROLE_LABELS };

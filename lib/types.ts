@@ -147,6 +147,14 @@ export interface OutletProfile {
    * String kosong = belum ada foto; UI jatuh ke gradient brand.
    */
   cover: string;
+  /**
+   * Foto yang dipakai khusus untuk kartu ringkas outlet (mis. "Pilih
+   * Outlet Favorit Anda" di beranda customer) — dipilih admin dari salah
+   * satu foto yang sudah ada di Galeri Foto Fasilitas, terpisah dari
+   * `cover`. String kosong = belum dipilih; titik pemakaian jatuh balik
+   * ke `cover`. Kolom baru migrasi 0029.
+   */
+  profilePhotoUrl: string;
   /** Poin-poin singkat, mis. "Free parkir luas", "Ruang tunggu ber-AC". */
   highlights: string[];
   /**

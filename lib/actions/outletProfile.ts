@@ -104,6 +104,7 @@ type ProfileRow = {
   tagline: string;
   description: string;
   cover_url: string;
+  profile_photo_url: string;
   highlights: string[] | null;
 };
 
@@ -122,7 +123,7 @@ async function upsertProfile(
 ): Promise<ActionResult> {
   const { data: existing } = await supabase
     .from("outlet_profiles")
-    .select("outlet_id, published, tagline, description, cover_url, highlights")
+    .select("outlet_id, published, tagline, description, cover_url, profile_photo_url, highlights")
     .eq("outlet_id", outletId)
     .maybeSingle();
 
@@ -132,6 +133,7 @@ async function upsertProfile(
     tagline: patch.tagline ?? existing?.tagline ?? "",
     description: patch.description ?? existing?.description ?? "",
     cover_url: patch.cover_url ?? existing?.cover_url ?? "",
+    profile_photo_url: patch.profile_photo_url ?? existing?.profile_photo_url ?? "",
     highlights: patch.highlights ?? existing?.highlights ?? [],
   };
 
@@ -181,6 +183,32 @@ export async function setOutletCoverUrl(outletId: string, url: string): Promise<
   if (!access.ok) return { ok: false, error: access.error };
   // String kosong = hapus cover. Kolomnya NOT NULL, jadi tidak boleh null.
   return upsertProfile(access.supabase, outletId, { cover_url: url.trim() }, "foto cover");
+}
+
+// --------------------------- Foto profil (kartu ringkas) ---------------------------
+
+/**
+ * Menandai satu URL (harus sudah ada di outlet_gallery_photos outlet ini,
+ * ATAU string kosong untuk membatalkan pilihan) sebagai foto profil —
+ * dipakai kartu ringkas outlet di beranda customer, terpisah dari cover.
+ * Migrasi 0029.
+ */
+export async function setOutletProfilePhotoUrl(outletId: string, url: string): Promise<ActionResult> {
+  const access = await requireOutletAccess(outletId);
+  if (!access.ok) return { ok: false, error: access.error };
+
+  const trimmed = url.trim();
+  if (trimmed) {
+    const { data: match } = await access.supabase
+      .from("outlet_gallery_photos")
+      .select("id")
+      .eq("outlet_id", outletId)
+      .eq("url", trimmed)
+      .maybeSingle();
+    if (!match) return { ok: false, error: "Foto itu tidak ditemukan di galeri outlet ini." };
+  }
+
+  return upsertProfile(access.supabase, outletId, { profile_photo_url: trimmed }, "foto profil");
 }
 
 // --------------------------- Poin unggulan ---------------------------

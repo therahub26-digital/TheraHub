@@ -1,0 +1,41 @@
+-- ---------------------------------------------------------------------
+-- 0029_outlet_profile_photo.sql
+--
+-- STATUS: DRAFT — BELUM DITERAPKAN. Jalankan manual lewat Supabase SQL
+-- Editor, lalu update header ini jadi "SUDAH DITERAPKAN" setelah
+-- diverifikasi (pola yang sama seperti 0022-0028).
+--
+-- Latar belakang
+-- --------------
+-- Adjie (2026-08-25): kartu "Pilih Outlet Favorit Anda" di beranda
+-- customer selama ini selalu memakai foto COVER outlet (hero besar di
+-- atas halaman profil outlet). Permintaan baru: gambar di kartu itu
+-- harus bisa dipilih terpisah dari cover — "gambarnya ambil dari salah
+-- satu galeri ini, tinggal pilih mana yg akan dijadikan pict profile".
+-- Jadi admin outlet perlu menandai SATU foto dari Galeri Foto Fasilitas
+-- (yang sudah ada sejak migrasi 0028) sebagai "foto profil" — dipakai
+-- khusus untuk kartu ringkas di beranda customer, terpisah dari cover
+-- yang dipakai di hero halaman profil outlet & beranda.
+--
+-- Yang ditambahkan migrasi ini
+-- -----------------------------
+-- Satu kolom baru di outlet_profiles: profile_photo_url (text, NOT NULL,
+-- default ''). String kosong = belum dipilih; UI jatuh balik ke cover_url
+-- kalau kosong, sama seperti pola cover_url sendiri (kosong = belum ada
+-- foto). Tidak perlu tabel/kolom baru di outlet_gallery_photos — cukup
+-- menyimpan URL publik foto galeri yang dipilih, karena URL Storage
+-- publiknya sudah unik dan stabil begitu diunggah.
+--
+-- Verifikasi setelah dijalankan
+-- ------------------------------
+-- select column_name, is_nullable, column_default from information_schema.columns
+--   where table_schema = 'public' and table_name = 'outlet_profiles'
+--   and column_name = 'profile_photo_url'; -- harus 1 row, is_nullable = 'NO'
+--
+-- Rollback
+-- --------
+-- alter table outlet_profiles drop column if exists profile_photo_url;
+-- ---------------------------------------------------------------------
+
+alter table outlet_profiles
+  add column if not exists profile_photo_url text not null default '';

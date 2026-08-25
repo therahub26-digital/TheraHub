@@ -220,7 +220,7 @@ export default async function OutletProfilePage({ params }: { params: Promise<{ 
         <CardHead title="Galeri Foto Fasilitas" sub={`${p.gallery.length} foto · ${specLine("gallery")}`} />
         <div className="card-body">
           {live ? (
-            <OutletGalleryEditor outletId={outlet.id} photos={editableGallery} />
+            <OutletGalleryEditor outletId={outlet.id} photos={editableGallery} profilePhotoUrl={p.profilePhotoUrl} />
           ) : (
             <div className="grid grid-3">
               {p.gallery.map((g, i) => (

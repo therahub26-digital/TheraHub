@@ -65,6 +65,7 @@ type OutletProfileRow = {
   tagline: string;
   description: string;
   cover_url: string;
+  profile_photo_url: string;
   highlights: string[] | null;
 };
 
@@ -132,6 +133,7 @@ function mapOutlet(
       tagline: profile?.tagline ?? "",
       description: profile?.description ?? "",
       cover: profile?.cover_url ?? "",
+      profilePhotoUrl: profile?.profile_photo_url ?? "",
       highlights: profile?.highlights ?? [],
       facilities: facilities.map((f) => ({ id: f.id, name: f.name, icon: f.icon, desc: f.description })),
       gallery: gallery.map((g) => ({ id: g.id, label: g.label, src: g.url })),

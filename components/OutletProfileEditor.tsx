@@ -10,6 +10,7 @@ import {
   setOutletProfileText,
   setOutletPublished,
   setOutletCoverUrl,
+  setOutletProfilePhotoUrl,
   setOutletHighlights,
   createOutletFacility,
   updateOutletFacility,
@@ -440,7 +441,15 @@ export function AddFacilityButton({ outletId }: { outletId: string }) {
 
 type GalleryPhoto = { id: string; label: string; src: string };
 
-function GalleryCard({ photo }: { photo: GalleryPhoto }) {
+function GalleryCard({
+  outletId,
+  photo,
+  isProfilePhoto,
+}: {
+  outletId: string;
+  photo: GalleryPhoto;
+  isProfilePhoto: boolean;
+}) {
   const { pending, error, run } = useSaver();
   const [label, setLabel] = useState(photo.label);
   const shot = MEDIA_SPECS.gallery;
@@ -452,11 +461,24 @@ function GalleryCard({ photo }: { photo: GalleryPhoto }) {
         style={{
           position: "relative", aspectRatio: `${shot.width} / ${shot.height}`,
           borderRadius: "var(--r-md)", overflow: "hidden",
-          border: "1px solid var(--border)", background: "var(--bg-surface-2)",
+          border: isProfilePhoto ? "2px solid var(--accent)" : "1px solid var(--border)",
+          background: "var(--bg-surface-2)",
         }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={photo.src} alt={photo.label} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+        {isProfilePhoto && (
+          <span
+            className="tiny bold"
+            style={{
+              position: "absolute", top: 6, left: 6, padding: "2px 8px", borderRadius: "var(--r-full)",
+              background: "var(--accent)", color: "#04140f",
+            }}
+          >
+            <Icon name="star" size={10} style={{ verticalAlign: "-1px", marginRight: 3 }} />
+            Foto Profil
+          </span>
+        )}
         <button
           className="btn btn-quiet btn-icon btn-sm"
           type="button"
@@ -469,17 +491,47 @@ function GalleryCard({ photo }: { photo: GalleryPhoto }) {
         </button>
       </div>
       <input className="input" value={label} onChange={(e) => setLabel(e.target.value)} style={{ height: 30, fontSize: 12 }} />
-      {dirty && (
-        <button className="btn btn-primary btn-sm" type="button" disabled={pending} onClick={() => run(() => setOutletGalleryLabel(photo.id, label))}>
-          {pending ? "Menyimpan…" : "Simpan judul"}
-        </button>
-      )}
+      <div className="row g2">
+        {dirty && (
+          <button className="btn btn-primary btn-sm" type="button" disabled={pending} onClick={() => run(() => setOutletGalleryLabel(photo.id, label))}>
+            {pending ? "Menyimpan…" : "Simpan judul"}
+          </button>
+        )}
+        {!isProfilePhoto ? (
+          <button
+            className="btn btn-ghost btn-sm"
+            type="button"
+            disabled={pending}
+            title="Pakai foto ini di kartu ringkas outlet (mis. beranda customer)"
+            onClick={() => run(() => setOutletProfilePhotoUrl(outletId, photo.src))}
+          >
+            <Icon name="star" size={12} /> Jadikan Foto Profil
+          </button>
+        ) : (
+          <button
+            className="btn btn-quiet btn-sm"
+            type="button"
+            disabled={pending}
+            onClick={() => run(() => setOutletProfilePhotoUrl(outletId, ""))}
+          >
+            Batalkan Foto Profil
+          </button>
+        )}
+      </div>
       <Note tone="error">{error}</Note>
     </div>
   );
 }
 
-export function OutletGalleryEditor({ outletId, photos }: { outletId: string; photos: GalleryPhoto[] }) {
+export function OutletGalleryEditor({
+  outletId,
+  photos,
+  profilePhotoUrl,
+}: {
+  outletId: string;
+  photos: GalleryPhoto[];
+  profilePhotoUrl: string;
+}) {
   const { pending, error, run, setError } = useSaver();
   const [uploading, setUploading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -518,7 +570,7 @@ export function OutletGalleryEditor({ outletId, photos }: { outletId: string; ph
     <>
       <div className="grid grid-3">
         {photos.map((g) => (
-          <GalleryCard key={g.id} photo={g} />
+          <GalleryCard key={g.id} outletId={outletId} photo={g} isProfilePhoto={!!profilePhotoUrl && g.src === profilePhotoUrl} />
         ))}
         <button
           className="stack g2"

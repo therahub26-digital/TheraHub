@@ -38,6 +38,7 @@ export const OUTLETS: Outlet[] = [
       published: true,
       tagline: "Pijatan berkualitas, bisa diandalkan, selalu uenaak",
       cover: "/img/outlets/out-001/cover.jpg",
+      profilePhotoUrl: "",
       description:
         "Outlet Amethyst di Cikawao — pijat tradisional & refleksi dengan terapis profesional dan standar teknik yang konsisten di setiap sesi. Cocok untuk tamu yang mencari pijatan berkualitas dengan harga terjangkau di kawasan Lengkong.",
       highlights: [
@@ -109,6 +110,7 @@ export const OUTLETS: Outlet[] = [
       published: false,
       tagline: "Amethyst — Mekarwangi, Bandung",
       cover: "",
+      profilePhotoUrl: "",
       description: "Outlet Amethyst di Mekarwangi, Bandung — pijat tradisional & refleksi.",
       highlights: [],
       facilities: [],

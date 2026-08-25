@@ -207,62 +207,68 @@ export default async function CustomerHomePage() {
           <div className="m-section">Pilih Outlet Favorit Anda</div>
           {/*
             Adjie (2026-08-25): "kotak pilih outlet favourite anda di buat
-            selebar layar tapi dibagi 2 kotak, sebelah kiri tulisan
-            (cikawao, bandung, lihat profil) dan di sebelah kanannya kotak
-            gambar... kalau ada outlet baru nanti dibawahnya".
-            Jadi: bukan lagi baris yang di-scroll ke samping, tapi daftar
-            bertumpuk ke bawah, tiap kartu selebar layar dan dibagi dua —
-            teks di kiri, foto tampak depan ruko di kanan.
+            selebar layar tapi dibagi 2 kotak" — daftar bertumpuk ke bawah
+            (bukan digeser ke samping), tiap kartu selebar layar. Lalu
+            koreksi dua putaran: (a) rasio teks:gambar 1:2, bukan 1:0.7 —
+            gambarnya jadi elemen dominan di kartu; (b) gambar TIDAK lagi
+            selalu cover — admin bisa menandai satu foto galeri sebagai
+            "foto profil" outlet (lihat migrasi 0029 & OutletProfileEditor
+            di /admin/outlets/[id]/profile), dan itu yang dipakai di sini
+            duluan. Outlet yang belum pernah menandai apa pun tetap jatuh
+            balik ke cover, supaya kartu tidak mendadak kosong.
           */}
           <div className="stack g2">
-            {published.map((o) => (
-              <Link
-                key={o.id}
-                href={`/customer/outlets/${o.id}`}
-                className="row"
-                style={{
-                  width: "100%", alignItems: "stretch", gap: 0, borderRadius: "var(--r-md)",
-                  overflow: "hidden", background: "var(--bg-surface-2)", border: "1px solid var(--border)",
-                }}
-              >
-                <div className="stack g1" style={{ flex: 1, minWidth: 0, padding: 12, justifyContent: "center" }}>
-                  <div className="row g2">
-                    <Icon name="map-pin" size={13} style={{ color: "var(--accent)", flexShrink: 0 }} />
-                    <span className="small bold truncate" style={{ color: "var(--text-1)" }}>
-                      {o.name.replace("Amethyst — ", "")}
-                    </span>
-                  </div>
-                  <span className="tiny dim truncate">{o.city}</span>
-                  <span className="tiny row g1" style={{ color: "var(--accent)", marginTop: 2 }}>
-                    Lihat profil <Icon name="chevron-right" size={11} />
-                  </span>
-                </div>
-
-                <div
+            {published.map((o) => {
+              const cardImage = o.profile.profilePhotoUrl || o.profile.cover;
+              return (
+                <Link
+                  key={o.id}
+                  href={`/customer/outlets/${o.id}`}
+                  className="row"
                   style={{
-                    position: "relative", flexShrink: 0, width: "42%", minHeight: 92,
-                    background: "var(--bg-surface-3)",
+                    width: "100%", alignItems: "stretch", gap: 0, borderRadius: "var(--r-md)",
+                    overflow: "hidden", background: "var(--bg-surface-2)", border: "1px solid var(--border)",
                   }}
                 >
-                  {o.profile.cover ? (
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img
-                      src={o.profile.cover}
-                      alt={`Tampak depan ${o.name}`}
-                      style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
-                    />
-                  ) : (
-                    <div
-                      className="stack g1"
-                      style={{ position: "absolute", inset: 0, alignItems: "center", justifyContent: "center", color: "var(--text-3)" }}
-                    >
-                      <Icon name="camera" size={16} />
-                      <span className="tiny dim">Belum ada foto</span>
+                  <div className="stack g1" style={{ flex: 1, minWidth: 0, padding: 12, justifyContent: "center" }}>
+                    <div className="row g2">
+                      <Icon name="map-pin" size={13} style={{ color: "var(--accent)", flexShrink: 0 }} />
+                      <span className="small bold truncate" style={{ color: "var(--text-1)" }}>
+                        {o.name.replace("Amethyst — ", "")}
+                      </span>
                     </div>
-                  )}
-                </div>
-              </Link>
-            ))}
+                    <span className="tiny dim truncate">{o.city}</span>
+                    <span className="tiny row g1" style={{ color: "var(--accent)", marginTop: 2 }}>
+                      Lihat profil <Icon name="chevron-right" size={11} />
+                    </span>
+                  </div>
+
+                  <div
+                    style={{
+                      position: "relative", flex: 2, minWidth: 0, minHeight: 92,
+                      background: "var(--bg-surface-3)",
+                    }}
+                  >
+                    {cardImage ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={cardImage}
+                        alt={`Foto ${o.name}`}
+                        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
+                      />
+                    ) : (
+                      <div
+                        className="stack g1"
+                        style={{ position: "absolute", inset: 0, alignItems: "center", justifyContent: "center", color: "var(--text-3)" }}
+                      >
+                        <Icon name="camera" size={16} />
+                        <span className="tiny dim">Belum ada foto</span>
+                      </div>
+                    )}
+                  </div>
+                </Link>
+              );
+            })}
             {published.length === 0 && <div className="small dim">Belum ada outlet yang dipublikasikan.</div>}
           </div>
         </div>

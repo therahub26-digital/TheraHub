@@ -1,0 +1,51 @@
+-- ---------------------------------------------------------------------
+-- 0031_outlet_timezone.sql
+--
+-- STATUS: DRAFT — BELUM DITERAPKAN. Jalankan manual lewat Supabase SQL
+-- Editor, lalu update header ini jadi "SUDAH DITERAPKAN" setelah
+-- diverifikasi (pola yang sama seperti 0022-0030).
+--
+-- Latar belakang
+-- --------------
+-- Bagian dari "Tahap 2" migrasi timezone (lihat
+-- claude/therahub-audit-timezone.md §4 di project) — item prasyarat yang
+-- aman dikerjakan sekarang, TANPA menyentuh data timestamp yang sudah
+-- ada dan TANPA mengubah lib/wallclock.ts. Amethyst saat ini hanya
+-- beroperasi di satu timezone (WIB / Asia/Jakarta di kedua outlet CKW
+-- dan MKW), jadi kolom ini murni PERSIAPAN untuk Tahap 3 (migrasi data
+-- penuh + dukungan multi-timezone beneran) — belum dipakai di kode
+-- manapun setelah migrasi ini dijalankan.
+--
+-- Yang ditambahkan migrasi ini
+-- -----------------------------
+-- Satu kolom baru di outlets: timezone (text, NOT NULL, default
+-- 'Asia/Jakarta'). Nama IANA timezone standar dipilih (bukan offset
+-- angka seperti "+7") supaya siap dipakai langsung oleh
+-- Intl.DateTimeFormat / date-fns-tz kalau/ketika Tahap 3 benar-benar
+-- mengimplementasikan konversi timezone sungguhan, tanpa perlu migrasi
+-- kolom lagi nanti.
+--
+-- TIDAK termasuk di migrasi ini (sengaja)
+-- -----------------------------------------
+-- - Tidak ada perubahan pada kolom timestamp manapun (scheduled_start,
+--   created_at, dll) — itu tugas Tahap 3, butuh maintenance window dan
+--   harus atomik dengan perubahan sweepNoShowBookings() (lihat audit
+--   §4 untuk peringatan kenapa itu berbahaya kalau tidak atomik).
+-- - Tidak ada perubahan kode aplikasi yang membaca kolom ini — kolom
+--   ini murni data persiapan sampai Tahap 3 mengonsumsinya.
+--
+-- Verifikasi setelah dijalankan
+-- ------------------------------
+-- select id, name, timezone from outlets; -- semua baris harus
+--   'Asia/Jakarta' (default terisi otomatis untuk baris yang sudah ada)
+-- select column_name, is_nullable, column_default from information_schema.columns
+--   where table_schema = 'public' and table_name = 'outlets'
+--   and column_name = 'timezone'; -- harus 1 row, is_nullable = 'NO'
+--
+-- Rollback
+-- --------
+-- alter table outlets drop column if exists timezone;
+-- ---------------------------------------------------------------------
+
+alter table outlets
+  add column if not exists timezone text not null default 'Asia/Jakarta';

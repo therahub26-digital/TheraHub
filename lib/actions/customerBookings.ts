@@ -3,10 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { addMin } from "@/lib/format";
 import { GUEST_CHANGE_CUTOFF_MIN, guestCanStillChange, isStartInPast } from "@/lib/bookingRules";
 import { getUnavailableTherapistIdsForCustomer } from "@/lib/data/scheduleExceptions";
-import { todayIsoDate, plusDays } from "@/lib/wallclock";
+import { todayIsoDate, plusDays, wallClockIso, plusMinutes } from "@/lib/wallclock";
 
 // ---------------------------------------------------------------------
 // Server Actions for the CUSTOMER-initiated half of the booking module
@@ -139,9 +138,14 @@ export async function createCustomerBooking(input: CreateCustomerBookingInput): 
     return { ok: false, error: "Terapis ini sedang libur/cuti pada tanggal tersebut. Pilih terapis lain." };
   }
 
-  const scheduledEndHHMM = addMin(input.startTime, pkg.duration_min);
-  const startIso = `${input.date}T${input.startTime}:00+00:00`;
-  const endIso = `${input.date}T${scheduledEndHHMM}:00+00:00`;
+  // Sama seperti createBooking() di bookings.ts: addMin() (lib/format.ts)
+  // membungkus lewat tengah malam via "% 1440" tanpa menambah tanggal,
+  // jadi booking mendekati tengah malam bisa tersimpan dengan
+  // scheduled_end < scheduled_start pada tanggal yang sama. plusMinutes()
+  // di lib/wallclock.ts menghitung lewat Date sungguhan sehingga
+  // pergantian tanggal tertangani otomatis.
+  const startIso = wallClockIso(input.date, input.startTime);
+  const endIso = plusMinutes(startIso, pkg.duration_min);
 
   // See file header: this one read runs through the admin client on
   // purpose, to see across other customers' bookings for a conflict

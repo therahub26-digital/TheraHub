@@ -2,10 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { addMin } from "@/lib/format";
 import { notifyTherapist } from "@/lib/notify";
 import { isStartInPast } from "@/lib/bookingRules";
 import { getScheduleExceptions } from "@/lib/data/scheduleExceptions";
+import { wallClockIso, plusMinutes } from "@/lib/wallclock";
 
 // ---------------------------------------------------------------------
 // Server Action: createBooking — the write half of the booking module.
@@ -93,9 +93,16 @@ export async function createBooking(input: CreateBookingInput): Promise<CreateBo
     .single();
   if (pkgErr || !pkg) return { ok: false, error: "Paket layanan tidak ditemukan." };
 
-  const scheduledEndHHMM = addMin(input.startTime, pkg.duration_min);
-  const startIso = `${input.date}T${input.startTime}:00+00:00`;
-  const endIso = `${input.date}T${scheduledEndHHMM}:00+00:00`;
+  // Dulu pakai addMin() (lib/format.ts) untuk hitung jam selesai, lalu
+  // menempelkannya ke input.date secara manual -- addMin() membungkus
+  // lewat tengah malam via "% 1440" tanpa pernah menambah tanggalnya,
+  // jadi booking 23:30 selama 90 menit tersimpan sebagai "01:00" pada
+  // TANGGAL YANG SAMA (seharusnya besok), membuat scheduled_end <
+  // scheduled_start dan merusak pengecekan overlap(). plusMinutes() di
+  // lib/wallclock.ts menghitung lewat objek Date sungguhan sehingga
+  // pergantian tanggal tertangani otomatis.
+  const startIso = wallClockIso(input.date, input.startTime);
+  const endIso = plusMinutes(startIso, pkg.duration_min);
 
   const { data: sameDayBookings, error: sameDayErr } = await supabase
     .from("bookings")

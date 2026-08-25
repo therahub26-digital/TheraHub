@@ -1,9 +1,11 @@
 -- ---------------------------------------------------------------------
 -- 0031_outlet_timezone.sql
 --
--- STATUS: DRAFT — BELUM DITERAPKAN. Jalankan manual lewat Supabase SQL
--- Editor, lalu update header ini jadi "SUDAH DITERAPKAN" setelah
--- diverifikasi (pola yang sama seperti 0022-0030).
+-- STATUS: SUDAH DITERAPKAN — dijalankan manual oleh Adjie lewat Supabase
+-- SQL Editor pada 2026-08-25 ("Success. No rows returned", dikonfirmasi
+-- lewat screenshot). Query verifikasi di bawah (baris "select id, name,
+-- timezone from outlets") belum sempat dijalankan terpisah -- kalau mau
+-- konfirmasi ekstra, jalankan itu dan pastikan semua baris 'Asia/Jakarta'.
 --
 -- Latar belakang
 -- --------------

@@ -15,24 +15,61 @@ import { BRAND_PRESETS, BACKGROUND_PRESETS } from "@/lib/brand";
 // persisted anywhere. This file is what the save button, the brand-color
 // swatches, and the two new uploaders (logo + custom background photo)
 // now actually call.
+//
+// BUG FIX (2026-08-25, laporan Adjie "gagal mengganti logo / gagal ganti
+// background"): versi pertama file ini memanggil .update() TANPA filter
+// apa pun, mengandalkan RLS (tenants_read_own / tenants_write_admin)
+// untuk membatasi baris. PostgREST menolak UPDATE tanpa WHERE demi
+// keamanan — jadi requestnya gagal SEBELUM RLS sempat dievaluasi, dan
+// semua tombol simpan di halaman ini error. Sekarang tenant_id di-resolve
+// dulu dari app_users (pola yang sama dengan lib/actions/bookings.ts)
+// lalu dipakai sebagai .eq("id", tenantId). RLS tetap jadi lapis
+// pengaman kedua, bukan satu-satunya.
 // ---------------------------------------------------------------------
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
-async function requireStaff() {
+/** Auth check + tenant resolution in one go — every write here needs both. */
+async function requireTenant() {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { supabase, error: "Sesi tidak ditemukan — silakan login ulang." as const };
-  return { supabase, error: null };
+  if (!user) {
+    return { supabase, tenantId: null, error: "Sesi tidak ditemukan — silakan login ulang." as const };
+  }
+
+  const { data: staffRow, error: staffErr } = await supabase
+    .from("app_users")
+    .select("tenant_id")
+    .eq("auth_user_id", user.id)
+    .maybeSingle();
+  if (staffErr || !staffRow?.tenant_id) {
+    return {
+      supabase,
+      tenantId: null,
+      error: "Akun ini tidak terhubung ke tenant manapun — hubungi admin." as const,
+    };
+  }
+
+  return { supabase, tenantId: staffRow.tenant_id as string, error: null };
 }
 
-function writeError(error: { code?: string } | null, what: string): string {
+/**
+ * Turns a Postgres/PostgREST error into something a spa admin can act on.
+ * The raw message is appended because the first version of this file hid
+ * every failure behind "coba lagi", which made the unfiltered-UPDATE bug
+ * above impossible to diagnose from the screen alone.
+ */
+function writeError(error: { code?: string; message?: string } | null, what: string): string {
   if (error?.code === "42501") {
     return `Role kamu belum diizinkan mengubah ${what}. Hubungi admin/owner.`;
   }
-  return `Gagal menyimpan ${what} — coba lagi.`;
+  if (error?.code === "42703") {
+    return `Kolom untuk ${what} belum ada di database — migrasi 0025 belum dijalankan.`;
+  }
+  const detail = error?.message ? ` (${error.message})` : "";
+  return `Gagal menyimpan ${what} — coba lagi.${detail}`;
 }
 
 /**
@@ -67,8 +104,8 @@ export type TenantProfileInput = {
 
 /** Saves Identitas Bisnis + Kontak + Footer Invoice/Struk in one action, mirroring the single "Simpan Perubahan" button on the page. */
 export async function setTenantProfile(input: TenantProfileInput): Promise<ActionResult> {
-  const { supabase, error } = await requireStaff();
-  if (error) return { ok: false, error };
+  const { supabase, tenantId, error } = await requireTenant();
+  if (error || !tenantId) return { ok: false, error: error ?? "Tenant tidak ditemukan." };
 
   const brandName = input.brandName.trim();
   if (!brandName) return { ok: false, error: "Nama Brand tidak boleh kosong." };
@@ -89,6 +126,7 @@ export async function setTenantProfile(input: TenantProfileInput): Promise<Actio
       address: input.address.trim() || null,
       receipt_footer: input.invoiceFooter.trim() || null,
     })
+    .eq("id", tenantId)
     .select("id")
     .maybeSingle();
   if (writeErr) return { ok: false, error: writeError(writeErr, "profil bisnis") };
@@ -103,14 +141,15 @@ const BACKGROUND_KEYS = BACKGROUND_PRESETS.map((b) => b.key);
 
 /** Warna Brand + Background Aplikasi swatches — applied immediately on click, same "instant apply" feel as the (client-only) Tema Siap Pakai preview above it, except this one actually persists to the tenant. */
 export async function setTenantBrand(logoTone: string, bgTone: string): Promise<ActionResult> {
-  const { supabase, error } = await requireStaff();
-  if (error) return { ok: false, error };
+  const { supabase, tenantId, error } = await requireTenant();
+  if (error || !tenantId) return { ok: false, error: error ?? "Tenant tidak ditemukan." };
   if (!BRAND_KEYS.includes(logoTone)) return { ok: false, error: "Warna brand tidak dikenal." };
   if (!BACKGROUND_KEYS.includes(bgTone)) return { ok: false, error: "Background tidak dikenal." };
 
   const { data, error: writeErr } = await supabase
     .from("tenants")
     .update({ logo_tone: logoTone, bg_tone: bgTone })
+    .eq("id", tenantId)
     .select("id")
     .maybeSingle();
   if (writeErr) return { ok: false, error: writeError(writeErr, "warna brand & background") };
@@ -122,10 +161,15 @@ export async function setTenantBrand(logoTone: string, bgTone: string): Promise<
 
 /** Persists the public Storage URL after a client-side direct upload to the `tenant-branding` bucket — same two-step pattern as setEmployeePhotoUrl (lib/actions/employees.ts). */
 export async function setTenantLogoUrl(url: string | null): Promise<ActionResult> {
-  const { supabase, error } = await requireStaff();
-  if (error) return { ok: false, error };
+  const { supabase, tenantId, error } = await requireTenant();
+  if (error || !tenantId) return { ok: false, error: error ?? "Tenant tidak ditemukan." };
 
-  const { data, error: writeErr } = await supabase.from("tenants").update({ logo_url: url }).select("id").maybeSingle();
+  const { data, error: writeErr } = await supabase
+    .from("tenants")
+    .update({ logo_url: url })
+    .eq("id", tenantId)
+    .select("id")
+    .maybeSingle();
   if (writeErr) return { ok: false, error: writeError(writeErr, "logo") };
   if (!data) return { ok: false, error: forbiddenMsg("logo") };
 
@@ -134,10 +178,15 @@ export async function setTenantLogoUrl(url: string | null): Promise<ActionResult
 }
 
 export async function setTenantBackgroundPhotoUrl(url: string | null): Promise<ActionResult> {
-  const { supabase, error } = await requireStaff();
-  if (error) return { ok: false, error };
+  const { supabase, tenantId, error } = await requireTenant();
+  if (error || !tenantId) return { ok: false, error: error ?? "Tenant tidak ditemukan." };
 
-  const { data, error: writeErr } = await supabase.from("tenants").update({ background_photo_url: url }).select("id").maybeSingle();
+  const { data, error: writeErr } = await supabase
+    .from("tenants")
+    .update({ background_photo_url: url })
+    .eq("id", tenantId)
+    .select("id")
+    .maybeSingle();
   if (writeErr) return { ok: false, error: writeError(writeErr, "background foto kustom") };
   if (!data) return { ok: false, error: forbiddenMsg("background foto kustom") };
 

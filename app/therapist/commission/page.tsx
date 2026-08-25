@@ -60,7 +60,7 @@ export default async function CommissionPage() {
     .sort((a, b) => b[0].localeCompare(a[0]));
 
   return (
-    <MobileShell role="therapist" title="Komisi Saya" subtitle={monthLabel(period)} avatarName={me.name} avatarTone={avatarTone}>
+    <MobileShell role="therapist" title="Komisi Saya" subtitle={monthLabel(period)} avatarName={me.name} avatarUrl={me.photoUrl} avatarTone={avatarTone}>
       <div className="stack g4">
         <div className="m-card" style={{ textAlign: "center", background: "var(--accent-soft)", border: "1px solid var(--accent)" }}>
           <div className="tiny dim uppercase" style={{ marginBottom: 4 }}>Total Komisi Bulan Ini</div>

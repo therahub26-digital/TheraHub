@@ -210,7 +210,7 @@ export async function getCommissionsForOutlet(outletId: string, period?: string)
  * is not linked to an employee row — the caller then falls back to the
  * mock persona, which is correct for the "Ganti Role" showcase.
  */
-export async function getSignedInTherapist(): Promise<{ id: string; name: string } | null> {
+export async function getSignedInTherapist(): Promise<{ id: string; name: string; photoUrl?: string } | null> {
   const supabase = await createClient();
 
   const {
@@ -225,12 +225,19 @@ export async function getSignedInTherapist(): Promise<{ id: string; name: string
     .maybeSingle();
   if (!appUser?.employee_id) return null;
 
+  // photo_url ditambahkan 2026-08-25 — user: "profil terapis belum
+  // muncul, sebelumnya infonya sudah ok" (avatar di header portal
+  // terapis sendiri masih inisial "ZA", tidak pernah pakai foto asli).
+  // Bukan bug data/upload — fungsi ini memang belum pernah mengambil
+  // photo_url sama sekali, jadi tidak ada jalur bagi MobileShell untuk
+  // menampilkannya. Lihat components/MobileShell.tsx (prop avatarUrl
+  // baru) dan ketujuh app/therapist/*/page.tsx yang memanggil fungsi ini.
   const { data: employee } = await supabase
     .from("employees")
-    .select("id, name")
+    .select("id, name, photo_url")
     .eq("id", appUser.employee_id)
     .maybeSingle();
   if (!employee) return null;
 
-  return { id: employee.id, name: employee.name };
+  return { id: employee.id, name: employee.name, photoUrl: employee.photo_url ?? undefined };
 }

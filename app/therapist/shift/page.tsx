@@ -119,7 +119,7 @@ export default async function ShiftPage() {
     const done = activeJobs.filter((b) => ["COMPLETED", "PAID"].includes(b.status));
 
     return (
-      <MobileShell role="therapist" title="Jadwal & Job" subtitle={outlet.name} avatarName={signedIn.name} avatarTone="teal">
+      <MobileShell role="therapist" title="Jadwal & Job" subtitle={outlet.name} avatarName={signedIn.name} avatarUrl={signedIn.photoUrl} avatarTone="teal">
         <div className="stack g4">
           <div className="row g2" style={{ overflowX: "auto", paddingBottom: 4 }}>
             {jobsByDay.map((d) => (
@@ -245,7 +245,7 @@ export default async function ShiftPage() {
   const done = activeJobs.filter((b) => ["COMPLETED", "PAID"].includes(b.status));
 
   return (
-    <MobileShell role="therapist" title="Jadwal & Job" subtitle={outlet.name} avatarName={me.name} avatarTone={me.avatarTone}>
+    <MobileShell role="therapist" title="Jadwal & Job" subtitle={outlet.name} avatarName={me.name} avatarUrl={me.photoUrl} avatarTone={me.avatarTone}>
       <div className="stack g4">
         <div className="row g2" style={{ overflowX: "auto", paddingBottom: 4 }}>
           {jobsByDay.map((d) => (

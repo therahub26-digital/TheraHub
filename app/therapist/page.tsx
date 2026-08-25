@@ -58,7 +58,7 @@ export default async function TherapistHomePage() {
         role="therapist"
         title={`Halo, ${me.name.split(" ")[0]}`}
         subtitle={`${today} · ${now}`}
-        avatarName={me.name}
+        avatarName={me.name} avatarUrl={me.photoUrl}
         avatarTone={avatarTone}
         headerRight={
           <Link href="/therapist/notifications" className="btn btn-quiet btn-icon btn-sm" style={{ position: "relative" }}>
@@ -202,7 +202,7 @@ export default async function TherapistHomePage() {
       role="therapist"
       title={`Halo, ${me.name.split(" ")[0]}`}
       subtitle={`${TODAY} · ${NOW_HHMM}`}
-      avatarName={me.name}
+      avatarName={me.name} avatarUrl={me.photoUrl}
       avatarTone={ME_THERAPIST.avatarTone}
       headerRight={
         <Link href="/therapist/notifications" className="btn btn-quiet btn-icon btn-sm" style={{ position: "relative" }}>

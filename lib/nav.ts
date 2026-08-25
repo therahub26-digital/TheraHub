@@ -174,6 +174,10 @@ export const ROLES: RoleDef[] = [
       { href: "/therapist/notifications", label: "Notifikasi", icon: "bell", badge: 2, section: "Penghasilan" },
       { href: "/therapist/commission", label: "Komisi Saya", icon: "percent", section: "Penghasilan" },
       { href: "/therapist/payslip", label: "Payslip & Tabungan", icon: "wallet", section: "Penghasilan" },
+      // "Profil Saya" — added 2026-08-25, user: "profil terapis baru,
+      // terapis juga harus bisa edit". Overflows into "Lainnya" (8th
+      // item, tab bar only shows the first 4) — same as Komisi/Payslip.
+      { href: "/therapist/profile", label: "Profil Saya", icon: "user-round", section: "Penghasilan" },
     ],
   },
   {

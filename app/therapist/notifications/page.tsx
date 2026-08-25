@@ -38,7 +38,7 @@ export default async function TherapistNotificationsPage() {
       role="therapist"
       title="Notifikasi"
       subtitle={`${notifications.filter((n) => !n.read).length} belum dibaca`}
-      avatarName={me.name}
+      avatarName={me.name} avatarUrl={me.photoUrl}
       avatarTone={avatarTone}
     >
       <div className="stack g2">

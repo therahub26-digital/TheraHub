@@ -45,7 +45,7 @@ export default async function SessionControlPage() {
         .sort((a, b) => a.scheduledStart.localeCompare(b.scheduledStart))[0];
 
       return (
-        <MobileShell role="therapist" title="Sesi Aktif" subtitle={`Pukul ${now}`} avatarName={me.name} avatarTone={avatarTone}>
+        <MobileShell role="therapist" title="Sesi Aktif" subtitle={`Pukul ${now}`} avatarName={me.name} avatarUrl={me.photoUrl} avatarTone={avatarTone}>
           <div className="stack g4">
             <div className="m-card" style={{ textAlign: "center", padding: "32px 16px" }}>
               <Icon name="timer" size={30} style={{ color: "var(--text-4)", marginBottom: 10 }} />
@@ -74,7 +74,7 @@ export default async function SessionControlPage() {
     }
 
     return (
-      <MobileShell role="therapist" title="Sesi Aktif" subtitle={active.bookingCode} avatarName={me.name} avatarTone={avatarTone}>
+      <MobileShell role="therapist" title="Sesi Aktif" subtitle={active.bookingCode} avatarName={me.name} avatarUrl={me.photoUrl} avatarTone={avatarTone}>
         <div className="stack g4">
           <SessionAlarm key={active.id} expectedEndIso={active.expectedEndIso} alarmSoundUrl={outlet.alarmSoundUrl} />
 
@@ -140,7 +140,7 @@ export default async function SessionControlPage() {
 
   if (!active) {
     return (
-      <MobileShell role="therapist" title="Sesi Aktif" subtitle={`Pukul ${NOW_HHMM}`} avatarName={me.name} avatarTone={ME_THERAPIST.avatarTone}>
+      <MobileShell role="therapist" title="Sesi Aktif" subtitle={`Pukul ${NOW_HHMM}`} avatarName={me.name} avatarUrl={me.photoUrl} avatarTone={ME_THERAPIST.avatarTone}>
         <div className="stack g4">
           <div className="m-card" style={{ textAlign: "center", padding: "32px 16px" }}>
             <Icon name="timer" size={30} style={{ color: "var(--text-4)", marginBottom: 10 }} />
@@ -169,7 +169,7 @@ export default async function SessionControlPage() {
   }
 
   return (
-    <MobileShell role="therapist" title="Sesi Aktif" subtitle={active.bookingCode} avatarName={me.name} avatarTone={ME_THERAPIST.avatarTone}>
+    <MobileShell role="therapist" title="Sesi Aktif" subtitle={active.bookingCode} avatarName={me.name} avatarUrl={me.photoUrl} avatarTone={ME_THERAPIST.avatarTone}>
       <div className="stack g4">
         <div className="m-card" style={{ textAlign: "center", background: "var(--accent-soft)", border: "1px solid var(--accent)" }}>
           <Badge tone={active.status === "ENDING_SOON" ? "warning" : "accent"} dot lg>

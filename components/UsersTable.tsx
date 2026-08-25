@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import Link from "next/link";
 import Icon from "@/components/Icon";
 import { Card, PersonCell, Badge, StatusBadge } from "@/components/ui";
 import { useUserSearch, UsersSearchBox } from "@/components/UsersSearch";
@@ -63,6 +64,12 @@ export default function UsersTable({
                   <td><StatusBadge status={e.status} /></td>
                   <td>
                     <div className="row g1">
+                      {/* Profil Terapis (2026-08-25) — data pribadi, lihat-saja untuk Admin/Owner. Lihat migrasi 0026. */}
+                      {e.jobRole === "Terapis" && (
+                        <Link href={`/admin/users/${e.id}/profile`} className="btn btn-ghost btn-icon btn-sm" title="Lihat Profil Terapis">
+                          <Icon name="user-round" size={14} />
+                        </Link>
+                      )}
                       <button className="btn btn-quiet btn-icon btn-sm" disabled title="Belum tersedia — fiturnya belum dibangun."><Icon name="more" size={14} /></button>
                     </div>
                   </td>

@@ -30,6 +30,7 @@ export default function MobileShell({
   showBack,
   avatarName,
   avatarTone,
+  avatarUrl,
 }: {
   role: Role;
   title: string;
@@ -42,6 +43,8 @@ export default function MobileShell({
   /** Override the header avatar identity — defaults to the role's demo persona. */
   avatarName?: string;
   avatarTone?: string;
+  /** Real profile photo for the header avatar. Falls back to initials (avatarName/avatarTone) when absent — added 2026-08-25, see getSignedInTherapist() in lib/data/commissions.ts. */
+  avatarUrl?: string;
 }) {
   const def = roleByKey(role);
   const pathname = usePathname();
@@ -206,7 +209,7 @@ export default function MobileShell({
             {showBack ? (
               <Link href={def.base} className="btn btn-quiet btn-icon btn-sm"><Icon name="arrow-left" size={17} /></Link>
             ) : (
-              <Avatar name={avatarName ?? def.persona.name} toneKey={avatarTone ?? def.tone} size={30} />
+              <Avatar name={avatarName ?? def.persona.name} toneKey={avatarTone ?? def.tone} size={30} photoUrl={avatarUrl} />
             )}
             <div style={{ minWidth: 0, flex: 1 }}>
               <div className="small bold truncate" style={{ color: "var(--text-1)" }}>{title}</div>

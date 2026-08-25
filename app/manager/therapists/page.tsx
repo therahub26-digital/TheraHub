@@ -1,3 +1,5 @@
+import Link from "next/link";
+import Icon from "@/components/Icon";
 import { PageHead, Card, CardHead, StatCard, Badge, PersonCell } from "@/components/ui";
 import { getCurrentOutlet } from "@/lib/data/outlets";
 import { getEmployees, getTherapistsForOutlet } from "@/lib/data/employees";
@@ -133,19 +135,27 @@ export default async function TherapistsPage() {
                     <td><EmployeePhotoGallery employeeId={t.id} initialUrls={t.galleryUrls} /></td>
                     <td><Badge tone={t.status === "ACTIVE" ? "success" : "danger"} dot>{t.status}</Badge></td>
                     <td style={{ position: "relative" }}>
-                      <EditStaffButton
-                        employeeId={t.id}
-                        photoUrl={t.photoUrl}
-                        initial={{
-                          name: t.name,
-                          jobRole: t.jobRole,
-                          therapistGrade: t.therapistGrade,
-                          phone: t.phone,
-                          email: t.email,
-                          joinDate: t.joinDate,
-                          contractType: t.contractType,
-                        }}
-                      />
+                      <div className="row g1">
+                        <EditStaffButton
+                          employeeId={t.id}
+                          photoUrl={t.photoUrl}
+                          initial={{
+                            name: t.name,
+                            jobRole: t.jobRole,
+                            therapistGrade: t.therapistGrade,
+                            phone: t.phone,
+                            email: t.email,
+                            joinDate: t.joinDate,
+                            contractType: t.contractType,
+                          }}
+                        />
+                        {/* Profil Terapis (2026-08-25) — data pribadi (alamat/KTP/rekening/kontak
+                            darurat), terpisah dari EditStaffButton di atas yang hanya menangani
+                            field roster (nama/role/kontak/join date). Lihat migrasi 0026. */}
+                        <Link href={`/manager/therapists/${t.id}/profile`} className="btn btn-ghost btn-sm">
+                          <Icon name="user-round" size={12} /> Profil
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 );

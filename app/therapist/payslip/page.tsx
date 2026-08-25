@@ -33,7 +33,7 @@ export default async function PayslipPage() {
   // Mekarwangi and Cikawao can pay different components. getCurrentOutlet()
   // reads it off the signed-in session's own app_users.outlet_id, so this
   // is naturally correct per-therapist without needing to thread outletId
-  // through getSignedInTherapist()'s narrower { id, name } return type.
+  // through getSignedInTherapist()'s return type (id/name/photoUrl only, no outletId).
   const outlet = await getCurrentOutlet();
 
   const [payslips, settings] = await Promise.all([
@@ -63,7 +63,7 @@ export default async function PayslipPage() {
       role="therapist"
       title="Payslip"
       subtitle={latest ? monthLabel(latest.period) : ""}
-      avatarName={me.name}
+      avatarName={me.name} avatarUrl={me.photoUrl}
       avatarTone={avatarTone}
     >
       <div className="stack g4">

@@ -43,7 +43,7 @@ export default async function AttendancePage() {
     const checkedOut = !!todayRow?.checkOutAt;
 
     return (
-      <MobileShell role="therapist" title="Absensi GPS" subtitle={outlet.name} avatarName={signedIn.name} avatarTone="teal">
+      <MobileShell role="therapist" title="Absensi GPS" subtitle={outlet.name} avatarName={signedIn.name} avatarUrl={signedIn.photoUrl} avatarTone="teal">
         <div className="stack g4">
           <div
             className="m-card"
@@ -158,7 +158,7 @@ export default async function AttendancePage() {
   const checkedIn = today?.status === "CHECKED_IN" || today?.status === "CHECKED_OUT";
 
   return (
-    <MobileShell role="therapist" title="Absensi GPS" subtitle={outlet.name} avatarName={me.name} avatarTone={me.avatarTone}>
+    <MobileShell role="therapist" title="Absensi GPS" subtitle={outlet.name} avatarName={me.name} avatarUrl={me.photoUrl} avatarTone={me.avatarTone}>
       <div className="stack g4">
         <div
           className="m-card"

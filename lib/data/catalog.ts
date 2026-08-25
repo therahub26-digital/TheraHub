@@ -25,7 +25,7 @@ import type { ServiceCategory, ServiceType, ServicePackage, ExtensionOption, Add
 // ---------------------------------------------------------------------
 
 type CategoryRow = { id: string; tenant_id: string; name: string; icon: string | null; description: string | null };
-type ServiceTypeRow = { id: string; category_id: string; name: string; required_skill: string | null; description: string | null };
+type ServiceTypeRow = { id: string; category_id: string; name: string; required_skill: string | null; description: string | null; active: boolean };
 type PackageRow = {
   id: string;
   outlet_id: string;
@@ -53,7 +53,7 @@ function mapCategory(row: CategoryRow): ServiceCategory {
 }
 
 function mapServiceType(row: ServiceTypeRow): ServiceType {
-  return { id: row.id, categoryId: row.category_id, name: row.name, requiredSkill: row.required_skill ?? "", description: row.description ?? "" };
+  return { id: row.id, categoryId: row.category_id, name: row.name, requiredSkill: row.required_skill ?? "", description: row.description ?? "", active: row.active };
 }
 
 function mapPackage(row: PackageRow, allowedExtensionIds: string[]): ServicePackage {
@@ -114,22 +114,34 @@ async function fetchLiveCatalog(): Promise<{
   addons: AddOn[];
 } | null> {
   const supabase = await createClient();
-  const { data: packageRows, error: pkgErr } = await supabase.from("service_packages").select("*").order("name");
-  if (pkgErr || !packageRows || packageRows.length === 0) return null;
 
-  const serviceTypeIds = [...new Set((packageRows as PackageRow[]).map((p) => p.service_type_id))];
-  const packageIds = (packageRows as PackageRow[]).map((p) => p.id);
-  const outletIds = [...new Set((packageRows as PackageRow[]).map((p) => p.outlet_id))];
+  // Master Initial (2026-08-25, backlog item 3/3) — categories/types used
+  // to be derived FROM whatever packages already existed, which meant a
+  // brand new category/service type created via Master Initial (with zero
+  // packages yet) could never appear anywhere, including in Manager >
+  // Catalog's own "Tambah Paket" dropdown — a chicken-and-egg bug that
+  // would have made "tambahkan [jenis layanan baru]" from Master Initial
+  // silently do nothing useful. Categories are now fetched first,
+  // tenant-wide (RLS `service_categories_read` already scopes this to
+  // `_effective_tenant_id()`), independent of whether any package
+  // references them yet.
+  const { data: categoryRows, error: catErr } = await supabase.from("service_categories").select("*").order("name");
+  if (catErr || !categoryRows || categoryRows.length === 0) return null;
 
-  const [{ data: typeRows }, { data: allowedRows }, { data: extensionRows }, { data: addonRows }] = await Promise.all([
-    supabase.from("service_types").select("*").in("id", serviceTypeIds),
-    supabase.from("service_package_allowed_extensions").select("*").in("package_id", packageIds),
-    supabase.from("extension_options").select("*").in("outlet_id", outletIds),
-    supabase.from("add_ons").select("*").in("outlet_id", outletIds),
+  const categoryIds = categoryRows.map((c) => c.id);
+  const { data: typeRows } = await supabase.from("service_types").select("*").in("category_id", categoryIds).order("name");
+  const serviceTypeIds = (typeRows ?? []).map((t) => t.id);
+
+  const { data: packageRows } = await supabase.from("service_packages").select("*").order("name");
+  const packageIds = (packageRows as PackageRow[] | null ?? []).map((p) => p.id);
+  const outletIds = [...new Set((packageRows as PackageRow[] | null ?? []).map((p) => p.outlet_id))];
+
+  const [{ data: allowedRows }, { data: extensionRows }, { data: addonRows }] = await Promise.all([
+    packageIds.length ? supabase.from("service_package_allowed_extensions").select("*").in("package_id", packageIds) : Promise.resolve({ data: [] as { package_id: string; extension_id: string }[] }),
+    outletIds.length ? supabase.from("extension_options").select("*").in("outlet_id", outletIds) : Promise.resolve({ data: [] as ExtensionRow[] }),
+    outletIds.length ? supabase.from("add_ons").select("*").in("outlet_id", outletIds) : Promise.resolve({ data: [] as AddOnRow[] }),
   ]);
-
-  const categoryIds = [...new Set((typeRows ?? []).map((t) => t.category_id))];
-  const { data: categoryRows } = await supabase.from("service_categories").select("*").in("id", categoryIds);
+  void serviceTypeIds; // kept for clarity of intent even though `.in` above already narrows by category
 
   const allowedByPackage = new Map<string, string[]>();
   for (const row of allowedRows ?? []) {
@@ -139,9 +151,9 @@ async function fetchLiveCatalog(): Promise<{
   }
 
   return {
-    categories: (categoryRows ?? []).map(mapCategory),
+    categories: categoryRows.map(mapCategory),
     serviceTypes: (typeRows ?? []).map(mapServiceType),
-    packages: (packageRows as PackageRow[]).map((p) => mapPackage(p, allowedByPackage.get(p.id) ?? [])),
+    packages: (packageRows as PackageRow[] | null ?? []).map((p) => mapPackage(p, allowedByPackage.get(p.id) ?? [])),
     extensions: (extensionRows ?? []).map(mapExtension),
     addons: (addonRows ?? []).map(mapAddOn),
   };

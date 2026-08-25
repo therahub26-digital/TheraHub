@@ -308,6 +308,8 @@ export interface ServiceType {
   name: string;
   requiredSkill: string;
   description: string;
+  /** Master Initial (2026-08-25) — jenis layanan yang belum dipakai tenant bisa dibuat "belum aktif" tanpa langsung bisa dipilih di Manager > Catalog saat membuat paket baru. Kolom baru migrasi 0030. */
+  active: boolean;
 }
 
 export interface ServicePackage {

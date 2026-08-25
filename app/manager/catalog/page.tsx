@@ -57,7 +57,7 @@ export default async function CatalogPage() {
         <CardHead
           title="Daftar Paket"
           sub={`${packages.length} paket · diurutkan berdasarkan popularitas`}
-          action={<NewPackageForm outletId={outlet.id} serviceTypes={SERVICE_TYPES.map((t) => ({ id: t.id, name: t.name }))} />}
+          action={<NewPackageForm outletId={outlet.id} serviceTypes={SERVICE_TYPES.filter((t) => t.active).map((t) => ({ id: t.id, name: t.name }))} />}
         />
         <div className="table-wrap">
           <table className="tbl">

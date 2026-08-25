@@ -16,16 +16,16 @@ export const CATEGORIES: ServiceCategory[] = [
 ];
 
 export const SERVICE_TYPES: ServiceType[] = [
-  { id: "ST-01", categoryId: "CAT-01", name: "Traditional Massage", requiredSkill: "Traditional Massage", description: "Pijat tradisional Indonesia dengan minyak hangat." },
-  { id: "ST-02", categoryId: "CAT-01", name: "Thai Massage", requiredSkill: "Thai Massage", description: "Peregangan dan tekanan tanpa minyak." },
-  { id: "ST-03", categoryId: "CAT-01", name: "Deep Tissue", requiredSkill: "Deep Tissue", description: "Tekanan dalam untuk otot tegang." },
-  { id: "ST-04", categoryId: "CAT-01", name: "Aromatherapy", requiredSkill: "Aromatherapy", description: "Pijat lembut dengan essential oil pilihan." },
-  { id: "ST-05", categoryId: "CAT-01", name: "Hot Stone", requiredSkill: "Hot Stone", description: "Batu basalt hangat untuk relaksasi mendalam." },
-  { id: "ST-06", categoryId: "CAT-02", name: "Reflexology", requiredSkill: "Reflexology", description: "Titik refleksi telapak kaki." },
-  { id: "ST-07", categoryId: "CAT-03", name: "Body Scrub", requiredSkill: "Body Scrub", description: "Eksfoliasi tubuh dengan scrub rempah." },
-  { id: "ST-08", categoryId: "CAT-03", name: "Body Mask", requiredSkill: "Body Scrub", description: "Masker tubuh menutrisi setelah scrub." },
-  { id: "ST-09", categoryId: "CAT-04", name: "Zen Signature Ritual", requiredSkill: "Aromatherapy", description: "Scrub + massage + hot compress." },
-  { id: "ST-10", categoryId: "CAT-01", name: "Prenatal Massage", requiredSkill: "Prenatal", description: "Pijat aman untuk ibu hamil trimester 2–3." },
+  { id: "ST-01", categoryId: "CAT-01", name: "Traditional Massage", requiredSkill: "Traditional Massage", description: "Pijat tradisional Indonesia dengan minyak hangat.", active: true },
+  { id: "ST-02", categoryId: "CAT-01", name: "Thai Massage", requiredSkill: "Thai Massage", description: "Peregangan dan tekanan tanpa minyak.", active: true },
+  { id: "ST-03", categoryId: "CAT-01", name: "Deep Tissue", requiredSkill: "Deep Tissue", description: "Tekanan dalam untuk otot tegang.", active: true },
+  { id: "ST-04", categoryId: "CAT-01", name: "Aromatherapy", requiredSkill: "Aromatherapy", description: "Pijat lembut dengan essential oil pilihan.", active: true },
+  { id: "ST-05", categoryId: "CAT-01", name: "Hot Stone", requiredSkill: "Hot Stone", description: "Batu basalt hangat untuk relaksasi mendalam.", active: true },
+  { id: "ST-06", categoryId: "CAT-02", name: "Reflexology", requiredSkill: "Reflexology", description: "Titik refleksi telapak kaki.", active: true },
+  { id: "ST-07", categoryId: "CAT-03", name: "Body Scrub", requiredSkill: "Body Scrub", description: "Eksfoliasi tubuh dengan scrub rempah.", active: true },
+  { id: "ST-08", categoryId: "CAT-03", name: "Body Mask", requiredSkill: "Body Scrub", description: "Masker tubuh menutrisi setelah scrub.", active: true },
+  { id: "ST-09", categoryId: "CAT-04", name: "Zen Signature Ritual", requiredSkill: "Aromatherapy", description: "Scrub + massage + hot compress.", active: true },
+  { id: "ST-10", categoryId: "CAT-01", name: "Prenatal Massage", requiredSkill: "Prenatal", description: "Pijat aman untuk ibu hamil trimester 2–3.", active: true },
 ];
 
 type PkgSeed = [

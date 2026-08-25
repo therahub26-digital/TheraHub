@@ -1,9 +1,10 @@
 -- ---------------------------------------------------------------------
 -- 0028_outlet_photos_bucket.sql
 --
--- STATUS: DRAFT — BELUM DITERAPKAN. Jalankan manual lewat Supabase SQL
--- Editor, lalu update header ini jadi "SUDAH DITERAPKAN" setelah
--- diverifikasi (pola yang sama seperti 0022-0027).
+-- STATUS: SUDAH DITERAPKAN (2026-08-25). Dijalankan Adjie lewat SQL
+-- Editor ("Success. No rows returned"), dan dikonfirmasi bekerja
+-- end-to-end: foto cover outlet Cikawao berhasil diunggah dan sudah
+-- tampil di halaman publik /customer/outlets/<id>.
 --
 -- Latar belakang
 -- --------------

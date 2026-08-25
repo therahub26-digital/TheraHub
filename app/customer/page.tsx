@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Icon from "@/components/Icon";
-import { Badge } from "@/components/ui";
+import { Badge, Avatar } from "@/components/ui";
 import MobileShell from "@/components/MobileShell";
 import { getCurrentCustomer } from "@/lib/data/customers";
 import { getBookingsForCustomer, getEffectiveToday } from "@/lib/data/bookings";
@@ -24,6 +24,24 @@ import { getTenantTheme } from "@/lib/data/tenant";
 // their most recent booking if they have one, else the tenant's first
 // published outlet, else just the first outlet — same fallback chain a
 // brand-new customer with zero bookings needs.
+//
+// UPDATE 2026-08-25 — Adjie: "halaman beranda ini seharusnya seperti
+// penyambutan: kotak membership tidak perlu ada, digabungkan dengan
+// kotak halo budy saja, tampilan uinya lebih baik seperti tampilan
+// outlet pakai header; di kotak pilih favourite outlet anda, ukurannya
+// dilebarkan dan tambahkan gambar tampak depan ruko (ambil dari profil
+// outlet), kotak booking mendatang juga dikecilkan, jenis layanan gak
+// usah ditampilkan". Empat perubahan itu:
+//   1. Kartu Membership gold yang berdiri sendiri DIHAPUS; membership,
+//      saldo prepaid, dan poin loyalti sekarang jadi bagian dari satu
+//      hero penyambutan di atas.
+//   2. Hero itu memakai pola yang sama persis dengan hero di halaman
+//      profil outlet (/customer/outlets/[id]): foto cover outlet + scrim
+//      gelap kalau ada fotonya, jatuh ke accent-gradient kalau belum.
+//   3. Kartu outlet dilebarkan dan diberi foto cover outlet.
+//   4. Kartu booking mendatang dipadatkan dan nama paket dilepas.
+// Judul MobileShell diubah jadi "Beranda" supaya sapaannya tidak dobel
+// dengan hero di bawahnya.
 // ---------------------------------------------------------------------
 
 export default async function CustomerHomePage() {
@@ -42,14 +60,29 @@ export default async function CustomerHomePage() {
   const published = outlets.filter((o) => o.profile.published);
 
   const homeOutletId = upcoming?.outletId ?? published[0]?.id ?? outlets[0]?.id ?? PRIMARY_OUTLET.id;
+  const homeOutlet = outlets.find((o) => o.id === homeOutletId);
+  // Foto tampak depan ruko diambil dari cover profil outlet — sumber yang
+  // sama persis dengan yang dipakai halaman profil outlet, jadi begitu
+  // Admin mengganti cover di /admin/outlets/[id]/profile, hero di sini
+  // dan kartu outlet di bawah ikut berubah tanpa upload kedua kali.
+  const heroCover = homeOutlet?.profile.cover ?? "";
+  const membership = me.membership !== "None" ? me.membership : "Reguler";
+
   const promos = live
     ? (await getPromotionsForOutlet(homeOutletId)).filter((p) => p.status === "ACTIVE").slice(0, 3)
     : MOCK_PROMOTIONS.filter((p) => p.status === "ACTIVE" && p.outletId === PRIMARY_OUTLET.id).slice(0, 3);
 
+  // Teks di atas foto selalu putih di atas scrim gelap (terbaca di kedua
+  // tema tanpa warna kondisional); tanpa foto, gradient accent butuh tinta
+  // gelap. Pola yang sama dipakai hero /customer/outlets/[id].
+  const onPhoto = !!heroCover;
+  const inkStrong = onPhoto ? "#fff" : "#04140f";
+  const inkSoft = onPhoto ? "rgba(255,255,255,0.82)" : "rgba(4,20,15,0.68)";
+
   return (
     <MobileShell
       role="customer" brandKey={theme.brandKey} bgKey={theme.bgKey}
-      title={`Halo, ${me.name.split(" ")[0]}`}
+      title="Beranda"
       subtitle="Amethyst"
       avatarName={me.name}
       avatarTone={me.avatarTone}
@@ -60,24 +93,77 @@ export default async function CustomerHomePage() {
       }
     >
       <div className="stack g4">
-        <div className="m-card" style={{ background: "var(--accent-gradient)", border: "none" }}>
-          <div className="row between" style={{ marginBottom: 14 }}>
-            <div>
-              <div className="tiny" style={{ color: "rgba(4,20,15,0.65)", marginBottom: 2 }}>Membership</div>
-              <div style={{ fontFamily: "var(--font-display)", fontSize: 19, fontWeight: 700, color: "#04140f" }}>
-                {me.membership !== "None" ? me.membership : "Reguler"}
+        {/* Hero penyambutan — sapaan + membership + saldo + poin jadi satu. */}
+        <div
+          style={{
+            position: "relative",
+            borderRadius: "var(--r-lg)",
+            overflow: "hidden",
+            display: "flex",
+            alignItems: "flex-end",
+            minHeight: onPhoto ? 190 : undefined,
+            background: onPhoto ? "var(--bg-surface-2)" : "var(--accent-gradient)",
+          }}
+        >
+          {onPhoto && (
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={heroCover}
+                alt=""
+                aria-hidden
+                style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
+              />
+              <div
+                aria-hidden
+                style={{
+                  position: "absolute", inset: 0,
+                  background: "linear-gradient(180deg, rgba(3,7,12,0.16) 0%, rgba(3,7,12,0.52) 46%, rgba(3,7,12,0.88) 100%)",
+                }}
+              />
+            </>
+          )}
+
+          <div style={{ position: "relative", padding: 16, width: "100%" }}>
+            <div className="row g3" style={{ marginBottom: 14 }}>
+              <Avatar name={me.name} toneKey={me.avatarTone} size={40} />
+              <div style={{ minWidth: 0 }}>
+                <div
+                  className="truncate"
+                  style={{
+                    fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 19, lineHeight: 1.25,
+                    color: inkStrong, textShadow: onPhoto ? "0 1px 12px rgba(0,0,0,0.5)" : undefined,
+                  }}
+                >
+                  Halo, {me.name.split(" ")[0]}
+                </div>
+                <div className="row g2" style={{ marginTop: 3 }}>
+                  <Icon name="gem" size={12} style={{ color: inkStrong }} />
+                  <span className="tiny" style={{ color: inkSoft }}>Member {membership} · Amethyst</span>
+                </div>
               </div>
             </div>
-            <Icon name="gem" size={26} style={{ color: "#04140f" }} />
-          </div>
-          <div className="row between">
-            <div>
-              <div className="tiny" style={{ color: "rgba(4,20,15,0.65)" }}>Saldo Prepaid</div>
-              <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, color: "#04140f" }}>{rp(me.prepaidBalance)}</div>
-            </div>
-            <div style={{ textAlign: "right" }}>
-              <div className="tiny" style={{ color: "rgba(4,20,15,0.65)" }}>Poin Loyalti</div>
-              <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, color: "#04140f" }}>{me.loyaltyPoints.toLocaleString("id-ID")}</div>
+
+            <div
+              className="row between"
+              style={{
+                padding: "10px 12px", borderRadius: "var(--r-md)",
+                background: onPhoto ? "rgba(255,255,255,0.13)" : "rgba(4,20,15,0.12)",
+                backdropFilter: onPhoto ? "blur(8px)" : undefined,
+              }}
+            >
+              <div style={{ minWidth: 0 }}>
+                <div className="tiny" style={{ color: inkSoft }}>Saldo Prepaid</div>
+                <div className="truncate" style={{ fontFamily: "var(--font-display)", fontWeight: 700, color: inkStrong }}>
+                  {rp(me.prepaidBalance)}
+                </div>
+              </div>
+              <div style={{ textAlign: "right", minWidth: 0 }}>
+                <div className="tiny" style={{ color: inkSoft }}>Poin Loyalti</div>
+                <div className="truncate" style={{ fontFamily: "var(--font-display)", fontWeight: 700, color: inkStrong }}>
+                  {me.loyaltyPoints.toLocaleString("id-ID")}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -89,24 +175,25 @@ export default async function CustomerHomePage() {
         {upcoming ? (
           <div>
             <div className="m-section">Booking Mendatang</div>
+            {/* Dipadatkan atas permintaan Adjie: nama paket dilepas, catatan
+                konfirmasi H-1 jadi satu baris tipis (bukan kotak berpadding)
+                — tetap tampil karena isinya penting (booking otomatis batal),
+                cuma tidak lagi mendominasi layar. */}
             <div className="m-card m-card-tight">
-              <div className="row between" style={{ marginBottom: 8 }}>
-                <span className="small bold" style={{ color: "var(--text-1)" }}>{upcoming.packageName}</span>
+              <div className="row between" style={{ marginBottom: 4 }}>
+                <span className="small bold" style={{ color: "var(--text-1)" }}>
+                  {fmtDateLong(upcoming.date)} · {fmtTime(upcoming.scheduledStart)}
+                </span>
                 <Badge tone="info">{upcoming.status.replace(/_/g, " ")}</Badge>
               </div>
-              <div className="tiny dim" style={{ marginBottom: 2 }}>{fmtDateLong(upcoming.date)} · {fmtTime(upcoming.scheduledStart)}</div>
-              <div className="tiny dim">{upcoming.therapistName || "—"} · {upcoming.roomName || "Room ditentukan saat check-in"}</div>
+              <div className="tiny dim truncate">
+                {upcoming.therapistName || "—"} · {upcoming.roomName || "Room ditentukan saat check-in"}
+              </div>
               {upcoming.date !== effectiveToday && (
-                <div
-                  className="row g2"
-                  style={{
-                    alignItems: "flex-start", marginTop: 10, padding: "8px 10px",
-                    borderRadius: "var(--r-sm)", background: "var(--info-soft)",
-                  }}
-                >
-                  <Icon name="bell-ring" size={12} style={{ color: "var(--info)", flexShrink: 0, marginTop: 1 }} />
-                  <span className="tiny muted" style={{ lineHeight: 1.55 }}>
-                    Wajib dikonfirmasi ulang pada hari-H, min. 1 jam sebelum jadwal — atau otomatis batal.
+                <div className="row g2" style={{ alignItems: "flex-start", marginTop: 8 }}>
+                  <Icon name="bell-ring" size={11} style={{ color: "var(--info)", flexShrink: 0, marginTop: 2 }} />
+                  <span className="tiny dim" style={{ lineHeight: 1.5 }}>
+                    Konfirmasi ulang di hari-H (min. 1 jam sebelum jadwal) — atau otomatis batal.
                   </span>
                 </div>
               )}
@@ -118,25 +205,57 @@ export default async function CustomerHomePage() {
 
         <div>
           <div className="m-section">Pilih Outlet Favorit Anda</div>
+          {/* Dilebarkan + diberi foto tampak depan ruko dari cover profil outlet. */}
           <div className="row g2" style={{ overflowX: "auto", paddingBottom: 4 }}>
             {published.map((o) => (
               <Link
                 key={o.id}
                 href={`/customer/outlets/${o.id}`}
-                className="stack g1"
+                className="stack"
                 style={{
-                  minWidth: 132, flexShrink: 0, padding: 12, borderRadius: "var(--r-md)",
-                  background: "var(--bg-surface-2)", border: "1px solid var(--border)",
+                  width: 232, minWidth: 232, flexShrink: 0, borderRadius: "var(--r-md)",
+                  overflow: "hidden", background: "var(--bg-surface-2)", border: "1px solid var(--border)",
                 }}
               >
-                <Icon name="map-pin" size={15} style={{ color: "var(--accent)" }} />
-                <span className="tiny bold truncate" style={{ color: "var(--text-1)" }}>
-                  {o.name.replace("Amethyst — ", "")}
-                </span>
-                <span className="tiny dim truncate">{o.city}</span>
-                <span className="tiny row g1" style={{ color: "var(--accent)", marginTop: 2 }}>
-                  Lihat profil <Icon name="chevron-right" size={11} />
-                </span>
+                <div style={{ position: "relative", width: "100%", aspectRatio: "16 / 9", background: "var(--bg-surface-3)" }}>
+                  {o.profile.cover ? (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={o.profile.cover}
+                        alt={`Tampak depan ${o.name}`}
+                        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
+                      />
+                      <div
+                        aria-hidden
+                        style={{
+                          position: "absolute", inset: 0,
+                          background: "linear-gradient(180deg, transparent 55%, rgba(3,7,12,0.62) 100%)",
+                        }}
+                      />
+                    </>
+                  ) : (
+                    <div
+                      className="stack g1"
+                      style={{ position: "absolute", inset: 0, alignItems: "center", justifyContent: "center", color: "var(--text-3)" }}
+                    >
+                      <Icon name="camera" size={18} />
+                      <span className="tiny dim">Belum ada foto</span>
+                    </div>
+                  )}
+                </div>
+                <div className="stack g1" style={{ padding: 12 }}>
+                  <div className="row g2">
+                    <Icon name="map-pin" size={13} style={{ color: "var(--accent)", flexShrink: 0 }} />
+                    <span className="small bold truncate" style={{ color: "var(--text-1)" }}>
+                      {o.name.replace("Amethyst — ", "")}
+                    </span>
+                  </div>
+                  <span className="tiny dim truncate">{o.city}</span>
+                  <span className="tiny row g1" style={{ color: "var(--accent)", marginTop: 2 }}>
+                    Lihat profil <Icon name="chevron-right" size={11} />
+                  </span>
+                </div>
               </Link>
             ))}
             {published.length === 0 && <div className="small dim">Belum ada outlet yang dipublikasikan.</div>}

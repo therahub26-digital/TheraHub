@@ -8,6 +8,7 @@ import {
   TRANSFERS as MOCK_TRANSFERS,
 } from "@/lib/mock/commerce";
 import type { Product, StockMovement } from "@/lib/types";
+import { todayIsoDate } from "@/lib/wallclock";
 
 // ---------------------------------------------------------------------
 // UPDATE 2026-08-23 — /manager/inventory was 100% mock (PRODUCTS,
@@ -153,7 +154,10 @@ async function fetchLiveProducts(): Promise<Product[] | null> {
 
   // "Terpakai bulan ini" = sum of TREATMENT_USAGE + SALE movement qty
   // (both stored negative) this calendar month, across all outlets.
-  const monthStart = `${new Date().toISOString().slice(0, 7)}-01`;
+  // Bulan WIB, bukan bulan UTC: ini server component (Vercel = UTC), jadi
+  // tiap tanggal 1 antara 00:00-06:59 WIB batas ini masih menunjuk bulan
+  // lalu, dan pemakaian sebulan penuh yang lalu ikut terhitung "bulan ini".
+  const monthStart = `${todayIsoDate().slice(0, 7)}-01`;
   const { data: usageRows } = productIds.length
     ? await supabase
         .from("stock_movements")

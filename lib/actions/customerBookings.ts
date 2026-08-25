@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { addMin } from "@/lib/format";
 import { GUEST_CHANGE_CUTOFF_MIN, guestCanStillChange, isStartInPast } from "@/lib/bookingRules";
 import { getUnavailableTherapistIdsForCustomer } from "@/lib/data/scheduleExceptions";
+import { todayIsoDate, plusDays } from "@/lib/wallclock";
 
 // ---------------------------------------------------------------------
 // Server Actions for the CUSTOMER-initiated half of the booking module
@@ -85,10 +86,14 @@ export async function createCustomerBooking(input: CreateCustomerBookingInput): 
   // window, but that's trivially bypassable (devtools, direct action call),
   // so the actual guarantee has to live here.
   const windowDays = outletRow.booking_window_days ?? 0;
-  const now = new Date();
-  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-  const maxDateObj = new Date(now.getFullYear(), now.getMonth(), now.getDate() + windowDays);
-  const maxDateStr = `${maxDateObj.getFullYear()}-${String(maxDateObj.getMonth() + 1).padStart(2, "0")}-${String(maxDateObj.getDate()).padStart(2, "0")}`;
+  // WIB, bukan jam server. Dulu blok ini memakai local getters — di Vercel
+  // itu UTC, jadi antara 00:00-06:59 WIB "hari ini" masih tanggal kemarin
+  // dan tamu yang memesan untuk hari ini DITOLAK ("Outlet ini hanya
+  // menerima booking untuk hari ini") padahal tanggalnya benar. Formnya
+  // sendiri sudah pakai getEffectiveToday(), jadi UI mengizinkan tapi
+  // server menolak. Pola yang sama dengan bug 7.13, terlewat di sini.
+  const todayStr = todayIsoDate();
+  const maxDateStr = plusDays(todayStr, windowDays);
   if (input.date < todayStr || input.date > maxDateStr) {
     return {
       ok: false,

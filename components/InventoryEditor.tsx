@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import Icon from "@/components/Icon";
+import { todayIsoDate } from "@/lib/wallclock";
 import {
   createProduct,
   createPurchaseOrder,
@@ -39,9 +40,6 @@ function ErrorNote({ error }: { error: string | null }) {
   );
 }
 
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 // ================================================================ PRODUK
 
@@ -200,7 +198,7 @@ export function PurchaseOrderForm({ outletId, products }: { outletId: string; pr
   const [open, setOpen] = useState(false);
   const anchorRef = useRef<HTMLButtonElement>(null);
   const [supplier, setSupplier] = useState("");
-  const [orderDate, setOrderDate] = useState(todayIso());
+  const [orderDate, setOrderDate] = useState(todayIsoDate());
   const [expectedDate, setExpectedDate] = useState("");
   const [notes, setNotes] = useState("");
   const [rows, setRows] = useState<ItemRow[]>([{ productId: "", qty: "", unitCost: "" }]);
@@ -208,7 +206,7 @@ export function PurchaseOrderForm({ outletId, products }: { outletId: string; pr
   const [isPending, startTransition] = useTransition();
 
   function reset() {
-    setSupplier(""); setOrderDate(todayIso()); setExpectedDate(""); setNotes("");
+    setSupplier(""); setOrderDate(todayIsoDate()); setExpectedDate(""); setNotes("");
     setRows([{ productId: "", qty: "", unitCost: "" }]); setError(null);
   }
 
@@ -382,13 +380,13 @@ export function StockOpnameForm({ outletId, products }: { outletId: string; prod
   const [open, setOpen] = useState(false);
   const anchorRef = useRef<HTMLButtonElement>(null);
   const [scope, setScope] = useState("");
-  const [opnameDate, setOpnameDate] = useState(todayIso());
+  const [opnameDate, setOpnameDate] = useState(todayIsoDate());
   const [rows, setRows] = useState<{ productId: string; counted: string }[]>([{ productId: "", counted: "" }]);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function reset() {
-    setScope(""); setOpnameDate(todayIso()); setRows([{ productId: "", counted: "" }]); setError(null);
+    setScope(""); setOpnameDate(todayIsoDate()); setRows([{ productId: "", counted: "" }]); setError(null);
   }
   function update(i: number, patch: Partial<{ productId: string; counted: string }>) {
     setRows(rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));

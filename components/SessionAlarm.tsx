@@ -20,10 +20,11 @@ import { nowIso } from "@/lib/wallclock";
 //
 // TIMEZONE NOTE: `expectedEndIso` and this component's own clock must be
 // compared in the SAME frame (see lib/wallclock.ts's header) — both use
-// `nowIso()`-style wall-clock-as-UTC strings, built from each machine's
-// LOCAL time getters. This only produces a correct countdown when the
-// viewer's device clock is set to the outlet's real timezone (WIB), same
-// assumption the rest of this app already makes everywhere else.
+// `nowIso()`-style wall-clock-as-UTC strings. Sejak perbaikan 2026-08-25
+// (backlog 7.13) `nowIso()` TIDAK lagi membaca local getters mesin: ia
+// menggeser +7 jam lalu membaca getUTC*(), jadi hasilnya sama di device
+// mana pun. Hitung mundur ini sekarang benar walau HP terapis di-set ke
+// WITA/WIT atau timezone lain — bukan lagi asumsi "device harus WIB".
 //
 // `key={sessionId}` on the call site (or a change in `expectedEndIso`,
 // e.g. after an extension is approved) is enough to reset `muted` back

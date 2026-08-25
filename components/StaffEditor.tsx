@@ -10,6 +10,7 @@ import {
   type ActionResult,
 } from "@/lib/actions/employees";
 import { FloatingPanel as Panel } from "@/components/FloatingPanel";
+import { todayIsoDate } from "@/lib/wallclock";
 import type { JobRole } from "@/lib/types";
 
 // ---------------------------------------------------------------------
@@ -64,7 +65,7 @@ type FormValues = {
 };
 
 function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  return todayIsoDate();
 }
 
 function FormFields({

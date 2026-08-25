@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import Icon from "@/components/Icon";
 import { createExpense, approveExpense, rejectExpense, topUpPettyCash, type PaymentMethod } from "@/lib/actions/expenses";
 import { EXPENSE_CATEGORIES } from "@/lib/constants/expenseCategories";
+import { todayIsoDate } from "@/lib/wallclock";
 
 // ---------------------------------------------------------------------
 // Write-side UI for /manager/expenses — new 2026-08-23. Same inline
@@ -38,14 +39,10 @@ function Panel({ children, width = 340 }: { children: React.ReactNode; width?: n
   );
 }
 
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 export function NewExpenseForm({ outletId }: { outletId: string }) {
   const [open, setOpen] = useState(false);
   const empty = {
-    date: todayIso(), category: EXPENSE_CATEGORIES[0].key, vendor: "", amount: "", tax: "0",
+    date: todayIsoDate(), category: EXPENSE_CATEGORIES[0].key, vendor: "", amount: "", tax: "0",
     paymentMethod: "Cash" as PaymentMethod, description: "",
   };
   const [v, setV] = useState(empty);

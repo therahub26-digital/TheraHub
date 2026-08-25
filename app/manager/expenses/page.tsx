@@ -6,6 +6,7 @@ import { rp, fmtDateShort, monthLabel } from "@/lib/format";
 import { toCsv, csvFilename } from "@/lib/csv";
 import ExportCsvButton from "@/components/ExportCsvButton";
 import { NewExpenseForm, ApproveRejectButtons, PettyCashTopUpForm } from "@/components/ExpenseEditor";
+import { todayIsoDate } from "@/lib/wallclock";
 
 // ---------------------------------------------------------------------
 // UPDATE 2026-08-23 — was 100% lib/mock (expensesOf, expenseByCategory,
@@ -23,8 +24,11 @@ import { NewExpenseForm, ApproveRejectButtons, PettyCashTopUpForm } from "@/comp
 // (lib/actions/expenses.ts).
 // ---------------------------------------------------------------------
 
+// Bulan WIB, bukan bulan UTC — lihat catatan yang sama di
+// lib/data/inventory.ts. Tanpa ini, tiap tanggal 1 dini hari halaman
+// menampilkan total & grafik bulan LALU sambil berjudul bulan berjalan.
 function currentPeriod(): string {
-  return new Date().toISOString().slice(0, 7);
+  return todayIsoDate().slice(0, 7);
 }
 
 export default async function ExpensesPage() {

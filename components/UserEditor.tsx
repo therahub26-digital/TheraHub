@@ -5,6 +5,7 @@ import Icon from "@/components/Icon";
 import { createUserWithLogin, type AccessRole } from "@/lib/actions/employees";
 import { FloatingPanel as Panel } from "@/components/FloatingPanel";
 import type { JobRole } from "@/lib/types";
+import { todayIsoDate } from "@/lib/wallclock";
 
 // ---------------------------------------------------------------------
 // "+ Tambah User" on /admin/users. Adjie (2026-08-25): "tombol tambah
@@ -46,7 +47,7 @@ function defaultAccessRoleFor(jobRole: JobRole): AccessRole {
 }
 
 function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  return todayIsoDate();
 }
 
 function ErrorNote({ error }: { error: string | null }) {

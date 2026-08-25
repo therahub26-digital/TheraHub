@@ -404,10 +404,6 @@ export async function setEmployeeGalleryUrls(employeeId: string, urls: string[])
 
 export type AccessRole = "" | "admin" | "owner" | "manager" | "kasir" | "therapist";
 
-const ACCESS_ROLE_LABELS: Record<Exclude<AccessRole, "">, string> = {
-  admin: "Admin", owner: "Owner", manager: "Manager", kasir: "Kasir", therapist: "Terapis",
-};
-
 function generateTempPassword(): string {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
   let out = "";
@@ -537,5 +533,3 @@ export async function createUserWithLogin(input: CreateUserWithLoginInput): Prom
   revalidatePath("/manager/therapists");
   return { ok: true, employeeId: emp.id, loginCreated: true, email, tempPassword };
 }
-
-export { ACCESS_ROLE_LABELS };

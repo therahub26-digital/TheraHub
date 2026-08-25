@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import Icon from "@/components/Icon";
-import { createUserWithLogin, type AccessRole, ACCESS_ROLE_LABELS } from "@/lib/actions/employees";
+import { createUserWithLogin, type AccessRole } from "@/lib/actions/employees";
 import { FloatingPanel as Panel } from "@/components/FloatingPanel";
 import type { JobRole } from "@/lib/types";
 
@@ -27,6 +27,15 @@ const JOB_ROLES: JobRole[] = ["Terapis", "Kasir", "Manager", "Office Boy", "Admi
 const THERAPIST_GRADES = ["Junior", "Senior", "Master"] as const;
 const CONTRACT_TYPES = ["Tetap", "Kontrak", "Harian"] as const;
 const ACCESS_ROLES: AccessRole[] = ["", "admin", "owner", "manager", "kasir", "therapist"];
+
+// Duplikat kecil dari lib/actions/employees.ts's ACCESS_ROLE_LABELS (TIDAK
+// diimpor dari sana) — file "use server" cuma boleh meng-export async
+// function; mengekspor const object dari file itu dulu pernah bikin
+// Vercel/Turbopack build gagal ("A \"use server\" file can only export
+// async functions, found object"), persis pelajaran backlog 7.11.
+const ACCESS_ROLE_LABELS: Record<Exclude<AccessRole, "">, string> = {
+  admin: "Admin", owner: "Owner", manager: "Manager", kasir: "Kasir", therapist: "Terapis",
+};
 
 /** Job role -> the access role an admin most likely means, left editable. "" = no natural match, admin picks (or leaves "Tidak ada"). */
 function defaultAccessRoleFor(jobRole: JobRole): AccessRole {

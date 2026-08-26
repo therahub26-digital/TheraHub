@@ -116,7 +116,7 @@ export default async function SuperAdminDashboard() {
           <div className="table-wrap">
             <table className="tbl">
               <thead>
-                <tr><th>Tenant</th><th>Kota</th><th>Outlet</th><th>Terapis</th><th>Akun</th><th>Terdaftar</th></tr>
+                <tr><th>Tenant</th><th>Kota</th><th className="num">Outlet</th><th className="num">Terapis</th><th className="num">Akun</th><th>Terdaftar</th></tr>
               </thead>
               <tbody>
                 {newest.map((t) => (
@@ -154,7 +154,7 @@ export default async function SuperAdminDashboard() {
         <div className="table-wrap">
           <table className="tbl">
             <thead>
-              <tr><th>Tenant</th><th>Outlet</th><th>Terapis Aktif</th><th>Akun Staf</th><th>Customer</th></tr>
+              <tr><th>Tenant</th><th className="num">Outlet</th><th className="num">Terapis Aktif</th><th className="num">Akun Staf</th><th className="num">Customer</th></tr>
             </thead>
             <tbody>
               {tenants.map((t) => (

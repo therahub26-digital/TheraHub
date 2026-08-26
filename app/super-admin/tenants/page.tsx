@@ -40,7 +40,7 @@ export default async function TenantsPage() {
         <Card>
           <div className="table-wrap">
             <table className="tbl">
-              <thead><tr><th>Tenant</th><th>Kota</th><th>Outlet</th><th>User</th></tr></thead>
+              <thead><tr><th>Tenant</th><th>Kota</th><th className="num">Outlet</th><th className="num">User</th></tr></thead>
               <tbody>
                 {TENANTS.slice(0, 6).map((t) => (
                   <tr key={t.id}>
@@ -93,10 +93,10 @@ export default async function TenantsPage() {
               <tr>
                 <th>Tenant</th>
                 <th>Kota</th>
-                <th>Outlet</th>
-                <th>Terapis Aktif</th>
-                <th>Akun Staf</th>
-                <th>Customer</th>
+                <th className="num">Outlet</th>
+                <th className="num">Terapis Aktif</th>
+                <th className="num">Akun Staf</th>
+                <th className="num">Customer</th>
                 <th>Terdaftar</th>
                 <th></th>
               </tr>

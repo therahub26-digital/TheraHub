@@ -79,7 +79,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
         {outlets.length ? (
           <div className="table-wrap">
             <table className="tbl">
-              <thead><tr><th>Kode</th><th>Nama</th><th>Kota</th><th>Terapis Aktif</th><th>Ruangan</th></tr></thead>
+              <thead><tr><th>Kode</th><th>Nama</th><th>Kota</th><th className="num">Terapis Aktif</th><th className="num">Ruangan</th></tr></thead>
               <tbody>
                 {outlets.map((o) => (
                   <tr key={o.id}>

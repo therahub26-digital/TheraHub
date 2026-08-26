@@ -14,10 +14,11 @@ export default function FlagsPage() {
         actions={<button className="btn btn-primary btn-sm" disabled title="Belum tersedia — portal platform (multi-tenant) belum dibangun."><Icon name="plus" size={14} /> Buat Flag Baru</button>}
       />
 
-      <MockDataNotice title="Data contoh — portal platform belum dibangun">
-        Super Admin adalah level platform (provisioning tenant, paket langganan, feature flag) yang
-        belum relevan selama TheraHub dipakai satu bisnis saja. Seluruh angka dan tabel di halaman
-        ini contoh tampilan, dan tidak ada tombol di sini yang menulis ke database.
+      <MockDataNotice title="Data contoh — feature flag belum dibaca kode">
+        Tabel <code>feature_flags</code> memang ada di database, tapi <strong>tidak ada satu pun
+        bagian aplikasi yang membacanya</strong> — menyalakan atau mematikan flag di sini tidak akan
+        mengubah perilaku apa pun. Daftar di bawah contoh tampilan. Menjadikannya berfungsi butuh
+        kode yang benar-benar memeriksa flag di titik pemakaiannya, bukan hanya UI di halaman ini.
       </MockDataNotice>
 
       <div className="stack g5">

@@ -21,10 +21,11 @@ export default function SubscriptionsPage() {
     <>
       <PageHead title="Subscriptions & Limits" desc="Status billing, siklus penagihan, dan batas penggunaan tiap tenant." />
 
-      <MockDataNotice title="Data contoh — portal platform belum dibangun">
-        Super Admin adalah level platform (provisioning tenant, paket langganan, feature flag) yang
-        belum relevan selama TheraHub dipakai satu bisnis saja. Seluruh angka dan tabel di halaman
-        ini contoh tampilan, dan tidak ada tombol di sini yang menulis ke database.
+      <MockDataNotice title="Data contoh — belum ada model langganan">
+        MRR, status langganan, dan tanggal perpanjangan di halaman ini <strong>tidak punya sumber
+        data</strong> — TheraHub belum pernah mencatat harga langganan tenant di mana pun. Angka di
+        sini contoh tampilan dan tidak boleh dipakai untuk keputusan apa pun. Jumlah tenant, outlet,
+        dan terapis yang sungguhan ada di <strong>Tenants</strong> dan <strong>Dashboard</strong>.
       </MockDataNotice>
 
       <div className="grid grid-4" style={{ marginBottom: 20 }}>

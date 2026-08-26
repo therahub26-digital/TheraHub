@@ -11,10 +11,11 @@ export default function AnalyticsPage() {
     <>
       <PageHead title="Platform Analytics" desc="Analitik penggunaan dan performa sistem di seluruh tenant." />
 
-      <MockDataNotice title="Data contoh — portal platform belum dibangun">
-        Super Admin adalah level platform (provisioning tenant, paket langganan, feature flag) yang
-        belum relevan selama TheraHub dipakai satu bisnis saja. Seluruh angka dan tabel di halaman
-        ini contoh tampilan, dan tidak ada tombol di sini yang menulis ke database.
+      <MockDataNotice title="Data contoh — metrik platform belum punya sumber">
+        MRR, churn rate, dan tingkat pengiriman notifikasi <strong>belum punya sumber data</strong>:
+        langganan belum dimodelkan, dan notifikasi email memang belum dibangun. Grafik di halaman ini
+        contoh tampilan. Angka pemakaian yang sungguhan — jumlah tenant, outlet, terapis, dan
+        customer — ada di <strong>Dashboard</strong>.
       </MockDataNotice>
 
       <div className="grid grid-4" style={{ marginBottom: 20 }}>

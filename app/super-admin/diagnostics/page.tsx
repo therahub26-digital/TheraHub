@@ -1,101 +1,138 @@
-import Icon from "@/components/Icon";
-import { PageHead, Card, CardHead, InfoNote, Badge, StatCard } from "@/components/ui";
+import { PageHead, Card, CardHead, InfoNote, Badge, StatCard, EmptyState } from "@/components/ui";
 import MockDataNotice from "@/components/MockDataNotice";
-import { TENANTS, PLATFORM_INCIDENTS, PLATFORM_KPI } from "@/lib/mock";
-import { fmtDateTime } from "@/lib/format";
+import { getPlatformDiagnostics, getPlatformOverview } from "@/lib/data/platform";
+import type { DiagnosticSeverity } from "@/lib/data/platform";
 
-const TICKETS = [
-  { id: "TK-24051", tenant: "Bali Serenity Spa", subject: "Integrasi payment gateway error", status: "Terbuka", priority: "high", at: "2026-08-18T09:20" },
-  { id: "TK-24048", tenant: "Lotus Thai Spa", subject: "Laporan keuangan tidak muncul", status: "Proses", priority: "medium", at: "2026-08-17T14:05" },
-  { id: "TK-24044", tenant: "Amethyst", subject: "Akses user baru bermasalah", status: "Terbuka", priority: "low", at: "2026-08-17T11:12" },
-  { id: "TK-24040", tenant: "Urban Reflexo Hub", subject: "Downtime saat backup terjadwal", status: "Selesai", priority: "high", at: "2026-08-16T08:40" },
-];
+// ---------------------------------------------------------------------
+// UPDATE 2026-08-26 — halaman ini dulu menampilkan tiket support fiktif,
+// "API Success Rate", "Avg Latency", dan tombol "Buka Akses" yang tidak
+// membuka apa pun sambil menjanjikan sesi tercatat di Audit Log. Itu
+// halaman paling menyesatkan di portal ini: menjanjikan jejak audit yang
+// tidak pernah ditulis.
+//
+// Semuanya dibuang dan diganti dengan sesuatu yang benar-benar bisa
+// dijawab dari database: PEMERIKSAAN KESEHATAN SETUP lintas-tenant.
+// Metrik infrastruktur (latency, uptime, success rate) tidak dibuat-buat
+// lagi — TheraHub tidak punya sumbernya, dan angka semacam itu hanya benar
+// kalau datang dari lapisan pemantauan sungguhan.
+//
+// Tiap temuan menjawab tiga hal: apa yang salah, apa AKIBATNYA kalau
+// dibiarkan, dan langkah apa yang menutupnya. Logikanya ada di
+// lib/data/platform.ts supaya bisa dipakai ulang.
+// ---------------------------------------------------------------------
 
-export default function DiagnosticsPage() {
+const TONE: Record<DiagnosticSeverity, "danger" | "warning" | "success"> = {
+  critical: "danger",
+  warning: "warning",
+  info: "success",
+};
+const LABEL: Record<DiagnosticSeverity, string> = {
+  critical: "Kritis",
+  warning: "Perlu perhatian",
+  info: "Aman",
+};
+
+export default async function DiagnosticsPage() {
+  const [findings, overview] = await Promise.all([getPlatformDiagnostics(), getPlatformOverview()]);
+
+  if (!findings || !overview) {
+    return (
+      <>
+        <PageHead title="Diagnostik Platform" desc="Pemeriksaan kesehatan setup seluruh tenant." />
+        <MockDataNotice title="Perlu akun super-admin sungguhan">
+          Pemeriksaan ini membaca data seluruh tenant, jadi hanya berjalan untuk akun{" "}
+          <strong>super-admin</strong> yang benar-benar login. Di mode demo &quot;Ganti Role&quot;
+          tidak ada yang bisa diperiksa.
+        </MockDataNotice>
+      </>
+    );
+  }
+
+  const critical = findings.filter((f) => f.severity === "critical").length;
+  const warning = findings.filter((f) => f.severity === "warning").length;
+  const clean = findings.length === 1 && findings[0].id === "bersih";
+
   return (
     <>
-      <PageHead title="Support Diagnostics" desc="Akses troubleshooting terbatas, time-bound, dan selalu diaudit." />
+      <PageHead
+        title="Diagnostik Platform"
+        desc={`Pemeriksaan kesehatan setup untuk ${overview.tenants} tenant · ${overview.outlets} outlet.`}
+      />
 
-      <MockDataNotice title="Data contoh — akses support tidak benar-benar dibuka">
-        Tiket dan insiden di halaman ini contoh tampilan. Tombol <strong>Buka Akses</strong> tidak
-        membuka sesi support apa pun <strong>dan tidak mencatat apa pun ke Audit Log</strong>,
-        meskipun teks di formulir menjanjikan sesi terbatas waktu yang tercatat penuh.
-      </MockDataNotice>
-
-      <InfoNote tone="warning" icon="shield-check" title="Mode Support">
-        Membuka mode diagnostik memberi akses read-only sementara ke data operasional tenant untuk keperluan
-        troubleshooting. Setiap sesi dibatasi waktu (maks. 60 menit) dan tercatat penuh di Audit Log.
-      </InfoNote>
-
-      <div className="grid grid-4" style={{ margin: "20px 0" }}>
-        <StatCard label="Tiket Terbuka" value={PLATFORM_KPI.openTickets} icon="life-buoy" toneKey="danger" />
-        <StatCard label="API Success Rate" value={`${PLATFORM_KPI.apiSuccessRate}%`} icon="activity" toneKey="teal" />
-        <StatCard label="Avg Latency" value={PLATFORM_KPI.avgLatencyMs} unit="ms" icon="zap" toneKey="sky" />
-        <StatCard label="Print Failure Rate" value={`${PLATFORM_KPI.printFailureRate}%`} icon="printer" toneKey="amber" />
+      <div className="grid grid-4" style={{ marginBottom: 20 }}>
+        <StatCard
+          label="Temuan Kritis"
+          value={critical}
+          icon="alert-triangle"
+          toneKey={critical ? "danger" : "teal"}
+          deltaLabel={critical ? "Menghalangi operasional" : "Tidak ada"}
+        />
+        <StatCard
+          label="Perlu Perhatian"
+          value={warning}
+          icon="circle-alert"
+          toneKey={warning ? "gold" : "teal"}
+          deltaLabel={warning ? "Ada jalan memutar" : "Tidak ada"}
+        />
+        <StatCard label="Tenant Diperiksa" value={overview.tenants} icon="building-2" toneKey="violet" />
+        <StatCard label="Outlet Diperiksa" value={overview.outlets} icon="map-pin" toneKey="sky" />
       </div>
 
-      <div className="grid grid-3" style={{ alignItems: "start", marginBottom: 20 }}>
-        <Card style={{ gridColumn: "span 2" }}>
-          <CardHead title="Tiket Support Terbaru" sub="Diagnostik tenant" />
-          <div className="table-wrap">
-            <table className="tbl">
-              <thead><tr><th>Tiket</th><th>Tenant</th><th>Subjek</th><th>Prioritas</th><th>Status</th></tr></thead>
-              <tbody>
-                {TICKETS.map((t) => (
-                  <tr key={t.id}>
-                    <td className="mono small">{t.id}</td>
-                    <td className="strong" style={{ color: "var(--text-1)" }}>{t.tenant}</td>
-                    <td className="muted">{t.subject}</td>
-                    <td><Badge tone={t.priority === "high" ? "danger" : t.priority === "medium" ? "warning" : "neutral"}>{t.priority}</Badge></td>
-                    <td><Badge tone={t.status === "Selesai" ? "success" : t.status === "Proses" ? "info" : "warning"}>{t.status}</Badge></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
+      <InfoNote tone="info" title="Apa yang diperiksa — dan apa yang tidak">
+        Pemeriksaan di bawah menjawab pertanyaan <strong>&quot;apakah setup tenant ini sudah cukup
+        untuk dipakai?&quot;</strong> — outlet, ruangan, struktur payroll, tarif komisi, publikasi
+        profil, dan kelengkapan kontak terapis. Semuanya dihitung langsung dari database saat halaman
+        dibuka.{" "}
+        <strong>Kesehatan infrastruktur tidak diperiksa di sini</strong> — uptime, latency, dan
+        tingkat keberhasilan API butuh lapisan pemantauan yang belum ada, dan angka semacam itu lebih
+        berbahaya kalau dikarang daripada kalau tidak ditampilkan sama sekali.
+      </InfoNote>
 
-        <Card>
-          <CardHead title="Insiden Sistem" sub="Monitoring platform-wide" />
-          <div className="card-body stack g3">
-            {PLATFORM_INCIDENTS.map((inc) => (
-              <div key={inc.id} className="stack g1" style={{ paddingBottom: 10, borderBottom: "1px solid var(--border)" }}>
-                <div className="row between">
-                  <span className="small bold" style={{ color: "var(--text-1)" }}>{inc.title}</span>
-                  <Badge tone={inc.severity === "critical" ? "danger" : inc.severity === "warning" ? "warning" : "info"}>{inc.severity}</Badge>
+      <Card style={{ marginTop: 20 }}>
+        <CardHead
+          title="Temuan"
+          sub={clean ? "Semua pemeriksaan lolos" : `${findings.length} temuan, diurutkan dari yang paling mendesak`}
+        />
+        {clean ? (
+          <EmptyState
+            icon="check"
+            title="Tidak ada temuan"
+            desc="Seluruh tenant lolos semua pemeriksaan setup. Ini tidak menjamin tidak ada masalah operasional — hanya berarti fondasi setiap tenant sudah lengkap."
+          />
+        ) : (
+          <div className="stack g3" style={{ padding: "4px 0" }}>
+            {findings.map((f) => (
+              <div
+                key={f.id}
+                style={{
+                  padding: "14px 16px",
+                  borderRadius: "var(--r-md)",
+                  background: "var(--bg-deep)",
+                  border: "1px solid var(--border)",
+                }}
+              >
+                <div className="between" style={{ alignItems: "flex-start", gap: 12, marginBottom: 8 }}>
+                  <div className="strong" style={{ color: "var(--text-1)" }}>{f.title}</div>
+                  <Badge tone={TONE[f.severity]}>{LABEL[f.severity]}</Badge>
                 </div>
-                <div className="tiny dim">{inc.tenant} · {inc.module} · {fmtDateTime(inc.at)}</div>
+                <div className="small" style={{ marginBottom: 8, color: "var(--text-2)" }}>{f.impact}</div>
+                <div className="small" style={{ marginBottom: f.subjects.length ? 10 : 0 }}>
+                  <span className="tiny dim uppercase" style={{ letterSpacing: ".06em", marginRight: 8 }}>
+                    Cara menutup
+                  </span>
+                  {f.fix}
+                </div>
+                {f.subjects.length > 0 && (
+                  <div className="row g2 wrap">
+                    {f.subjects.map((s) => (
+                      <Badge key={s} tone="neutral">{s}</Badge>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
           </div>
-        </Card>
-      </div>
-
-      <Card className="card-pad">
-        <h3 style={{ marginBottom: 12 }}>Buka Support Mode untuk Tenant</h3>
-        <div className="row g3 wrap" style={{ alignItems: "flex-end" }}>
-          <div className="field" style={{ minWidth: 240 }}>
-            <label>Pilih Tenant</label>
-            <select className="select">
-              {TENANTS.map((t) => <option key={t.id}>{t.name}</option>)}
-            </select>
-          </div>
-          <div className="field" style={{ minWidth: 160 }}>
-            <label>Durasi</label>
-            <select className="select">
-              <option>15 menit</option>
-              <option>30 menit</option>
-              <option>60 menit</option>
-            </select>
-          </div>
-          <div className="field grow">
-            <label>Alasan (wajib, tercatat di audit)</label>
-            <input className="input" placeholder="Contoh: Investigasi laporan keuangan tidak muncul" />
-          </div>
-          <button className="btn btn-primary" disabled title="Belum tersedia — tidak membuka sesi support apa pun dan tidak mencatat apa pun ke Audit Log.">
-            <Icon name="shield-check" size={15} /> Buka Akses
-          </button>
-        </div>
+        )}
       </Card>
     </>
   );

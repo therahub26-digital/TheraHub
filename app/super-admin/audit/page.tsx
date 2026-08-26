@@ -23,10 +23,11 @@ export default function AuditLogPage() {
         }
       />
 
-      <MockDataNotice title="Data contoh — portal platform belum dibangun">
-        Super Admin adalah level platform (provisioning tenant, paket langganan, feature flag) yang
-        belum relevan selama TheraHub dipakai satu bisnis saja. Seluruh angka dan tabel di halaman
-        ini contoh tampilan, dan tidak ada tombol di sini yang menulis ke database.
+      <MockDataNotice title="Data contoh — audit log belum ditulis lintas-tenant">
+        Tabel <code>audit_logs</code> ada, tapi cakupannya masih diperkirakan lewat baris
+        <code>app_users</code> pelaku — <strong>tabelnya sendiri tidak punya kolom tenant</strong>,
+        jadi baris yang pelakunya sudah dihapus atau yang ditulis proses sistem tidak terlihat oleh
+        siapa pun. Log di halaman ini contoh tampilan sampai cakupan itu diperbaiki.
       </MockDataNotice>
 
       <div className="row g2 wrap" style={{ marginBottom: 16 }} title="Angkanya benar, tapi chip ini hanya penghitung — menekannya belum menyaring tabel.">

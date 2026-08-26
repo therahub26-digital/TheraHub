@@ -1,143 +1,146 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import Icon from "@/components/Icon";
-import { Card, CardHead, StatusBadge, Avatar, Switch, BrandPicker } from "@/components/ui";
+import { PageHead, Card, CardHead, StatCard, Avatar, Badge, EmptyState, InfoNote } from "@/components/ui";
 import MockDataNotice from "@/components/MockDataNotice";
-import { TENANTS, planOf, MODULE_LIST, AUDIT_LOGS } from "@/lib/mock";
-import { OUTLETS } from "@/lib/mock/org";
-import { rp, fmtDate, fmtDateTime } from "@/lib/format";
+import { TENANTS } from "@/lib/mock";
+import { fmtDate } from "@/lib/format";
+import { getPlatformTenantDetail } from "@/lib/data/platform";
+
+// ---------------------------------------------------------------------
+// UPDATE 2026-08-26 — halaman ini sekarang membaca tenant sungguhan.
+//
+// Yang DIHAPUS dari versi mock, dan kenapa:
+//  - Plan, MRR, status langganan, tanggal perpanjangan: tidak ada model
+//    langganan di TheraHub. Tidak ada satu pun tabel yang menyimpan harga
+//    per tenant.
+//  - Matriks modul per plan + saklar entitlement: tidak ada mekanisme
+//    entitlement di kode. Saklarnya dulu hanya gambar, dan menyalakannya
+//    tidak pernah membatasi apa pun.
+//  - BrandPicker: warna brand tenant diatur tenant SENDIRI di
+//    Admin → Business Profile (migrasi 0025), dan sudah berfungsi di sana.
+//    Menyediakan pengubah kedua di portal platform berarti dua tempat
+//    mengubah nilai yang sama — jalan pintas menuju keduanya tidak cocok.
+// ---------------------------------------------------------------------
 
 export default async function TenantDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const tenant = TENANTS.find((t) => t.id === id);
-  if (!tenant) notFound();
-  const plan = planOf(tenant.plan);
-  const outlets = tenant.id === "TEN-001" ? OUTLETS : [];
-  const logs = AUDIT_LOGS.filter((l) => l.scope.startsWith(tenant.name)).slice(0, 6);
+  const detail = await getPlatformTenantDetail(id);
+
+  if (!detail) {
+    const mock = TENANTS.find((t) => t.id === id);
+    if (!mock) notFound();
+    return (
+      <>
+        <MockDataNotice title="Data contoh — perlu akun super-admin sungguhan">
+          Masuk dengan akun <strong>super-admin</strong> untuk melihat data tenant yang sebenarnya.
+        </MockDataNotice>
+        <Link href="/super-admin/tenants" className="row g2 small muted" style={{ marginBottom: 14, width: "fit-content" }}>
+          <Icon name="arrow-left" size={14} /> Kembali ke Tenants
+        </Link>
+        <PageHead title={mock.name} desc={`${mock.legalName} · ${mock.city}`} />
+      </>
+    );
+  }
+
+  const { tenant, outlets, users } = detail;
+  const roleCount = users.reduce<Record<string, number>>((acc, u) => {
+    acc[u.role] = (acc[u.role] ?? 0) + 1;
+    return acc;
+  }, {});
 
   return (
     <>
-      <MockDataNotice title="Data contoh — portal platform belum dibangun">
-        Super Admin adalah level platform (provisioning tenant, paket langganan, feature flag) yang
-        belum relevan selama TheraHub dipakai satu bisnis saja. Seluruh angka dan tabel di halaman
-        ini contoh tampilan, dan tidak ada tombol di sini yang menulis ke database.
-      </MockDataNotice>
-
       <Link href="/super-admin/tenants" className="row g2 small muted" style={{ marginBottom: 14, width: "fit-content" }}>
         <Icon name="arrow-left" size={14} /> Kembali ke Tenants
       </Link>
 
-      <div className="between" style={{ marginBottom: 20, alignItems: "flex-start" }}>
-        <div className="row g3">
-          <Avatar name={tenant.name} toneKey={tenant.logoTone} size={52} rect />
-          <div>
-            <div className="row g2" style={{ marginBottom: 3 }}>
-              <h1 style={{ fontSize: 22 }}>{tenant.name}</h1>
-              <StatusBadge status={tenant.status} />
-            </div>
-            <div className="small dim">{tenant.legalName} · {tenant.city} · {tenant.slug}.therahub.id</div>
+      <div className="row g3" style={{ marginBottom: 20 }}>
+        <Avatar name={tenant.name} size={52} rect />
+        <div>
+          <h1 style={{ fontSize: 22, marginBottom: 3 }}>{tenant.name}</h1>
+          <div className="small dim">
+            {[tenant.slug, tenant.city, tenant.createdAt ? `terdaftar ${fmtDate(tenant.createdAt)}` : null]
+              .filter(Boolean)
+              .join(" · ")}
           </div>
-        </div>
-        <div className="row g2">
-          <button className="btn btn-ghost btn-sm" disabled title="Belum tersedia — portal platform (multi-tenant) belum dibangun."><Icon name="life-buoy" size={14} /> Support Mode</button>
-          <button className="btn btn-primary btn-sm" disabled title="Belum tersedia — portal platform (multi-tenant) belum dibangun."><Icon name="edit" size={14} /> Kelola Plan</button>
         </div>
       </div>
 
       <div className="grid grid-4" style={{ marginBottom: 20 }}>
-        <Card className="card-pad">
-          <div className="tiny dim uppercase" style={{ marginBottom: 6 }}>Plan Aktif</div>
-          <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 18, color: "var(--text-1)" }}>{plan.name}</div>
-          <div className="tiny dim">{rp(plan.pricePerOutlet, { short: true })}/outlet/bulan</div>
-        </Card>
-        <Card className="card-pad">
-          <div className="tiny dim uppercase" style={{ marginBottom: 6 }}>MRR</div>
-          <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 18, color: "var(--text-1)" }}>{rp(tenant.mrr)}</div>
-          <div className="tiny dim">Renewal {fmtDate(tenant.renewalAt)}</div>
-        </Card>
-        <Card className="card-pad">
-          <div className="tiny dim uppercase" style={{ marginBottom: 6 }}>Outlet</div>
-          <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 18, color: "var(--text-1)" }}>{tenant.outletCount} / {tenant.maxOutlets}</div>
-          <div className="tiny dim">Batas sesuai plan</div>
-        </Card>
-        <Card className="card-pad">
-          <div className="tiny dim uppercase" style={{ marginBottom: 6 }}>Health Score</div>
-          <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 18, color: tenant.healthScore >= 75 ? "var(--success)" : tenant.healthScore >= 50 ? "var(--warning)" : "var(--danger)" }}>
-            {tenant.healthScore}/100
-          </div>
-          <div className="tiny dim">Aktif terakhir {fmtDate(tenant.lastActiveAt)}</div>
-        </Card>
+        <StatCard label="Outlet" value={tenant.outlets} icon="map-pin" toneKey="teal" />
+        <StatCard label="Terapis Aktif" value={tenant.therapists} icon="sparkles" toneKey="rose" />
+        <StatCard label="Akun Staf" value={tenant.staffUsers} icon="users" toneKey="violet" />
+        <StatCard label="Customer Terdaftar" value={tenant.customers} icon="user-check" toneKey="sky" />
       </div>
 
-      <div className="grid grid-3" style={{ alignItems: "start", marginBottom: 20 }}>
-        <Card style={{ gridColumn: "span 2" }}>
-          <CardHead title="Module Entitlement" sub="Diaktifkan/nonaktifkan oleh Super Admin sesuai plan" />
-          <div className="card-body">
-            <div className="grid grid-2">
-              {MODULE_LIST.map((m) => (
-                <div key={m.key} className="row between" style={{ padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div className="small bold truncate" style={{ color: "var(--text-1)" }}>{m.label}</div>
-                    <div className="tiny dim truncate">{m.desc}</div>
-                  </div>
-                  <Switch on={tenant.modules[m.key]} />
-                </div>
-              ))}
-            </div>
+      <Card style={{ marginBottom: 20 }}>
+        <CardHead title="Outlet" sub={`${outlets.length} outlet di tenant ini`} />
+        {outlets.length ? (
+          <div className="table-wrap">
+            <table className="tbl">
+              <thead><tr><th>Kode</th><th>Nama</th><th>Kota</th><th>Terapis Aktif</th><th>Ruangan</th></tr></thead>
+              <tbody>
+                {outlets.map((o) => (
+                  <tr key={o.id}>
+                    <td className="strong" style={{ color: "var(--text-1)" }}>{o.code}</td>
+                    <td>{o.name}</td>
+                    <td className="muted small">{o.city || "—"}</td>
+                    <td className="num">{o.therapists}</td>
+                    <td className="num muted">{o.rooms}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </Card>
+        ) : (
+          <EmptyState
+            icon="map-pin"
+            title="Tenant ini belum punya outlet"
+            desc="Hampir seluruh aplikasi membaca data lewat outlet — tanpa outlet, portal manager dan kasir tenant ini tidak bisa dipakai sama sekali."
+          />
+        )}
+      </Card>
 
-        <Card className="card-pad">
-          <h3 style={{ marginBottom: 12 }}>Brand &amp; Identitas Tenant</h3>
-          <BrandPicker selected={tenant.logoTone} logoInitial={tenant.name[0]} background={tenant.bgTone} />
-          <div className="tiny dim" style={{ marginTop: 10 }}>
-            Dikonfigurasi oleh Admin tenant di Business Profile — Super Admin hanya melihat untuk keperluan support.
-          </div>
-        </Card>
-      </div>
-
-      <div className="grid grid-3" style={{ alignItems: "start" }}>
-        <Card style={{ gridColumn: "span 2" }}>
-          <CardHead title="Outlet" sub={`${tenant.outletCount} outlet terdaftar`} />
-          {outlets.length ? (
-            <div className="table-wrap">
-              <table className="tbl">
-                <thead><tr><th>Outlet</th><th>Kota</th><th>Manager</th><th>Terapis</th><th>Status</th></tr></thead>
-                <tbody>
-                  {outlets.map((o) => (
-                    <tr key={o.id}>
-                      <td className="strong" style={{ color: "var(--text-1)" }}>{o.name}</td>
-                      <td className="muted">{o.city}</td>
-                      <td className="muted">{o.managerName}</td>
-                      <td className="num">{o.therapistCount}</td>
-                      <td><StatusBadge status={o.status} /></td>
+      <Card style={{ marginBottom: 20 }}>
+        <CardHead
+          title="Akun Pengguna"
+          sub={Object.entries(roleCount).map(([r, n]) => `${n} ${r}`).join(" · ") || "belum ada akun"}
+        />
+        {users.length ? (
+          <div className="table-wrap">
+            <table className="tbl">
+              <thead><tr><th>Peran</th><th>Email</th><th>Terikat Outlet</th></tr></thead>
+              <tbody>
+                {users.map((u) => {
+                  const outlet = outlets.find((o) => o.id === u.outletId);
+                  return (
+                    <tr key={u.id}>
+                      <td><Badge tone="neutral">{u.role}</Badge></td>
+                      <td className="small">{u.email || "—"}</td>
+                      <td className="muted small">{outlet ? `${outlet.code} · ${outlet.name}` : "tenant-wide"}</td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="card-body">
-              <div className="empty" style={{ padding: "24px 0" }}>
-                <span className="empty-icon"><Icon name="map-pin" size={20} /></span>
-                <div className="small muted">Detail outlet tersedia untuk tenant demo utama (Amethyst).</div>
-              </div>
-            </div>
-          )}
-        </Card>
-
-        <Card>
-          <CardHead title="Aktivitas Terbaru" sub="Audit log terkait tenant" />
-          <div className="card-body stack g3">
-            {logs.length ? logs.map((l) => (
-              <div key={l.id} className="stack g1" style={{ paddingBottom: 10, borderBottom: "1px solid var(--border)" }}>
-                <div className="small" style={{ color: "var(--text-1)" }}>{l.detail}</div>
-                <div className="tiny dim">{l.actor} · {fmtDateTime(l.at)}</div>
-              </div>
-            )) : <div className="small dim">Belum ada aktivitas tercatat untuk tenant ini.</div>}
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-        </Card>
-      </div>
+        ) : (
+          <EmptyState
+            icon="users"
+            title="Belum ada akun pengguna"
+            desc="Tidak ada yang bisa masuk ke tenant ini. Buat akun admin pertamanya sebelum diserahkan."
+          />
+        )}
+      </Card>
+
+      <InfoNote tone="info" title="Yang tidak ditampilkan di halaman ini">
+        Paket langganan, MRR, tanggal perpanjangan, dan matriks entitlement modul{" "}
+        <strong>tidak ada di sini</strong> karena TheraHub belum punya model langganan — tidak ada
+        harga per tenant yang tercatat, dan tidak ada mekanisme yang benar-benar membatasi modul per
+        paket. Warna dan logo tenant diatur oleh tenant sendiri di{" "}
+        <strong>Admin → Business Profile</strong>, bukan dari portal platform.
+      </InfoNote>
     </>
   );
 }

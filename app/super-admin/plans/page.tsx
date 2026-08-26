@@ -13,10 +13,13 @@ export default function PlansPage() {
         actions={<button className="btn btn-primary btn-sm" disabled title="Belum tersedia — portal platform (multi-tenant) belum dibangun."><Icon name="plus" size={14} /> Tambah Plan</button>}
       />
 
-      <MockDataNotice title="Data contoh — portal platform belum dibangun">
-        Super Admin adalah level platform (provisioning tenant, paket langganan, feature flag) yang
-        belum relevan selama TheraHub dipakai satu bisnis saja. Seluruh angka dan tabel di halaman
-        ini contoh tampilan, dan tidak ada tombol di sini yang menulis ke database.
+      <MockDataNotice title="Data contoh — belum ada model langganan">
+        TheraHub <strong>belum punya model langganan sama sekali</strong>: tidak ada harga per tenant
+        yang tercatat di database, dan tidak ada mekanisme yang benar-benar membatasi modul per
+        paket — saklar di matriks bawah tidak pernah membatasi apa pun. Paket dan harga di halaman
+        ini karena itu contoh tampilan. Menetapkan paket sungguhan adalah keputusan bisnis yang
+        harus diambil dulu, bukan pekerjaan kode. Untuk daftar tenant yang benar-benar terdaftar,
+        buka <strong>Tenants</strong> — halaman itu sudah memakai data live.
       </MockDataNotice>
 
       <div className="grid grid-4" style={{ marginBottom: 24, alignItems: "stretch" }}>

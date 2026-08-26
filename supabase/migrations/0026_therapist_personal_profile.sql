@@ -1,9 +1,12 @@
 -- ---------------------------------------------------------------------
 -- 0026_therapist_personal_profile.sql
 --
--- STATUS: DRAFT — BELUM DITERAPKAN. Jalankan manual lewat Supabase SQL
--- Editor, lalu update header ini jadi "SUDAH DITERAPKAN" setelah
--- diverifikasi (pola yang sama seperti 0022/0023/0024/0025).
+-- STATUS: SUDAH DITERAPKAN. Header ini sempat tertinggal menulis "DRAFT"
+-- berhari-hari setelah migrasinya benar-benar jalan — diperbaiki
+-- 2026-08-26. Bukti: fiturnya diuji end-to-end 2026-08-25 malam — data
+-- pribadi terapis (alamat, NIK, rekening, kontak darurat) tersimpan dan
+-- kembali utuh setelah reload, yang hanya mungkin kalau tabel
+-- `employee_personal_data` beserta policy & trigger-nya sudah ada.
 --
 -- Latar belakang
 -- --------------

@@ -1,9 +1,15 @@
 -- ---------------------------------------------------------------------
 -- 0024_leave_request_type.sql
 --
--- STATUS: DRAFT — BELUM DITERAPKAN. Jalankan manual lewat Supabase SQL
--- Editor, lalu update header ini jadi "SUDAH DITERAPKAN" setelah
--- diverifikasi (pola yang sama seperti 0022/0023).
+-- STATUS: SUDAH DITERAPKAN. Header ini sempat tertinggal menulis "DRAFT"
+-- berhari-hari setelah migrasinya benar-benar jalan — diperbaiki
+-- 2026-08-26 setelah verifikasi read-only ke production:
+--   select table_name, column_name from information_schema.columns
+--    where table_schema='public' and (table_name, column_name)
+--          in (('employee_leave_requests','type'), ...);
+-- Kolom `type` terkonfirmasi ada. Fiturnya sendiri sudah diuji end-to-end
+-- 2026-08-25 malam (terapis mengajukan "Libur" 28 Agustus → kasir
+-- menyetujui di /kasir/schedule-check → badge "Libur" yang benar).
 --
 -- Latar belakang
 -- --------------

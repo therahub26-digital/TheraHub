@@ -1,4 +1,8 @@
--- STATUS: DRAFT — BELUM DITERAPKAN
+-- STATUS: SUDAH DITERAPKAN. Header ini sempat tertinggal menulis "DRAFT"
+-- setelah migrasinya benar-benar jalan — diperbaiki 2026-08-26 setelah
+-- verifikasi read-only ke production (`service_types.active`
+-- terkonfirmasi ada di information_schema.columns). Master Initial sudah
+-- live di produksi lewat deployment `6db0be9`.
 --
 -- Adjie (2026-08-25), item 3/3 dari permintaan 3-item: "master inisial:
 -- dibuatkan opsi saja mana yg akan di aktifkan, kalau di amet baru 1

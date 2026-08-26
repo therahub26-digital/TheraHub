@@ -1,9 +1,22 @@
 -- ---------------------------------------------------------------------
 -- 0029_outlet_profile_photo.sql
 --
--- STATUS: DRAFT — BELUM DITERAPKAN. Jalankan manual lewat Supabase SQL
--- Editor, lalu update header ini jadi "SUDAH DITERAPKAN" setelah
--- diverifikasi (pola yang sama seperti 0022-0028).
+-- STATUS: SUDAH DITERAPKAN — dikonfirmasi 2026-08-26 lewat query
+-- read-only ke production:
+--   select table_name, column_name from information_schema.columns
+--    where table_schema='public'
+--      and (table_name, column_name)
+--          in (('outlet_profiles','profile_photo_url'), ...);
+-- Kolomnya ada. Sebelum pengecekan ini, status 0029 adalah satu-satunya
+-- yang benar-benar tidak pasti dari seluruh 0024-0031: headernya masih
+-- menulis "DRAFT" DAN tidak ada satu pun catatan di backlog yang
+-- menyebut ia dijalankan (semua migrasi lain punya konfirmasi eksplisit
+-- + screenshot). Itu penting karena kolom ini load-bearing —
+-- lib/actions/outletProfile.ts memakai select eksplisit yang menyebut
+-- `profile_photo_url`, jadi seandainya kolomnya tidak ada, SELURUH jalur
+-- simpan Profil Outlet akan gagal (sementara lib/data/outlets.ts yang
+-- pakai select("*") tetap terlihat normal — gejalanya samar, persis
+-- kelas kegagalan item 7.18).
 --
 -- Latar belakang
 -- --------------

@@ -1,9 +1,12 @@
 -- ---------------------------------------------------------------------
 -- 0025_tenant_business_profile.sql
 --
--- STATUS: DRAFT — BELUM DITERAPKAN. Jalankan manual lewat Supabase SQL
--- Editor, lalu update header ini jadi "SUDAH DITERAPKAN" setelah
--- diverifikasi (pola yang sama seperti 0022/0023/0024).
+-- STATUS: SUDAH DITERAPKAN. Header ini sempat tertinggal menulis "DRAFT"
+-- berhari-hari setelah migrasinya benar-benar jalan — diperbaiki
+-- 2026-08-26 setelah verifikasi read-only ke production
+-- (`tenants.logo_tone` terkonfirmasi ada di information_schema.columns).
+-- Fiturnya sendiri sudah dikonfirmasi bekerja: Business Profile bisa
+-- disimpan, warna brand & background berlaku di semua portal.
 --
 -- Latar belakang
 -- --------------

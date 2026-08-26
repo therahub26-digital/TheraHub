@@ -52,7 +52,10 @@ export type PlatformTenant = {
   createdAt: string | null;
   outlets: number;
   therapists: number;
+  /** Baris `app_users` yang benar-benar bisa dipakai masuk (punya `auth_user_id`). */
   staffUsers: number;
+  /** Baris `app_users` TANPA akun login. Lihat catatan `hasLogin` di bawah. */
+  usersWithoutLogin: number;
   customers: number;
 };
 
@@ -61,6 +64,7 @@ export type PlatformOverview = {
   outlets: number;
   therapists: number;
   staffUsers: number;
+  usersWithoutLogin: number;
   customers: number;
   rooms: number;
 };
@@ -120,6 +124,18 @@ export async function isPlatformLive(): Promise<boolean> {
  *  dipastikan dari produksi. Select eksplisit yang menyebut kolom tidak ada
  *  akan menggagalkan SELURUH query — kelas kegagalan yang sudah pernah
  *  terjadi di `lib/actions/outletProfile.ts`. */
+// `app_users` adalah tabel AKUN LOGIN, bukan tabel karyawan — karyawan hidup
+// di `employees`. Jadi baris tanpa `auth_user_id` bukan "akun staf": itu baris
+// yang tidak bisa dipakai masuk oleh siapa pun.
+//
+// Dibedakan sejak 2026-08-26, setelah dua akun uji Mekarwangi dihapus dari
+// `auth.users` dan barisnya tertinggal di sini — lalu tetap ikut terhitung
+// sebagai "Akun Staf" di dashboard. Menghapus dua baris itu hanya menyembuhkan
+// gejalanya sekali; hal yang sama akan terjadi lagi setiap kali seorang
+// karyawan keluar dan akun auth-nya dicabut. Karena itu pembedaannya ditaruh
+// di definisi hitungannya, bukan diserahkan ke kerapian data.
+const hasLogin = (u: Row) => !!str(u.auth_user_id);
+
 const loadPlatform = cache(async () => {
   const admin = await getPlatformAccess();
   if (!admin) return null;
@@ -150,7 +166,8 @@ export async function getPlatformOverview(): Promise<PlatformOverview | null> {
     tenants: d.tenants.length,
     outlets: d.outlets.length,
     therapists: d.employees.filter((e) => bool(e.is_therapist) && str(e.status) === "ACTIVE").length,
-    staffUsers: d.appUsers.length,
+    staffUsers: d.appUsers.filter(hasLogin).length,
+    usersWithoutLogin: d.appUsers.filter((u) => !hasLogin(u)).length,
     customers: d.customers.length,
     rooms: d.rooms.length,
   };
@@ -174,7 +191,8 @@ export async function getPlatformTenants(): Promise<PlatformTenant[] | null> {
         createdAt: str(t.created_at) || null,
         outlets: countBy(d.outlets, id),
         therapists: countBy(d.employees, id, (e) => bool(e.is_therapist) && str(e.status) === "ACTIVE"),
-        staffUsers: countBy(d.appUsers, id),
+        staffUsers: countBy(d.appUsers, id, hasLogin),
+        usersWithoutLogin: countBy(d.appUsers, id, (u) => !hasLogin(u)),
         customers: countBy(d.customers, id),
       };
     })
@@ -184,7 +202,7 @@ export async function getPlatformTenants(): Promise<PlatformTenant[] | null> {
 export type PlatformTenantDetail = {
   tenant: PlatformTenant;
   outlets: { id: string; code: string; name: string; city: string; therapists: number; rooms: number }[];
-  users: { id: string; role: string; email: string; outletId: string | null }[];
+  users: { id: string; role: string; email: string; outletId: string | null; hasLogin: boolean }[];
 };
 
 export async function getPlatformTenantDetail(tenantId: string): Promise<PlatformTenantDetail | null> {
@@ -217,6 +235,7 @@ export async function getPlatformTenantDetail(tenantId: string): Promise<Platfor
       role: str(u.role),
       email: str(u.email),
       outletId: str(u.outlet_id) || null,
+      hasLogin: hasLogin(u),
     }))
     .sort((a, b) => (a.role > b.role ? 1 : -1));
 
@@ -311,6 +330,18 @@ export async function getPlatformDiagnostics(): Promise<DiagnosticFinding[] | nu
         "Outlet ini tidak muncul di halaman pendaftaran maupun pemilihan outlet milik tamu — jadi pendaftaran customer mandiri praktis mati untuk outlet ini.",
       fix: "Admin membuka Profil Outlet, melengkapi foto & deskripsi, lalu menyalakan saklar publikasi.",
       subjects: outletUnpublished.map(outletLabel),
+    });
+
+  const usersNoLogin = d.appUsers.filter((u) => !hasLogin(u));
+  if (usersNoLogin.length)
+    out.push({
+      id: "akun-tanpa-login",
+      severity: "warning",
+      title: "Baris akun tanpa akun login",
+      impact:
+        "Baris ini tetap muncul di daftar user portal Admin seolah akun aktif, padahal tidak ada seorang pun yang bisa memakainya untuk masuk. Biasanya sisa dari akun auth yang dihapus tapi barisnya tertinggal.",
+      fix: "Hapus barisnya kalau memang akun uji, atau buatkan akun login baru lewat Authentication kalau orangnya masih bekerja. Cek dulu apakah baris ini masih direferensikan tabel lain sebelum dihapus.",
+      subjects: usersNoLogin.map((u) => str(u.email) || str(u.name) || str(u.id)).slice(0, 12),
     });
 
   const therapistNoContact = d.employees.filter(

@@ -76,7 +76,17 @@ export default async function SuperAdminDashboard() {
         <StatCard label="Tenant" value={overview.tenants} icon="building-2" toneKey="violet" deltaLabel="Terdaftar di platform" />
         <StatCard label="Outlet" value={overview.outlets} icon="map-pin" toneKey="teal" deltaLabel={`${overview.rooms} ruangan`} />
         <StatCard label="Terapis Aktif" value={num(overview.therapists)} icon="sparkles" toneKey="rose" deltaLabel="Status ACTIVE" />
-        <StatCard label="Akun Staf" value={overview.staffUsers} icon="users" toneKey="sky" deltaLabel={`${num(overview.customers)} customer terdaftar`} />
+        <StatCard
+          label="Akun Staf"
+          value={overview.staffUsers}
+          icon="users"
+          toneKey="sky"
+          deltaLabel={
+            overview.usersWithoutLogin
+              ? `${overview.usersWithoutLogin} baris tanpa akun login · ${num(overview.customers)} customer`
+              : `${num(overview.customers)} customer terdaftar`
+          }
+        />
       </div>
 
       {(critical.length > 0 || warning.length > 0) && (

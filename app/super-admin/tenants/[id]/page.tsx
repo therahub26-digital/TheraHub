@@ -117,7 +117,10 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                   return (
                     <tr key={u.id}>
                       <td><Badge tone="neutral">{u.role}</Badge></td>
-                      <td className="small">{u.email || "—"}</td>
+                      <td className="small">
+                        {u.email || "—"}
+                        {!u.hasLogin && <span className="tiny dim"> · tanpa akun login</span>}
+                      </td>
                       <td className="muted small">{outlet ? `${outlet.code} · ${outlet.name}` : "tenant-wide"}</td>
                     </tr>
                   );

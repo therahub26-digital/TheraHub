@@ -139,7 +139,14 @@ export const ROLES: RoleDef[] = [
     tagline: "Absensi GPS, jadwal, job, kontrol sesi, request extension, komisi, dan payslip.",
     icon: "hand-heart",
     tone: "rose",
-    persona: { name: "Melati Puspita", sub: "Terapis Master · TRP-005" },
+    // 2026-08-26 — dulu "Melati Puspita · Terapis Master · TRP-005".
+    // Melati Puspita adalah persona demo fiktif yang sempat ACTIVE di
+    // roster Cikawao sungguhan, bisa dipilih tamu saat booking, dan akan
+    // menerima slip gaji; dia DIHAPUS PERMANEN dari database 2026-08-24
+    // (Fase 13, Bug B) — tapi namanya tertinggal di sini sebagai
+    // identitas cadangan. Diganti nama yang jelas-jelas contoh, supaya
+    // tidak ada lagi orang fiktif yang bisa tersangka nyata.
+    persona: { name: "Terapis Contoh", sub: "Mode demo \u00b7 tanpa login" },
     // UPDATE 2026-08-23 — reordered per user request:
     // 1) Jadwal Saya + Job Saya merged into one entry ("Jadwal & Job",
     //    still pointing at /therapist/shift — see that page's header

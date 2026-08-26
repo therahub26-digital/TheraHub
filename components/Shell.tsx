@@ -73,6 +73,7 @@ export default function Shell({
   bgKey,
   notificationCount,
   notificationHref,
+  signedInName,
   children,
 }: {
   role: Role;
@@ -98,6 +99,18 @@ export default function Shell({
    *  manager passes /manager/sessions. Without it the bell is rendered
    *  disabled rather than as a control that silently does nothing. */
   notificationHref?: string;
+  /**
+   * Nama orang yang benar-benar login, dari `app_users.name` lewat
+   * `getSignedInName()`. `null`/undefined berarti tidak ada sesi auth —
+   * yaitu mode "Ganti Role" — dan barulah persona demo dipakai, dengan
+   * label yang menyatakan itu terang-terangan.
+   *
+   * Ditambahkan 2026-08-26. Sebelumnya sidebar SELALU merender persona
+   * demo `lib/nav.ts`, jadi akun apa pun yang namanya tidak kebetulan
+   * cocok dengan persona role-nya akan melihat nama orang lain di pojok
+   * kiri bawah. Lihat header `lib/data/currentUser.ts`.
+   */
+  signedInName?: string | null;
   children: React.ReactNode;
 }) {
   const def = roleByKey(role);
@@ -122,6 +135,15 @@ export default function Shell({
       router.push("/login");
       router.refresh();
     });
+  // Identitas di kaki sidebar. Kalau ada sesi sungguhan, tampilkan nama
+  // orang itu dan turunkan barisan bawahnya dari role + scope yang memang
+  // sudah diketahui layout — bukan dari string persona yang di-hardcode.
+  // Kalau tidak ada sesi, persona demo boleh dipakai, TAPI harus mengaku
+  // sebagai contoh: nama yang tidak ditandai adalah klaim, dan klaim yang
+  // tidak punya sumber persis yang membuat bug ini bertahan berminggu-minggu.
+  const identityName = signedInName || def.persona.name;
+  const identitySub = signedInName ? `${def.name} \u00b7 ${scopeLabel}` : `${def.persona.sub} \u00b7 mode contoh`;
+
   const { override } = useBrandOverride();
   const vars = themeVars(
     override.brandKey ?? brandKey ?? ACTIVE_TENANT.logoTone,
@@ -195,12 +217,12 @@ export default function Shell({
 
         <div className="sidebar-foot">
           <div className="user-chip">
-            <Avatar name={def.persona.name} toneKey={def.tone} size={32} />
+            <Avatar name={identityName} toneKey={def.tone} size={32} />
             <div style={{ minWidth: 0, flex: 1 }}>
               <div className="small bold truncate" style={{ color: "var(--text-1)" }}>
-                {def.persona.name}
+                {identityName}
               </div>
-              <div className="tiny dim truncate">{def.persona.sub}</div>
+              <div className="tiny dim truncate">{identitySub}</div>
             </div>
             <button
               type="button"

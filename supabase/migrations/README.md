@@ -41,6 +41,7 @@ di tabel ini **dan** header file `.sql`-nya di commit yang sama.
 | 0029 | `0029_outlet_profile_photo.sql` | **Live** — dikonfirmasi 2026-08-26 | `outlet_profiles.profile_photo_url`. **Satu-satunya migrasi yang statusnya sempat benar-benar tidak pasti** — header menulis "DRAFT" dan tidak ada catatan bahwa ia dijalankan. Kolomnya load-bearing (`lib/actions/outletProfile.ts` pakai select eksplisit), jadi ini dicek khusus lewat `information_schema.columns` |
 | 0030 | `0030_service_type_active.sql` | **Live (2026-08-25)** | `service_types.active`. Master Initial live di produksi lewat `6db0be9`. Kolom dikonfirmasi ulang 2026-08-26 |
 | 0031 | `0031_outlet_timezone.sql` | **Live (2026-08-25)** | `outlets.timezone` (`text not null default 'Asia/Jakarta'`). Aditif, **belum dipakai kode manapun** — prasyarat untuk timezone Tahap 3 |
+| 0032 | `0032_extension_approval_rls.sql` | **BELUM dijalankan** | Temuan audit 2026-08-21 (awalnya bernomor 0010, dinomori ulang 2026-08-29): policy `extension_requests_therapist` di 0002 adalah FOR ALL, jadi terapis bisa meng-UPDATE permintaannya sendiri jadi APPROVED — self-approve extension tanpa kasir. Dipecah jadi SELECT + INSERT-wajib-PENDING; approve/reject eksklusif staff. Idempoten, aman di-run ulang |
 
 ## 0021 — dikonfirmasi live (2026-08-24)
 

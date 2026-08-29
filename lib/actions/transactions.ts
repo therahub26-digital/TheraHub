@@ -301,7 +301,13 @@ export async function payForSession(
       .from("promotions")
       .select("id, status, valid_from, valid_to, usage_count, max_usage, discount_amount, new_customers_only")
       .eq("outlet_id", session.outlet_id)
-      .ilike("code", code)
+      // ilike gives the case-insensitivity we want ("ajakteman30" should
+      // work), but % and _ are WILDCARDS to it — unescaped, "_JAKTEMAN30"
+      // would still match, and "%" alone would match every promo (then
+      // trip maybeSingle into a misleading "not found"). Escape them so
+      // kasir input is matched as literal text. (Re-applied 2026-08-29:
+      // the original fix was lost in an uncommitted-working-tree mixup.)
+      .ilike("code", code.replace(/[\\%_]/g, (ch) => `\\${ch}`))
       .maybeSingle();
     if (promoErr || !promo) return { ok: false, error: `Kode promo "${code}" tidak ditemukan di outlet ini.` };
     if (promo.status !== "ACTIVE") return { ok: false, error: `Kode promo "${code}" sedang tidak aktif.` };

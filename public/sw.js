@@ -14,8 +14,19 @@
 // -- staff portals (manager/kasir/therapist/admin) don't load this file.
 // ---------------------------------------------------------------------
 
-const CACHE_NAME = "therahub-customer-shell-v1";
-const SHELL_URLS = ["/customer", "/manifest.json", "/icon-192.png", "/icon-512.png"];
+// 2026-08-31 — portal terapis ikut dipasang sebagai PWA (lihat
+// app/therapist/layout.tsx), jadi shell-nya ikut di-cache. Nama cache
+// dinaikkan ke v2 supaya versi lama yang hanya berisi shell customer
+// dibuang saat activate.
+const CACHE_NAME = "therahub-shell-v2";
+const SHELL_URLS = [
+  "/customer",
+  "/therapist",
+  "/manifest.json",
+  "/manifest-therapist.json",
+  "/icon-192.png",
+  "/icon-512.png",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

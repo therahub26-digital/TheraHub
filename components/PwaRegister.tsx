@@ -3,9 +3,10 @@
 import { useEffect } from "react";
 
 // ---------------------------------------------------------------------
-// Registers public/sw.js so /customer is installable as a PWA (added
-// 2026-08-22, user request). Client-only, no UI -- rendered once from
-// app/customer/layout.tsx. Fails silently on browsers without service
+// Registers public/sw.js so the portal it is mounted in is installable
+// as a PWA (added 2026-08-22 for /customer; /therapist ikut 2026-08-31 —
+// lihat app/therapist/layout.tsx untuk alasannya). Client-only, no UI.
+// Fails silently on browsers without service
 // worker support (older Safari, some in-app webviews) since this is a
 // progressive enhancement, not a requirement to use the portal.
 // ---------------------------------------------------------------------

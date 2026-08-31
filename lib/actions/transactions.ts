@@ -26,7 +26,25 @@ import { commissionAmount, commissionRuleSnapshot, type CommissionType } from "@
 // `transaction_items_staff` policies are the real enforcement boundary.
 // ---------------------------------------------------------------------
 
-export type ActionResult = { ok: true } | { ok: false; error: string };
+/**
+ * Hasil aksi pembayaran.
+ *
+ * `warning` ada karena satu kelas kejadian yang tidak muat di "berhasil"
+ * atau "gagal": uang tamu SUDAH berpindah dan transaksinya sah, tapi salah
+ * satu efek samping sesudahnya (komisi, stok) gagal ditulis. Sebelumnya
+ * keadaan ini dikembalikan sebagai `ok: false` dengan pesan yang diawali
+ * "Pembayaran BERHASIL, tapi …" — dan klien hanya membaca `ok`, jadi
+ * kasir melihat kotak MERAH dengan ikon peringatan, persis seperti
+ * pembayaran yang benar-benar gagal. Kasir yang tidak membaca sampai
+ * habis akan mengira harus mengulang; percobaan kedua memang ditolak
+ * guard anti tagih-dobel, jadi uangnya aman — tapi saat tutup buku,
+ * struk yang sah tercatat sebagai "gagal" di kepala kasir.
+ *
+ * Sekarang keadaan itu `ok: true` dengan `warning`: transaksinya
+ * diperlakukan sebagai selesai (tombol berpindah ke "Dibayar", keranjang
+ * dikosongkan), dan peringatannya ditampilkan kuning — bukan merah.
+ */
+export type ActionResult = { ok: true; warning?: string } | { ok: false; error: string };
 
 function receiptNo(prefix: string, date: string): string {
   // e.g. "CKW-20260821-7K2Q" — prefix + date + short random suffix.
@@ -500,7 +518,7 @@ export async function payForSession(
       // to chase rather than rolling back money that genuinely changed
       // hands.
       if (commissionErr) {
-        return { ok: false, error: "Pembayaran BERHASIL, tapi komisi terapis gagal dicatat — laporkan ke admin (transaksi tidak perlu diulang)." };
+        return { ok: true, warning: "Pembayaran tercatat dan sah. Yang gagal hanya pencatatan komisi terapis — laporkan ke admin agar dimasukkan manual. JANGAN ulangi pembayarannya." };
       }
     }
   }
@@ -527,7 +545,7 @@ export async function payForSession(
         status: "PENDING",
       });
       if (extCommissionErr) {
-        return { ok: false, error: "Pembayaran BERHASIL, tapi komisi extension gagal dicatat — laporkan ke admin (transaksi tidak perlu diulang)." };
+        return { ok: true, warning: "Pembayaran tercatat dan sah. Yang gagal hanya pencatatan komisi extension — laporkan ke admin agar dimasukkan manual. JANGAN ulangi pembayarannya." };
       }
     }
   }
@@ -554,7 +572,7 @@ export async function payForSession(
         status: "PENDING",
       });
       if (addOnCommissionErr) {
-        return { ok: false, error: "Pembayaran BERHASIL, tapi komisi add-on gagal dicatat — laporkan ke admin (transaksi tidak perlu diulang)." };
+        return { ok: true, warning: "Pembayaran tercatat dan sah. Yang gagal hanya pencatatan komisi add-on — laporkan ke admin agar dimasukkan manual. JANGAN ulangi pembayarannya." };
       }
     }
   }
@@ -609,7 +627,7 @@ export async function payForSession(
       // guest has paid and the receipt is real. Surfaced loudly instead
       // of swallowed, because a stock count that quietly drifts is
       // exactly the bug that cost this project a day in babak 13.
-      return { ok: false, error: "Pembayaran BERHASIL, tapi stok produk gagal dikurangi — laporkan ke admin agar stok dikoreksi (transaksi tidak perlu diulang)." };
+      return { ok: true, warning: "Pembayaran tercatat dan sah. Yang gagal hanya pengurangan stok produk — laporkan ke admin agar stoknya dikoreksi. JANGAN ulangi pembayarannya." };
     }
   }
 

@@ -46,8 +46,19 @@ export default function RegisterPage() {
       .select("id, name, city, tenant_id")
       .order("name")
       .then(({ data, error: err }) => {
-        if (err || !data || data.length === 0) {
-          setOutletsError("Tidak bisa memuat daftar outlet saat ini. Coba lagi sebentar lagi.");
+        // Dua sebab yang berbeda, dulu diberi satu pesan yang sama —
+        // dan pesan itu menyuruh "coba lagi" untuk keadaan yang tidak akan
+        // berubah dengan mencoba lagi. Tenant yang belum mempublikasikan
+        // satu outlet pun membuat pendaftaran customer mati total, dan
+        // tidak ada di layar yang memberi tahu kenapa.
+        if (err) {
+          setOutletsError("Tidak bisa memuat daftar outlet saat ini. Periksa koneksi Anda lalu coba lagi.");
+          return;
+        }
+        if (!data || data.length === 0) {
+          setOutletsError(
+            "Belum ada outlet yang dipublikasikan, jadi pendaftaran belum bisa dilakukan. Hubungi outlet Anda — mereka perlu mempublikasikan profil outletnya lebih dulu."
+          );
           return;
         }
         const opts = data.map((o) => ({ id: o.id, name: o.name as string, city: o.city as string, tenantId: o.tenant_id as string }));

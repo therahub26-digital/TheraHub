@@ -243,7 +243,7 @@ export default function CustomerBookingForm({
           <span className="m-section" style={{ marginBottom: 0 }}>Pilih Outlet</span>
         </div>
         {outlets.length === 0 ? (
-          <div className="small dim">Belum ada outlet aktif untuk tenant ini.</div>
+          <div className="small dim">Belum ada outlet yang dipublikasikan. Outlet baru muncul di sini setelah admin menyalakan saklar publikasi di Profil Outlet.</div>
         ) : (
           <div className="stack g2">
             {outlets.map((o) => (

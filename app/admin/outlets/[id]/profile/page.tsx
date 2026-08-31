@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import Icon from "@/components/Icon";
-import { PageHead, Card, CardHead, InfoNote, Badge, PersonCell, Switch, Field } from "@/components/ui";
+import { PageHead, Card, CardHead, InfoNote, PersonCell, Switch, Field } from "@/components/ui";
 import MockDataNotice from "@/components/MockDataNotice";
-import { therapistsOf } from "@/lib/mock";
 import { getOutletById, isLiveOutletsData } from "@/lib/data/outlets";
+import { getTherapistsForOutlet } from "@/lib/data/employees";
 import { MEDIA_SPECS, specLine } from "@/lib/media";
 import {
   OutletPublishSwitch,
@@ -36,7 +36,14 @@ export default async function OutletProfilePage({ params }: { params: Promise<{ 
   const [outlet, live] = await Promise.all([getOutletById(id), isLiveOutletsData()]);
   if (!outlet) notFound();
   const p = outlet.profile;
-  const therapists = therapistsOf(outlet.id);
+  // 2026-08-26 — dulu `therapistsOf(outlet.id)` dari lib/mock. Fungsi itu
+  // memfilter daftar terapis contoh berdasarkan id outlet CONTOH ("OUT-001"),
+  // sementara `outlet.id` di sesi sungguhan adalah UUID Supabase — jadi
+  // hasilnya SELALU kosong untuk tenant nyata, dan kartunya tampil seolah
+  // outlet ini belum punya terapis sama sekali. Sekarang membaca roster
+  // outlet yang sedang dibuka, lewat jalur dual-mode yang sama dengan
+  // seluruh halaman lain.
+  const therapists = await getTherapistsForOutlet(outlet.id);
   const cover = MEDIA_SPECS.cover;
   const shot = MEDIA_SPECS.gallery;
 
@@ -255,14 +262,21 @@ export default async function OutletProfilePage({ params }: { params: Promise<{ 
             di tabel <span className="mono">employees</span>. Bagian ini sengaja dibiarkan lihat-saja
             supaya tidak ada saklar yang kelihatan aktif tapi tidak menyimpan apa pun.
           </InfoNote>
+          {therapists.length === 0 && (
+            <div className="small dim" style={{ textAlign: "center", padding: "16px 0" }}>
+              Belum ada terapis aktif di outlet ini. Tambahkan lewat Manager → Therapists &amp; Staff.
+            </div>
+          )}
           {therapists.map((t) => (
             <div key={t.id} className="stack g3" style={{ padding: "12px 14px", borderRadius: "var(--r-md)", background: "var(--bg-surface-2)", border: "1px solid var(--border)" }}>
               <div className="between">
-                <PersonCell name={t.name} sub={`${t.therapistGrade} · ${t.skills.slice(0, 2).join(", ")}`} toneKey={t.avatarTone} />
-                <div className="row g3">
-                  {t.featured && <Badge tone="gold" icon="star">{t.featuredBadge}</Badge>}
-                  <Switch on={!!t.featured} />
-                </div>
+                <PersonCell
+                  name={t.name}
+                  sub={[t.therapistGrade, t.skills.slice(0, 2).join(", ")].filter(Boolean).join(" · ") || t.code}
+                  toneKey={t.avatarTone}
+                  photoUrl={t.photoUrl}
+                />
+                <Switch on={false} />
               </div>
             </div>
           ))}

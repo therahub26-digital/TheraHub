@@ -117,6 +117,7 @@ export async function updateEmployeeReferral(input: UpdateEmployeeReferralInput)
       return { ok: false, error: "Gagal menyimpan — pastikan akun Anda punya hak ubah data karyawan." };
     }
     revalidatePath("/admin/users");
+    revalidatePath("/manager/therapists");
     return { ok: true };
   }
 
@@ -141,6 +142,11 @@ export async function updateEmployeeReferral(input: UpdateEmployeeReferralInput)
   }
 
   revalidatePath("/admin/users");
+  // Editor referral juga dipasang di /manager/therapists sejak 2026-08-22,
+  // tapi path itu tidak pernah ikut di-revalidate. Akibatnya manager yang
+  // menyimpan dari halaman itu melihat nilai lama, mengira simpanannya
+  // gagal, lalu mengulang — padahal tulisannya sudah berhasil.
+  revalidatePath("/manager/therapists");
   revalidatePath("/manager/payroll");
   revalidatePath("/owner/payroll");
 

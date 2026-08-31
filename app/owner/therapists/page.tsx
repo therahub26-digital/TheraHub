@@ -22,7 +22,7 @@ export default function TherapistPerformancePage() {
       </MockDataNotice>
 
       <div className="grid grid-4" style={{ marginBottom: 20 }}>
-        <StatCard label="Total Terapis" value={THERAPISTS.length} icon="sparkles" toneKey="rose" foot="3 outlet" />
+        <StatCard label="Total Terapis" value={THERAPISTS.length} icon="sparkles" toneKey="rose" foot="Seluruh outlet" />
         <StatCard label="Total Tamu Dilayani" value={num(totalGuests)} icon="users" toneKey="teal" foot="Bulan berjalan" />
         <StatCard label="Rata-rata Utilization" value={pct(avgUtil)} icon="gauge" toneKey="sky" foot="Treatment / shift minutes" />
         <StatCard label="Rata-rata Rating" value={avgRating.toFixed(2)} icon="star" toneKey="gold" foot="Dari 5.0" />

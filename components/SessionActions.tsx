@@ -9,7 +9,6 @@ import {
   requestExtension,
   approveExtension,
   rejectExtension,
-  type ActionResult,
 } from "@/lib/actions/sessions";
 import { payForSession, type PaymentMethod } from "@/lib/actions/transactions";
 import { triggerRoomAlert } from "@/lib/actions/alerts";
@@ -23,19 +22,33 @@ import { triggerRoomAlert } from "@/lib/actions/alerts";
 // file only handles pending state and surfacing the error text.
 // ---------------------------------------------------------------------
 
+/**
+ * Bentuk hasil yang bisa ditangani wrapper ini.
+ *
+ * Lebih longgar dari `ActionResult` milik sessions.ts karena
+ * `payForSession` bisa berhasil DENGAN peringatan: uang sudah berpindah,
+ * tapi efek samping sesudahnya (komisi/stok) gagal ditulis. Keadaan itu
+ * bukan kegagalan — menampilkannya merah membuat kasir mengira harus
+ * mengulang pembayaran yang sebenarnya sudah sah.
+ */
+type AnyActionResult = { ok: true; warning?: string } | { ok: false; error: string };
+
 function useAction() {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
 
-  function run(fn: () => Promise<ActionResult>) {
+  function run(fn: () => Promise<AnyActionResult>) {
     setError(null);
+    setWarning(null);
     startTransition(async () => {
       const result = await fn();
       if (!result.ok) setError(result.error);
+      else if (result.warning) setWarning(result.warning);
     });
   }
 
-  return { isPending, error, run };
+  return { isPending, error, warning, run };
 }
 
 function ErrorNote({ error }: { error: string | null }) {
@@ -44,6 +57,17 @@ function ErrorNote({ error }: { error: string | null }) {
     <div className="tiny" style={{ color: "var(--danger)", marginTop: 4, maxWidth: 260 }}>
       <Icon name="alert-triangle" size={11} style={{ verticalAlign: "-1px", marginRight: 3 }} />
       {error}
+    </div>
+  );
+}
+
+/** Kuning, bukan merah: aksinya berhasil, ada yang perlu ditindaklanjuti. */
+function WarningNote({ warning }: { warning: string | null }) {
+  if (!warning) return null;
+  return (
+    <div className="tiny" style={{ color: "var(--warning)", marginTop: 4, maxWidth: 260 }}>
+      <Icon name="info" size={11} style={{ verticalAlign: "-1px", marginRight: 3 }} />
+      {warning}
     </div>
   );
 }
@@ -129,7 +153,7 @@ const PAYMENT_METHODS: PaymentMethod[] = ["Cash", "QRIS", "Debit Card", "Credit 
  * "ready to bill" session in /kasir/sessions.
  */
 export function PaySessionButton({ sessionId }: { sessionId: string }) {
-  const { isPending, error, run } = useAction();
+  const { isPending, error, warning, run } = useAction();
   const [method, setMethod] = useState<PaymentMethod>("Cash");
   const [promoCode, setPromoCode] = useState("");
   const [showPromo, setShowPromo] = useState(false);
@@ -137,10 +161,13 @@ export function PaySessionButton({ sessionId }: { sessionId: string }) {
 
   if (paid) {
     return (
-      <span className="tiny" style={{ color: "var(--success, #2e9e5b)" }}>
-        <Icon name="check-circle" size={12} style={{ verticalAlign: "-1px", marginRight: 3 }} />
-        Dibayar
-      </span>
+      <div>
+        <span className="tiny" style={{ color: "var(--success, #2e9e5b)" }}>
+          <Icon name="check-circle" size={12} style={{ verticalAlign: "-1px", marginRight: 3 }} />
+          Dibayar
+        </span>
+        <WarningNote warning={warning} />
+      </div>
     );
   }
 

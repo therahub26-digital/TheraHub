@@ -59,6 +59,7 @@ export default function PosCart({
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
 
   const [selectedId, setSelectedId] = useState<string | null>(payables[0]?.sessionId ?? null);
   const [lines, setLines] = useState<CartLine[]>([]);
@@ -110,11 +111,16 @@ export default function PosCart({
     if (!selected) return;
     setError(null);
     setDone(null);
+    setWarning(null);
     const extras: PosExtraItem[] = lines.map((l) => ({ kind: l.kind, id: l.id, qty: l.qty }));
     startTransition(async () => {
       const result = await payForSession(selected.sessionId, method, promoCode.trim() || undefined, extras);
       if (result.ok) {
+        // `ok: true` boleh datang dengan peringatan: uang sudah berpindah,
+        // tapi komisi/stok gagal ditulis. Keranjang tetap dibersihkan —
+        // membiarkannya terisi mengundang kasir menagih ulang.
         setDone(`Pembayaran ${selected.customerName} berhasil diproses.`);
+        setWarning(result.warning ?? null);
         setLines([]);
         setPromoCode("");
         setShowPromo(false);
@@ -147,6 +153,7 @@ export default function PosCart({
                     setSelectedId(s.sessionId);
                     setError(null);
                     setDone(null);
+                    setWarning(null);
                   }}
                   disabled={isPending}
                   className="row between small"
@@ -326,6 +333,12 @@ export default function PosCart({
           <div className="tiny" style={{ color: "var(--danger)", marginTop: 10 }}>
             <Icon name="alert-triangle" size={11} style={{ verticalAlign: "-1px", marginRight: 3 }} />
             {error}
+          </div>
+        )}
+        {warning && (
+          <div className="tiny" style={{ color: "var(--warning)", marginTop: 10 }}>
+            <Icon name="info" size={11} style={{ verticalAlign: "-1px", marginRight: 3 }} />
+            {warning}
           </div>
         )}
         {done && (

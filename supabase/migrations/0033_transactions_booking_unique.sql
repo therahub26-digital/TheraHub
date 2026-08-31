@@ -1,0 +1,50 @@
+-- =====================================================================
+-- 0033 — satu booking, satu transaksi (penjaga tagih-dobel di database)
+--
+-- STATUS: DRAFT — BELUM DITERAPKAN
+-- Perbarui header ini DAN tabel di README.md pada commit yang sama saat
+-- migrasi ini dijalankan ke produksi.
+--
+-- KENAPA
+-- ------
+-- `payForSession()` (lib/actions/transactions.ts) sudah punya penjaga anti
+-- tagih-dobel, tapi penjaganya berbentuk BACA-LALU-TULIS: ia menanyakan
+-- "sudah ada transaksi untuk booking ini?" lalu, kalau belum, menyisipkan
+-- baris baru. Di antara dua langkah itu ada celah. Dua kasir yang menekan
+-- Bayar nyaris bersamaan — dua tablet, satu sesi — bisa sama-sama lolos
+-- pemeriksaan sebelum salah satu sempat menyisipkan. Hasilnya tamu
+-- tertagih dua kali, dan komisi terapis ikut tercatat dua kali.
+--
+-- Peluangnya kecil, tapi akibatnya uang tamu, dan satu-satunya perbaikan
+-- yang benar-benar menutup celah balapan adalah penjaga di level database:
+-- constraint unik dievaluasi di dalam transaksi Postgres, bukan di antara
+-- dua panggilan aplikasi. Penjaga di aplikasi TETAP dipertahankan — ia
+-- yang memberi pesan ramah "Sesi ini sudah dibayar sebelumnya."; constraint
+-- ini adalah jaring pengaman di bawahnya.
+--
+-- SEBELUM MENJALANKAN
+-- -------------------
+-- Pastikan belum ada duplikat yang sudah terlanjur masuk:
+--
+--   select booking_id, count(*)
+--     from transactions
+--    where booking_id is not null
+--    group by booking_id
+--   having count(*) > 1;
+--
+-- Harus 0 baris. Kalau ada, putuskan dulu transaksi mana yang sah
+-- (dan refund yang mana) SEBELUM menambahkan constraint — jangan
+-- menghapus baris transaksi hanya supaya migrasi ini lolos.
+--
+-- CATATAN
+-- -------
+-- Indeks unik PARSIAL (`where booking_id is not null`): transaksi retail
+-- murni lewat POS tidak terikat booking mana pun dan `booking_id`-nya NULL.
+-- Postgres memperlakukan setiap NULL sebagai berbeda, jadi sebenarnya
+-- constraint biasa pun tidak akan memblokirnya — klausa `where` di sini
+-- membuat maksud itu eksplisit dan indeksnya lebih kecil.
+-- =====================================================================
+
+create unique index if not exists transactions_booking_id_unique
+  on public.transactions (booking_id)
+  where booking_id is not null;

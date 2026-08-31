@@ -111,7 +111,13 @@ export default async function KasirTodayPage() {
                       <BookingRowActions bookingId={b.id} status={b.status} rooms={roomOptions} />
                     )}
                     {["IN_SESSION", "COMPLETED"].includes(b.status) && (
-                      <button className="btn btn-ghost btn-sm" disabled><Icon name="eye" size={12} /> Detail</button>
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        disabled
+                        title="Belum tersedia — halaman rincian booking belum dibangun. Pantau sesi yang sedang berjalan lewat menu Sessions."
+                      >
+                        <Icon name="eye" size={12} /> Detail
+                      </button>
                     )}
                   </td>
                 </tr>

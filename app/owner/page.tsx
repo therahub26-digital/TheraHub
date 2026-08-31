@@ -50,7 +50,7 @@ export default function OwnerDashboard() {
           <div className="between" style={{ marginBottom: 10 }}>
             <div>
               <h3>Tren Revenue & Profit</h3>
-              <div className="tiny dim">6 bulan terakhir · konsolidasi 3 outlet</div>
+              <div className="tiny dim">6 bulan terakhir · konsolidasi seluruh outlet</div>
             </div>
             <Badge tone="success" dot>Margin {pct((MONTHLY_TREND.at(-1)!.profit / MONTHLY_TREND.at(-1)!.revenue) * 100)}</Badge>
           </div>

@@ -8,6 +8,7 @@ import { buildFollowUpList } from "@/lib/bookingRules";
 import BookingFollowUpBanner from "@/components/BookingFollowUp";
 import { getActiveSessionsForOutlet, getSessionsForOutlet } from "@/lib/data/sessions";
 import { getRoomsForOutlet, getAvailableRoomsForOutlet } from "@/lib/data/rooms";
+import { getLowStockForOutlet } from "@/lib/data/inventory";
 import { rp, pct, fmtTime } from "@/lib/format";
 
 // ---------------------------------------------------------------------
@@ -38,7 +39,7 @@ export default async function ManagerTodayPage() {
   const outlet = await getCurrentOutlet();
   const [today, nowHHMM] = await Promise.all([getEffectiveToday(), getEffectiveNow()]);
 
-  const [kpi, therapists, sessions, todaysSessions, rooms, availableRooms, todaysBookings, live] = await Promise.all([
+  const [kpi, therapists, sessions, todaysSessions, rooms, availableRooms, todaysBookings, live, lowStock] = await Promise.all([
     getBookingKpi(outlet.id, today),
     getTherapistsForOutlet(outlet.id),
     getActiveSessionsForOutlet(outlet.id),
@@ -47,6 +48,7 @@ export default async function ManagerTodayPage() {
     getAvailableRoomsForOutlet(outlet.id),
     getBookingsForOutlet(outlet.id, today),
     isLiveBookingsData(),
+    getLowStockForOutlet(outlet.id),
   ]);
 
   // Rule 2, staff side (2026-08-23) — same list the kasir sees on
@@ -218,15 +220,52 @@ export default async function ManagerTodayPage() {
               <Icon name="alert-triangle" size={15} style={{ color: "var(--text-4)" }} />
               <h4>Alert Kehadiran</h4>
             </div>
-            <div className="small dim">Modul absensi/shift belum dibangun — belum ada data kehadiran real-time untuk ditampilkan di sini.</div>
+            {/* 2026-08-26 — kalimat lama di sini berbunyi "Modul absensi/shift
+                belum dibangun". Itu tidak akurat: absensi GPS terapis sudah
+                berjalan sejak migrasi awal dan terapis benar-benar check-in
+                lewat /therapist/attendance. Yang belum ada adalah RINGKASAN
+                per outlet — lib/data/attendance.ts hanya punya query
+                per-terapis, tidak ada fungsi yang mengumpulkan kehadiran
+                seluruh outlet dalam satu hari. Jadi yang jujur bukan
+                "modulnya belum ada", melainkan "ringkasannya belum ada". */}
+            <div className="small dim">
+              Absensi GPS terapis sudah berjalan, tapi ringkasan kehadiran per outlet belum dibangun —
+              kehadiran masih dilihat per orang lewat profil terapis masing-masing.
+            </div>
           </Card>
 
           <Card className="card-pad">
-            <div className="row g2" style={{ marginBottom: 10 }}>
-              <Icon name="package" size={15} style={{ color: "var(--text-4)" }} />
-              <h4>Stok Menipis</h4>
+            <div className="between" style={{ marginBottom: 10 }}>
+              <div className="row g2">
+                <Icon name="package" size={15} style={{ color: "var(--text-4)" }} />
+                <h4>Stok Menipis</h4>
+              </div>
+              <Link href="/manager/inventory" className="tiny dim">Inventory</Link>
             </div>
-            <div className="small dim">Modul inventori belum dibangun — belum ada data stok untuk ditampilkan di sini.</div>
+            {/* 2026-08-26 — dulu berbunyi "Modul inventori belum dibangun".
+                Benar saat ditulis, tidak lagi sejak migrasi 0020 (2026-08-24):
+                tabel produk & stok ada, dan /manager/inventory hidup di
+                atasnya. Kalimat itu memberi tahu manager bahwa fitur yang
+                sudah ada tidak ada — jenis kebohongan layar yang paling
+                mahal, karena orang berhenti mencari. */}
+            {lowStock.length ? (
+              <div className="stack g2">
+                {lowStock.slice(0, 5).map((p) => (
+                  <div key={p.id} className="between">
+                    <div style={{ minWidth: 0 }}>
+                      <div className="small truncate" style={{ color: "var(--text-1)" }}>{p.name}</div>
+                      <div className="tiny dim">min {p.minStock} {p.uom}</div>
+                    </div>
+                    <Badge tone="warning">{p.stocks[outlet.id] ?? 0}</Badge>
+                  </div>
+                ))}
+                {lowStock.length > 5 && (
+                  <div className="tiny dim">+{lowStock.length - 5} produk lain di bawah batas minimum.</div>
+                )}
+              </div>
+            ) : (
+              <div className="small dim">Semua stok yang dilacak masih di atas batas minimum.</div>
+            )}
           </Card>
         </div>
       </div>

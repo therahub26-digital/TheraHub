@@ -1,14 +1,65 @@
-import { PageHead, Card, CardHead, Badge, InfoNote } from "@/components/ui";
+import Link from "next/link";
+import { PageHead, Card, CardHead, Badge, InfoNote, EmptyState } from "@/components/ui";
 import MockDataNotice from "@/components/MockDataNotice";
 import { getOutlets } from "@/lib/data/outlets";
 import GeofenceEditor from "@/components/GeofenceEditor";
 
-export default async function GeofencePage() {
-  const OUTLETS = await getOutlets();
-  const outlet = OUTLETS[0];
+// ---------------------------------------------------------------------
+// PEMILIH OUTLET (2026-08-26).
+//
+// Halaman ini dulu menulis `const outlet = OUTLETS[0]` tanpa pemilih apa
+// pun. Tabel "Geofence per Outlet" di bawah menampilkan SEMUA outlet, tapi
+// editornya hanya pernah bisa menyentuh outlet pertama — jadi untuk tenant
+// dua outlet seperti Amethyst, geofence Mekarwangi secara harfiah tidak
+// bisa diubah dari antarmuka mana pun. Itu bukan "belum sempat": halaman
+// ini tampak lengkap, jadi tidak ada yang curiga fungsinya separuh.
+//
+// Pemilihnya sengaja lewat query string, bukan state klien: halaman ini
+// Server Component, dan `?outlet=` bisa di-bookmark serta dibagikan.
+// `key={outlet.id}` pada editor wajib — tanpa itu React memakai ulang
+// state form lama saat berpindah outlet, dan admin bisa menyimpan
+// koordinat outlet A ke outlet B.
+// ---------------------------------------------------------------------
+
+export default async function GeofencePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ outlet?: string }>;
+}) {
+  const [{ outlet: outletParam }, OUTLETS] = await Promise.all([searchParams, getOutlets()]);
+  const outlet = OUTLETS.find((o) => o.id === outletParam) ?? OUTLETS[0];
+
+  if (!outlet) {
+    return (
+      <>
+        <PageHead title="Geofence & Attendance" desc="Latitude/longitude, radius, dan accuracy threshold untuk absensi GPS." />
+        <EmptyState
+          icon="map-pin"
+          title="Belum ada outlet"
+          desc="Geofence diatur per outlet, jadi tidak ada yang bisa diatur sebelum outlet pertama dibuat."
+        />
+      </>
+    );
+  }
+
   return (
     <>
       <PageHead title="Geofence & Attendance" desc="Latitude/longitude, radius, dan accuracy threshold untuk absensi GPS." />
+
+      {OUTLETS.length > 1 && (
+        <div className="row g2" style={{ marginBottom: 16, flexWrap: "wrap" }}>
+          {OUTLETS.map((o) => (
+            <Link
+              key={o.id}
+              href={`/admin/geofence?outlet=${o.id}`}
+              className={`chip ${o.id === outlet.id ? "on" : ""}`}
+              title={`Atur geofence ${o.name}`}
+            >
+              {o.code} · {o.name}
+            </Link>
+          ))}
+        </div>
+      )}
 
       <MockDataNotice title="Sebagian halaman ini sudah bisa disimpan">
         <strong>Koordinat, radius, dan accuracy threshold sekarang tersimpan sungguhan</strong> lewat
@@ -22,6 +73,7 @@ export default async function GeofencePage() {
         <Card style={{ gridColumn: "span 2" }}>
           <CardHead title={`Peta Geofence — ${outlet.name}`} sub="Radius menentukan area valid check-in" />
           <GeofenceEditor
+            key={outlet.id}
             outletId={outlet.id}
             outletName={outlet.name}
             lat={outlet.lat}

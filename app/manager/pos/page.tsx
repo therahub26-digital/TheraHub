@@ -1,9 +1,11 @@
+import Link from "next/link";
 import Icon from "@/components/Icon";
 import { PageHead, Card, CardHead, StatCard, Badge } from "@/components/ui";
 import { DonutChart, LegendList } from "@/components/Charts";
 import { getCurrentOutlet } from "@/lib/data/outlets";
 import { getEffectiveToday } from "@/lib/data/bookings";
 import { getTransactionsForOutlet, isLiveTransactionsData } from "@/lib/data/transactions";
+import { getProducts, getLowStockForOutlet } from "@/lib/data/inventory";
 import { rp, fmtTime } from "@/lib/format";
 import { toCsv, csvFilename } from "@/lib/csv";
 import ExportCsvButton from "@/components/ExportCsvButton";
@@ -23,21 +25,26 @@ const ITEM_LABEL: Record<string, string> = {
 //
 // SCOPE: transaction history + sales breakdown (by item type, by payment
 // method) are real, computed here from the same rows /kasir/pos writes.
-// The "Produk Retail & F&B" section and its low-stock stat are NOT
-// migrated — there is no real products/inventory table in this schema
-// at all (same gap noted for /manager/inventory in the progress doc),
-// so showing real transactions next to fabricated stock numbers would
-// look equally authoritative while only one side is true. That section
-// stays honestly labeled "belum tersedia" instead, matching the pattern
-// already used for Inventory/Expenses elsewhere in this app.
+//
+// UPDATE 2026-08-26 — bagian "Produk Retail & F&B" ikut jadi data nyata.
+// Komentar lama di sini menyatakan "there is no real products/inventory
+// table in this schema at all", dan itu memang benar saat ditulis. Migrasi
+// 0020 (2026-08-24) membuatnya tidak benar lagi: tabel produk dan stok ada,
+// /manager/inventory sudah hidup di atasnya. Kalimat "Modul inventori belum
+// dibangun" jadi tertinggal di layar — memberi tahu manager bahwa fitur yang
+// SUDAH ADA tidak ada. Alasan menahannya dulu (jangan menyandingkan
+// transaksi nyata dengan stok karangan) sekarang justru terbalik: kedua
+// sisinya nyata, jadi menahannya yang menyesatkan.
 // ---------------------------------------------------------------------
 
 export default async function PosPage() {
   const outlet = await getCurrentOutlet();
   const today = await getEffectiveToday();
-  const [transactions, live] = await Promise.all([
+  const [transactions, live, products, lowStock] = await Promise.all([
     getTransactionsForOutlet(outlet.id, today),
     isLiveTransactionsData(),
+    getProducts(),
+    getLowStockForOutlet(outlet.id),
   ]);
 
   // Ekspor CSV (backlog 4.5, 2026-08-24). Dibangun di server dari baris
@@ -73,6 +80,25 @@ export default async function PosPage() {
   const count = paid.length;
   const total = paid.reduce((s, t) => s + t.total, 0);
   const byTypeList = Object.entries(byType).map(([name, value]) => ({ name: ITEM_LABEL[name] ?? name, value }));
+
+  // Unit barang (bukan layanan) yang benar-benar terjual hari ini — dihitung
+  // dari baris transaksi yang sama, bukan dari stok. Sengaja qty, bukan
+  // rupiah: pertanyaan yang dijawab kartu ini adalah "berapa banyak barang
+  // berpindah tangan", dan itu yang menentukan kapan stok perlu diisi ulang.
+  const RETAIL_KINDS = new Set(["PRODUCT", "FOOD", "BEVERAGE"]);
+  const retailUnits = paid.reduce(
+    (sum, t) => sum + t.items.filter((it) => RETAIL_KINDS.has(it.itemType)).reduce((s, it) => s + it.qty, 0),
+    0
+  );
+
+  // Produk yang bisa dijual di outlet ini, diurutkan dari yang stoknya
+  // paling tipis — supaya kartunya berguna saat kasir sedang melayani,
+  // bukan sekadar daftar abjad.
+  const sellable = products
+    .filter((p) => p.sellPrice !== null)
+    .map((p) => ({ ...p, stock: p.stocks[outlet.id] ?? 0 }))
+    .sort((a, b) => a.stock - b.stock)
+    .slice(0, 8);
   const byMethodList = Object.entries(byMethod).map(([name, value]) => ({ name, value }));
 
   return (
@@ -87,7 +113,13 @@ export default async function PosPage() {
         <StatCard label="Total Transaksi" value={count} icon="receipt" toneKey="teal" deltaLabel="Hari ini" />
         <StatCard label="Total Penjualan" value={rp(total, { short: true })} icon="circle-dollar" toneKey="gold" deltaLabel="Termasuk pajak & service" />
         <StatCard label="Avg Transaksi" value={rp(count ? total / count : 0, { short: true })} icon="trending-up" toneKey="sky" deltaLabel="Per struk" />
-        <StatCard label="Item Retail" value="—" icon="package" toneKey="neutral" deltaLabel="Modul inventori belum dibangun" />
+        <StatCard
+          label="Item Retail Terjual"
+          value={retailUnits}
+          icon="package"
+          toneKey="neutral"
+          deltaLabel={lowStock.length ? `${lowStock.length} produk stok menipis` : "Stok dalam batas aman"}
+        />
       </div>
 
       <div className="grid grid-3" style={{ alignItems: "start", marginBottom: 20 }}>
@@ -156,11 +188,47 @@ export default async function PosPage() {
           </div>
         </Card>
         <Card>
-          <CardHead title="Produk Retail & F&B" sub="Stok cepat untuk penjualan langsung" />
+          <CardHead
+            title="Produk Retail & F&B"
+            sub={sellable.length ? "Stok outlet ini, yang paling tipis di atas" : "Stok cepat untuk penjualan langsung"}
+            action={
+              <Link href="/manager/inventory" className="btn btn-quiet btn-sm">
+                Kelola stok <Icon name="arrow-right" size={13} />
+              </Link>
+            }
+          />
           <div className="card-body">
-            <div className="small dim" style={{ textAlign: "center", padding: "20px 0" }}>
-              Modul inventori/produk belum dibangun — belum ada data stok real untuk ditampilkan di sini.
-            </div>
+            {sellable.length ? (
+              <div className="table-wrap">
+                <table className="tbl">
+                  <thead>
+                    <tr><th>Produk</th><th className="num">Harga</th><th className="num">Stok</th></tr>
+                  </thead>
+                  <tbody>
+                    {sellable.map((p) => (
+                      <tr key={p.id}>
+                        <td>
+                          <div className="strong" style={{ color: "var(--text-1)" }}>{p.name}</div>
+                          <div className="tiny dim">{p.category} · {p.uom}</div>
+                        </td>
+                        <td className="num">{p.sellPrice === null ? "—" : rp(p.sellPrice, { short: true })}</td>
+                        <td className="num">
+                          {p.trackStock ? (
+                            <Badge tone={p.stock < p.minStock ? "warning" : "neutral"}>{p.stock}</Badge>
+                          ) : (
+                            <span className="dim">tidak dilacak</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="small dim" style={{ textAlign: "center", padding: "20px 0" }}>
+                Belum ada produk yang bisa dijual di outlet ini. Tambahkan lewat menu Inventory.
+              </div>
+            )}
           </div>
         </Card>
       </div>

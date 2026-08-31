@@ -4,6 +4,22 @@ export interface NavItem {
   href: string;
   label: string;
   icon: string;
+  /**
+   * Angka lencana di samping menu.
+   *
+   * ⚠️ 2026-08-26 — SELURUH lencana tetap dihapus dari file ini. Nilainya
+   * dulu ditulis tangan (Approvals 8, Sessions 3, Jadwal & Job 2,
+   * Notifikasi 2) dan tidak pernah dihitung dari apa pun: lencananya
+   * menyala dengan angka yang sama entah ada 0 atau 50 item menunggu.
+   * Di MobileShell angka itu juga menyalakan titik merah di tab bar, jadi
+   * terapis melihat penanda "ada yang baru" yang tidak pernah padam.
+   *
+   * `lib/nav.ts` dievaluasi sekali sebagai konstanta modul — ia tidak punya
+   * akses ke sesi maupun database, jadi lencana yang JUJUR tidak bisa lahir
+   * di sini. Kalau nanti diperlukan, hitungannya harus diambil per-request
+   * di layout (pola yang sudah dipakai `notificationCount` di Shell) lalu
+   * diturunkan ke item menu — bukan dituliskan kembali sebagai angka tetap.
+   */
   badge?: number;
   section?: string;
 }
@@ -78,7 +94,7 @@ export const ROLES: RoleDef[] = [
       { href: "/owner/expenses", label: "Expenses", icon: "receipt", section: "Finance" },
       { href: "/owner/inventory", label: "Inventory Summary", icon: "package", section: "Operations" },
       { href: "/owner/therapists", label: "Therapist Performance", icon: "sparkles", section: "Operations" },
-      { href: "/owner/approvals", label: "Approvals", icon: "check-check", badge: 8, section: "Control" },
+      { href: "/owner/approvals", label: "Approvals", icon: "check-check", section: "Control" },
       { href: "/owner/audit", label: "Audit & Export", icon: "scroll-text", section: "Control" },
     ],
   },
@@ -95,7 +111,7 @@ export const ROLES: RoleDef[] = [
       { href: "/manager", label: "Today", icon: "sun", section: "Operasional" },
       { href: "/manager/bookings", label: "Bookings", icon: "calendar-days", section: "Operasional" },
       { href: "/manager/schedule-check", label: "Cek Jadwal Terapis", icon: "calendar-check", section: "Operasional" },
-      { href: "/manager/sessions", label: "Sessions", icon: "timer", badge: 3, section: "Operasional" },
+      { href: "/manager/sessions", label: "Sessions", icon: "timer", section: "Operasional" },
       { href: "/manager/rooms", label: "Rooms", icon: "door-open", section: "Operasional" },
       { href: "/manager/catalog", label: "Catalog", icon: "book-open", section: "Master" },
       { href: "/manager/therapists", label: "Therapists & Staff", icon: "users", section: "Master" },
@@ -176,9 +192,9 @@ export const ROLES: RoleDef[] = [
     nav: [
       { href: "/therapist", label: "Beranda", icon: "home", section: "Harian" },
       { href: "/therapist/session", label: "Sesi Aktif", icon: "timer", section: "Harian" },
-      { href: "/therapist/shift", label: "Jadwal & Job", icon: "calendar-days", badge: 2, section: "Harian" },
+      { href: "/therapist/shift", label: "Jadwal & Job", icon: "calendar-days", section: "Harian" },
       { href: "/therapist/attendance", label: "Absensi", icon: "map-pin-check", section: "Harian" },
-      { href: "/therapist/notifications", label: "Notifikasi", icon: "bell", badge: 2, section: "Penghasilan" },
+      { href: "/therapist/notifications", label: "Notifikasi", icon: "bell", section: "Penghasilan" },
       { href: "/therapist/commission", label: "Komisi Saya", icon: "percent", section: "Penghasilan" },
       { href: "/therapist/payslip", label: "Payslip & Tabungan", icon: "wallet", section: "Penghasilan" },
       // "Profil Saya" — added 2026-08-25, user: "profil terapis baru,

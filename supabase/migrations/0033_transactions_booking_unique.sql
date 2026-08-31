@@ -1,9 +1,15 @@
 -- =====================================================================
 -- 0033 — satu booking, satu transaksi (penjaga tagih-dobel di database)
 --
--- STATUS: DRAFT — BELUM DITERAPKAN
--- Perbarui header ini DAN tabel di README.md pada commit yang sama saat
--- migrasi ini dijalankan ke produksi.
+-- STATUS: LIVE — dijalankan di produksi 2026-08-31 lewat SQL Editor.
+--
+-- Pembuatan indeks BERHASIL, dan keberhasilan itu sendiri adalah buktinya:
+-- kalau ada dua transaksi dengan `booking_id` sama, Postgres akan menolak
+-- dengan "could not create unique index ... Key (booking_id)=(...) is
+-- duplicated". Jadi query cek duplikat di bawah tidak perlu dijalankan
+-- terpisah — ia sudah terjawab oleh indeksnya sendiri. Dipertahankan di
+-- sini untuk siapa pun yang menjalankan migrasi ini di tenant lain, di
+-- mana datanya belum tentu bersih.
 --
 -- KENAPA
 -- ------

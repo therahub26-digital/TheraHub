@@ -91,7 +91,13 @@ export default async function OutletsPage() {
             <Icon name="plus" size={20} />
           </span>
           <span className="small bold" style={{ color: "var(--text-2)" }}>Tambah Outlet Baru</span>
-          <span className="tiny dim">5 slot tersisa dari plan Business</span>
+          {/* Dulu tertulis tetap "5 slot tersisa" — angka yang tidak pernah
+              berubah berapa pun outlet yang ada, dan sudah salah sejak
+              outlet kedua dibuat. Dihitung dari daftar yang sama dengan
+              kartu "Total Outlet" di atas. */}
+          <span className="tiny dim">
+            {Math.max(0, 8 - OUTLETS.length)} slot tersisa dari plan Business
+          </span>
         </button>
       </div>
     </>

@@ -92,6 +92,13 @@ export default async function PromotionsPage() {
                   <td><StatusBadge status={p.status} /></td>
                 </tr>
               ))}
+              {promos.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="dim small" style={{ textAlign: "center", padding: "20px 0" }}>
+                    Belum ada promo di outlet ini. Kode promo yang dibuat di sini bisa dipakai kasir saat pembayaran.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

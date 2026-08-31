@@ -98,6 +98,10 @@ export default function TherapistLeaveRequestForm({ minDate, requests }: { minDa
         )}
       </div>
 
+      {requests.length === 0 && (
+        <div className="tiny dim">Belum ada pengajuan cuti/libur.</div>
+      )}
+
       {requests.length > 0 && (
         <div className="stack g2">
           <div className="tiny dim">Riwayat pengajuan</div>

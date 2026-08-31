@@ -44,6 +44,12 @@ export default async function TherapistNotificationsPage() {
       avatarTone={avatarTone}
     >
       <div className="stack g2">
+        {notifications.length === 0 && (
+          <div className="small dim" style={{ textAlign: "center", padding: "28px 0" }}>
+            Tidak ada notifikasi. Pemberitahuan muncul di sini menjelang job berikutnya
+            dan saat sesi Anda hampir berakhir.
+          </div>
+        )}
         {notifications.map((n) => (
           <div key={n.id} className="m-list-link" style={{ alignItems: "flex-start", opacity: n.read ? 0.72 : 1 }}>
             <span

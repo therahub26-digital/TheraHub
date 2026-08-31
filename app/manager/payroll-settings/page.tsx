@@ -42,7 +42,7 @@ export default async function PayrollSettingsPage() {
           <CardHead title="Kenapa ini diatur per outlet?" />
           <div className="card-body stack g3 small muted">
             <p>
-              Tabel payroll punya sepuluh komponen, tapi tidak ada bisnis yang memakai
+              Tabel payroll punya sebelas komponen, tapi tidak ada bisnis yang memakai
               semuanya. Yang dipakai berbeda-beda per spa — jadi ini disimpan sebagai{" "}
               <span className="strong" style={{ color: "var(--text-1)" }}>data</span>, bukan
               ditulis di dalam kode.

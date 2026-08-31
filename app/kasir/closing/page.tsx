@@ -41,7 +41,15 @@ export default function ClosingPage() {
             <div className="grid grid-2" style={{ marginBottom: 16 }}>
               <Field label="Modal Awal (Opening Float)"><input defaultValue={rp(shift.openingFloat)} readOnly /></Field>
               <Field label="Ekspektasi Kas Sistem"><input defaultValue={rp(shift.expectedCash)} readOnly /></Field>
-              <Field label="Kas Hasil Hitung Fisik" hint="Diisi kasir saat closing"><input placeholder="Masukkan jumlah kas fisik..." /></Field>
+              {/* Field ini satu-satunya di kartu ini yang dulu tidak `readOnly`,
+                  jadi kasir bisa mengetik angka hitung kas sungguhan ke sana
+                  dan mengira sudah tercatat — padahal tidak ada state yang
+                  membacanya (halaman ini Server Component murni). Satu-satunya
+                  pengaman adalah banner di atas, dan banner tidak selalu dibaca
+                  orang yang sedang buru-buru menutup shift. */}
+              <Field label="Kas Hasil Hitung Fisik" hint="Belum bisa diisi — modul tutup shift belum dibangun">
+                <input placeholder="Belum tersedia" readOnly title="Belum tersedia — rekonsiliasi kas belum dibangun; catat manual di luar aplikasi." />
+              </Field>
               <Field label="Selisih (Variance)"><input defaultValue={shift.variance !== null ? rp(shift.variance, { sign: true }) : "—"} readOnly /></Field>
             </div>
             <InfoNote tone={shift.variance && shift.variance < 0 ? "warning" : "info"} icon="info">

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Icon from "@/components/Icon";
-import { PageHead, Card, CardHead, StatCard, StatusBadge, PersonCell } from "@/components/ui";
+import { PageHead, Card, CardHead, StatCard, StatusBadge, PersonCell, InfoNote } from "@/components/ui";
 import { RunPayrollButton } from "@/components/PayrollControls";
 import { getOutlets } from "@/lib/data/outlets";
 import { getPayrollForOutlet, getPayrollSettings } from "@/lib/data/payroll";
@@ -74,11 +74,25 @@ export default async function PayrollPage() {
 
   return (
     <>
+      {/* Batas ini nyata dan sebelumnya hanya hidup di komentar kode: halaman
+          ini memakai outlet PERTAMA, bukan agregat tenant. Owner dengan lebih
+          dari satu outlet berhak tahu bahwa yang dilihatnya bukan seluruh
+          bisnisnya — nama outlet di subjudul saja tidak cukup, karena tidak
+          ada yang menyatakan outlet lain TIDAK termasuk. */}
       <PageHead
         title="Payroll"
         desc={`${outlet.name} · ${monthLabel(period)} · ${components.map((c) => c.label).join(" + ")}`}
         actions={<RunPayrollButton outletId={outlet.id} period={period} />}
       />
+
+      {OUTLETS.length > 1 && (
+        <InfoNote tone="warning" icon="info" title={`Hanya outlet ${outlet.name}`}>
+          Tenant ini punya {OUTLETS.length} outlet, tapi halaman ini menampilkan dan menghitung
+          payroll <strong>satu outlet saja</strong> — bukan gabungan seluruh bisnis. Untuk outlet
+          lain, buka Payroll di portal Manager outlet tersebut. Pemilih outlet di portal Owner belum
+          dibangun karena bentuknya (pilih satu vs agregat semua) masih menunggu keputusan.
+        </InfoNote>
+      )}
 
       <div className="grid grid-4" style={{ marginBottom: 20 }}>
         <StatCard label="Total Take-Home" value={rp(totalNet, { short: true })} icon="wallet" toneKey="gold" deltaLabel={`${items.length} payslip`} />

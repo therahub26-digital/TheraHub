@@ -304,7 +304,12 @@ export async function getPlatformDiagnostics(): Promise<DiagnosticFinding[] | nu
 
   const pkgNoCommission = packageRows.filter((p) => {
     const v = p.commission_value;
-    return v === null || v === undefined || Number(v) === 0;
+    if (v === null || v === undefined || v === "") return true;
+    const n = Number(v);
+    // Number("abc") = NaN, dan NaN !== 0 — jadi cek lama meloloskan nilai
+    // komisi yang rusak. Paket dengan nilai tak terbaca justru LEBIH perlu
+    // ditandai daripada paket yang jelas-jelas kosong.
+    return Number.isNaN(n) || n === 0;
   });
   if (pkgNoCommission.length)
     out.push({

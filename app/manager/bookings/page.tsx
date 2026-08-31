@@ -179,6 +179,13 @@ export default async function BookingsPage({
                     <td><BookingRowActions bookingId={b.id} status={b.status} rooms={roomOptions} /></td>
                   </tr>
                 ))}
+                {bookings.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="dim small" style={{ textAlign: "center", padding: "20px 0" }}>
+                      Belum ada booking pada tanggal ini. Tekan &quot;Booking Baru&quot; untuk menambah.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

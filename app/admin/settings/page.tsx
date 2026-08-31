@@ -18,9 +18,11 @@ export default async function TenantSettingsPage() {
 
       <MockDataNotice title="Isian di halaman ini belum bisa disimpan">
         Tombol <strong>Simpan</strong> belum tersambung, dan semua saklar di halaman ini hanya
-        gambar status. Perubahan pajak, service charge, dan kebijakan booking yang sungguhan masih
-        harus dilakukan langsung di database. (Kartu Deposit Booking per Outlet menampilkan data
-        outlet yang asli, tapi baca-saja.)
+        gambar status. <strong>Tapi jangan mengubahnya lewat database.</strong> Pajak, service
+        charge, deposit booking, dan jendela booking sudah punya jalur simpan yang benar dan
+        tervalidasi di <strong>Manager → Outlet Settings</strong>, per outlet — halaman inilah yang
+        belum disambungkan ke sana, bukan fiturnya yang belum ada. (Kartu Deposit Booking per Outlet
+        di bawah menampilkan data outlet yang asli, tapi baca-saja.)
       </MockDataNotice>
 
       <div className="grid grid-2" style={{ alignItems: "start" }}>

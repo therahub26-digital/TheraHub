@@ -27,7 +27,11 @@ export default function ApprovalsPage() {
         <StatCard label="Total Menunggu" value={APPROVALS.length} icon="check-check" toneKey="amber" />
         <StatCard label="Prioritas Tinggi" value={high.length} icon="alert-triangle" toneKey="danger" />
         <StatCard label="Nilai Terkait" value={rp(totalAmount, { short: true })} icon="circle-dollar" toneKey="gold" />
-        <StatCard label="Rata-rata Waktu Respons" value="4,2" unit=" jam" icon="clock" toneKey="teal" />
+        {/* "4,2 jam" dulu ditulis tetap di sini — tidak dihitung dari apa pun,
+            bahkan data contohnya sendiri tidak punya kolom waktu respons.
+            Angka yang terlihat terukur padahal tidak pernah diukur lebih buruk
+            daripada tidak ada angka sama sekali. */}
+        <StatCard label="Rata-rata Waktu Respons" value="—" unit="" icon="clock" toneKey="teal" foot="Belum diukur" />
       </div>
 
       <div className="row g2 wrap" style={{ marginBottom: 16 }} title="Angkanya benar, tapi chip ini hanya penghitung — menekannya belum menyaring tabel.">

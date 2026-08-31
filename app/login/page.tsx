@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import Icon from "@/components/Icon";
@@ -29,16 +28,36 @@ const ROLE_HOME: Record<string, string> = {
 // effect below (email-confirmation links land back on THIS page with a
 // session already established by the browser client's PKCE handling).
 // ---------------------------------------------------------------------
-async function resolveAndRoute(supabase: SupabaseClient, user: User, router: ReturnType<typeof useRouter>, setError: (m: string) => void) {
+/**
+ * Pindah halaman setelah login.
+ *
+ * ⚠️ 2026-08-31 — dulu `router.push()`. Itu navigasi LUNAK: Next.js
+ * mengambil payload halaman lewat jaringan dulu, baru berpindah. Kalau
+ * pengambilan itu gagal di sinyal jelek, Next.js bisa diam saja — tidak
+ * pindah, tidak ada error, layar tetap di halaman login seolah tombolnya
+ * tidak pernah ditekan. Dari lapangan: terapis "login tapi tidak pernah
+ * masuk ke halaman awal".
+ *
+ * `window.location.assign()` adalah navigasi biasa milik browser:
+ * browsernya sendiri yang menangani lambat/putus, menampilkan indikator
+ * muatnya, dan cookie sesi pasti ikut terkirim. Lebih lambat beberapa
+ * ratus milidetik di jaringan bagus — dan itu harga yang murah untuk
+ * berhenti gagal senyap di jaringan jelek.
+ */
+function go(href: string) {
+  window.location.assign(href);
+}
+
+async function resolveAndRoute(supabase: SupabaseClient, user: User, setError: (m: string) => void) {
   const { data: staffRow } = await supabase.from("app_users").select("role").eq("auth_user_id", user.id).maybeSingle();
   if (staffRow?.role) {
-    router.push(ROLE_HOME[staffRow.role] ?? "/");
+    go(ROLE_HOME[staffRow.role] ?? "/");
     return;
   }
 
   const { data: customerRow } = await supabase.from("customers").select("id").eq("auth_user_id", user.id).maybeSingle();
   if (customerRow) {
-    router.push(ROLE_HOME.customer);
+    go(ROLE_HOME.customer);
     return;
   }
 
@@ -55,7 +74,7 @@ async function resolveAndRoute(supabase: SupabaseClient, user: User, router: Ret
       setError("Akun berhasil diverifikasi, tapi gagal membuat profil customer. Hubungi outlet Anda.");
       return;
     }
-    router.push(ROLE_HOME.customer);
+    go(ROLE_HOME.customer);
     return;
   }
 
@@ -63,10 +82,13 @@ async function resolveAndRoute(supabase: SupabaseClient, user: User, router: Ret
 }
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [routing, setRouting] = useState(false);
+  // Sinyal jelek: beri tahu orangnya bahwa loginnya BERHASIL dan yang lambat
+  // adalah perpindahan halaman — supaya dia menunggu, bukan menekan ulang.
+  const [slow, setSlow] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -75,15 +97,27 @@ export default function LoginPage() {
   // init when it's the same browser that started signUp(). If that
   // happened, route immediately instead of making the person log in
   // again right after confirming their email.
+  // Kalau perpindahan halaman lewat 6 detik, katakan terus terang bahwa
+  // loginnya SUDAH berhasil dan yang lambat adalah jaringannya. Tanpa ini
+  // orang menyimpulkan sendiri bahwa loginnya gagal, lalu menekan ulang —
+  // dan tekanan berulang di jaringan jelek justru memperlambat semuanya.
+  useEffect(() => {
+    if (!routing) {
+      setSlow(false);
+      return;
+    }
+    const t = setTimeout(() => setSlow(true), 6000);
+    return () => clearTimeout(t);
+  }, [routing]);
+
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
-        await resolveAndRoute(supabase, session.user, router, setError);
+        await resolveAndRoute(supabase, session.user, setError);
       }
       setCheckingSession(false);
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function onSubmit(e: FormEvent) {
@@ -104,8 +138,16 @@ export default function LoginPage() {
       return;
     }
 
-    await resolveAndRoute(supabase, data.user, router, setError);
-    setLoading(false);
+    // Navigasi diserahkan ke browser (lihat `go`). JANGAN mematikan status
+    // "memproses" di sini: kalau jaringannya lambat, tombol akan hidup lagi
+    // sementara halaman baru masih dalam perjalanan — dan orang yang mengira
+    // tombolnya tidak berfungsi akan menekannya lagi.
+    setRouting(true);
+    await resolveAndRoute(supabase, data.user, (m) => {
+      setError(m);
+      setRouting(false);
+      setLoading(false);
+    });
   }
 
   return (
@@ -165,9 +207,16 @@ export default function LoginPage() {
               </div>
             )}
 
-            <button type="submit" className="btn btn-primary btn-lg btn-block" disabled={loading || checkingSession} style={{ marginTop: 6 }}>
-              {checkingSession ? "Memeriksa sesi…" : loading ? "Memproses…" : "Masuk"}
+            <button type="submit" className="btn btn-primary btn-lg btn-block" disabled={loading || routing || checkingSession} style={{ marginTop: 6 }}>
+              {checkingSession ? "Memeriksa sesi…" : routing ? "Mengalihkan…" : loading ? "Memproses…" : "Masuk"}
             </button>
+
+            {routing && slow && (
+              <div className="tiny" style={{ marginTop: 8, textAlign: "center", color: "var(--warning)" }}>
+                Login Anda <strong>berhasil</strong> — halaman berikutnya sedang dimuat.
+                Jaringan sedang lambat; mohon tunggu dan jangan menekan Masuk lagi.
+              </div>
+            )}
           </form>
 
           <div className="tiny dim" style={{ marginTop: 18, textAlign: "center" }}>

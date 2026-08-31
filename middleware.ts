@@ -3,7 +3,7 @@ import { updateSession } from "@/lib/supabase/middleware";
 import { ROLE_HOME, roleForPath } from "@/lib/route-guard";
 
 export async function middleware(request: NextRequest) {
-  const { supabaseResponse, user, supabase } = await updateSession(request);
+  const { supabaseResponse, user, supabase, authUnreachable } = await updateSession(request);
 
   const { pathname } = request.nextUrl;
   const requiredRole = roleForPath(pathname);
@@ -11,6 +11,18 @@ export async function middleware(request: NextRequest) {
   // Not one of the seven role-portal sections (landing page, /login,
   // /api/*, etc.) — nothing to guard here, just the refreshed session.
   if (!requiredRole) return supabaseResponse;
+
+  // Server auth tidak terjangkau (timeout/jaringan putus) — kita TIDAK TAHU
+  // apakah orang ini login atau tidak, jadi jangan berpura-pura tahu.
+  // Melemparnya ke /login adalah tebakan, dan tebakan yang salah persis
+  // yang membuat terapis di sinyal jelek tidak pernah bisa masuk.
+  //
+  // Membiarkan permintaan lewat BUKAN lubang keamanan: penjaga rute ini
+  // lapisan pengalaman-pakai, bukan batas keamanan. Batas yang sungguhan
+  // adalah RLS di database — halaman yang dirender tanpa sesi sah tidak
+  // akan mendapat satu baris pun. Yang terburuk terjadi adalah halaman
+  // kosong; itu jauh lebih baik daripada mengusir orang yang sudah login.
+  if (!user && authUnreachable) return supabaseResponse;
 
   if (!user) {
     const url = request.nextUrl.clone();

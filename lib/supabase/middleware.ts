@@ -32,13 +32,31 @@ export async function updateSession(request: NextRequest) {
   // IMPORTANT: do not run any logic between createServerClient and
   // supabase.auth.getUser(). A simple mistake could make it very hard to
   // debug users being randomly logged out.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data, error } = await supabase.auth.getUser();
+  const user = data.user;
 
-  // Also hand back the request-scoped client itself: middleware.ts's
-  // route guard (lib/route-guard.ts) needs to read this signed-in
-  // user's own app_users/customers row under their own RLS context —
-  // same pattern already used client-side in app/login/page.tsx.
-  return { supabaseResponse, user, supabase };
+  // ⚠️ 2026-08-31 — `error` DULU DIBUANG di sini, dan itu bug yang nyata.
+  //
+  // Pemanggil (middleware.ts) hanya melihat `user`. Jadi kalau panggilan
+  // ini GAGAL KARENA JARINGAN, `user` kosong, dan middleware menyimpulkan
+  // orangnya belum login lalu melemparnya ke /login — padahal dia baru
+  // saja berhasil login dan cookie-nya ada.
+  //
+  // Adjie melaporkannya dari lapangan: terapis di outlet bersinyal jelek
+  // login berhasil, lalu dilempar balik ke halaman login, berulang-ulang,
+  // tidak pernah sampai ke beranda. Dulu tercatat sebagai item 7.12
+  // "kedipan sesaat, tidak memblokir". Di sinyal jelek ia memblokir total.
+  //
+  // Akar masalahnya adalah menyamakan dua hal yang berbeda: "server auth
+  // bilang sesi ini tidak sah" dan "kami tidak berhasil menghubungi server
+  // auth". Yang pertama artinya usir; yang kedua artinya kita tidak tahu.
+  //
+  // Cara membedakannya: kegagalan auth sungguhan datang dengan status HTTP
+  // (401/403). Kegagalan jaringan datang tanpa status, atau sebagai
+  // AuthRetryableFetchError.
+  const authUnreachable =
+    !!error && (error.status === undefined || error.status === 0 || error.name === "AuthRetryableFetchError");
+
+  return { supabaseResponse, user, supabase, authUnreachable };
+
 }

@@ -1,3 +1,5 @@
+import { cache } from "react";
+
 import { createClient } from "@/lib/supabase/server";
 import { fetchAllRows } from "@/lib/supabase/paginate";
 import { COMMISSIONS as MOCK_COMMISSIONS } from "@/lib/mock/finance";
@@ -209,35 +211,41 @@ export async function getCommissionsForOutlet(outletId: string, period?: string)
  * Returns null when there is no session, or when the signed-in account
  * is not linked to an employee row — the caller then falls back to the
  * mock persona, which is correct for the "Ganti Role" showcase.
+ *
+ * 2026-08-31 (item 7.27, keluhan nyata: portal lambat saat sinyal
+ * jelek): dibungkus cache() supaya satu render request hanya me-resolve
+ * identitas SEKALI — sebelumnya setiap halaman terapis plus fungsi data
+ * lain yang butuh identitas mengulang seluruh rantainya. Dua query
+ * app_users → employees juga digabung jadi SATU query ber-embed, jadi
+ * rantainya sekarang auth.getUser() + 1 round trip, bukan + 2. Bentuk
+ * embed bisa objek atau array tergantung metadata FK yang dilihat
+ * PostgREST (pelajaran embeddedOne() di lib/data/inventory.ts), jadi
+ * keduanya ditangani.
  */
-export async function getSignedInTherapist(): Promise<{ id: string; name: string; photoUrl?: string } | null> {
-  const supabase = await createClient();
+type EmbeddedEmployee = { id: string; name: string; photo_url: string | null };
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
+export const getSignedInTherapist = cache(
+  async (): Promise<{ id: string; name: string; photoUrl?: string } | null> => {
+    const supabase = await createClient();
 
-  const { data: appUser } = await supabase
-    .from("app_users")
-    .select("employee_id")
-    .eq("auth_user_id", user.id)
-    .maybeSingle();
-  if (!appUser?.employee_id) return null;
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return null;
 
-  // photo_url ditambahkan 2026-08-25 — user: "profil terapis belum
-  // muncul, sebelumnya infonya sudah ok" (avatar di header portal
-  // terapis sendiri masih inisial "ZA", tidak pernah pakai foto asli).
-  // Bukan bug data/upload — fungsi ini memang belum pernah mengambil
-  // photo_url sama sekali, jadi tidak ada jalur bagi MobileShell untuk
-  // menampilkannya. Lihat components/MobileShell.tsx (prop avatarUrl
-  // baru) dan ketujuh app/therapist/*/page.tsx yang memanggil fungsi ini.
-  const { data: employee } = await supabase
-    .from("employees")
-    .select("id, name, photo_url")
-    .eq("id", appUser.employee_id)
-    .maybeSingle();
-  if (!employee) return null;
+    // photo_url ikut diambil sejak 2026-08-25 — tanpa ini MobileShell
+    // tidak pernah punya jalur menampilkan foto asli terapis.
+    const { data: appUser } = await supabase
+      .from("app_users")
+      .select("employee_id, employees:employee_id (id, name, photo_url)")
+      .eq("auth_user_id", user.id)
+      .maybeSingle();
+    if (!appUser?.employee_id) return null;
 
-  return { id: employee.id, name: employee.name, photoUrl: employee.photo_url ?? undefined };
-}
+    const raw = (appUser as { employees?: EmbeddedEmployee | EmbeddedEmployee[] | null }).employees;
+    const employee = Array.isArray(raw) ? (raw[0] ?? null) : (raw ?? null);
+    if (!employee) return null;
+
+    return { id: employee.id, name: employee.name, photoUrl: employee.photo_url ?? undefined };
+  },
+);

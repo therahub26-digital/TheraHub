@@ -22,10 +22,13 @@ import { getTenantTheme } from "@/lib/data/tenant";
 // ---------------------------------------------------------------------
 
 export default async function SessionControlPage() {
-  const theme = await getTenantTheme();
-  const signedIn = await getSignedInTherapist();
+  // Item 7.27: tiga sumber yang saling bebas diambil paralel.
+  const [theme, signedIn, outlet] = await Promise.all([
+    getTenantTheme(),
+    getSignedInTherapist(),
+    getCurrentOutlet(),
+  ]);
   const me = signedIn ?? ME_THERAPIST;
-  const outlet = await getCurrentOutlet();
   const avatarTone = signedIn ? "teal" : ME_THERAPIST.avatarTone;
 
   if (signedIn) {

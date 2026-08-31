@@ -31,12 +31,15 @@ const STATUS_LABEL: Record<string, string> = {
 // ---------------------------------------------------------------------
 
 export default async function AttendancePage() {
-  const theme = await getTenantTheme();
-  const signedIn = await getSignedInTherapist();
+  // Item 7.27: theme & identitas saling bebas — paralel, bukan waterfall.
+  const [theme, signedIn] = await Promise.all([getTenantTheme(), getSignedInTherapist()]);
 
   if (signedIn) {
-    const [outlet, today] = await Promise.all([getCurrentOutlet(), getEffectiveToday()]);
-    const [history, myLeaveRequests] = await Promise.all([
+    // Keempatnya juga saling bebas (history/leave hanya butuh identitas,
+    // yang sudah di tangan) — satu gelombang, bukan dua.
+    const [outlet, today, history, myLeaveRequests] = await Promise.all([
+      getCurrentOutlet(),
+      getEffectiveToday(),
       getAttendanceHistoryForTherapist(signedIn.id, signedIn.name, 7),
       getMyLeaveRequests(signedIn.id),
     ]);

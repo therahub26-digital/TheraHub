@@ -33,14 +33,15 @@ import { createClient } from "@/lib/supabase/client";
  * see PRIMARY_HREFS below for why.
  */
 
-// Hand-picked instead of `def.nav.slice(0, 4)`: /kasir/payment and
-// /kasir/closing are still 100% mock/presentational (no live data, no
-// working actions — see app/kasir/payment/page.tsx, app/kasir/closing/
-// page.tsx) as of 2026-08-23, so surfacing them in the primary tab bar
-// would put two dead-end screens in the four most-reachable slots. These
-// four are the genuinely live, high-frequency screens a kasir opens all
-// shift long; everything else (including payment/closing once they're
-// real) lives in "Lainnya" until this list is revisited.
+// Hand-picked instead of `def.nav.slice(0, 4)`: /kasir/closing is still
+// 100% mock/presentational (no live data, no working actions) as of
+// 2026-08-31, so surfacing it in the primary tab bar would put a
+// dead-end screen in the four most-reachable slots. (/kasir/payment,
+// the other mock screen this comment used to name, is gone — now a
+// redirect to /kasir/pos and removed from nav entirely.) These four are
+// the genuinely live, high-frequency screens a kasir opens all shift
+// long; everything else (including closing once it's real) lives in
+// "Lainnya" until this list is revisited.
 const PRIMARY_HREFS = ["/kasir", "/kasir/checkin", "/kasir/sessions", "/kasir/pos"];
 
 export default function KasirShell({

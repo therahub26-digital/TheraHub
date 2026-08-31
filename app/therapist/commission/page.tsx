@@ -7,12 +7,12 @@ import { rp, fmtDateShort, monthLabel } from "@/lib/format";
 import { getTenantTheme } from "@/lib/data/tenant";
 
 export default async function CommissionPage() {
-  const theme = await getTenantTheme();
   // Live: the therapist who is actually signed in. Demo/"Ganti Role":
   // the ME_THERAPIST persona, so the showcase still has a face. Without
   // this resolution a real therapist would be shown someone else's
   // earnings, which is both wrong and a privacy leak.
-  const signedIn = await getSignedInTherapist();
+  // Item 7.27: theme & identitas paralel — dua sumber yang saling bebas.
+  const [theme, signedIn] = await Promise.all([getTenantTheme(), getSignedInTherapist()]);
   const me = signedIn ?? ME_THERAPIST;
   const [commissions, period, today] = await Promise.all([
     getCommissionsForTherapist(me.id),

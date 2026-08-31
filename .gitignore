@@ -44,3 +44,6 @@ next-env.d.ts
 _incoming/
 _to_delete/
 _scratch_scripts/
+
+# Folder penampung file .lock git yang nyangkut (device_bash tidak bisa rm)
+_git_lock_cleanup/

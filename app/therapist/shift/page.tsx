@@ -99,12 +99,13 @@ function buildJobsByDay(bookings: Booking[], therapistId: string, week: string[]
 }
 
 export default async function ShiftPage() {
-  const theme = await getTenantTheme();
-  const signedIn = await getSignedInTherapist();
+  // Item 7.27: theme & identitas paralel.
+  const [theme, signedIn] = await Promise.all([getTenantTheme(), getSignedInTherapist()]);
 
   if (signedIn) {
-    const outlet = await getCurrentOutlet();
-    const today = await getEffectiveToday();
+    // outlet & today saling bebas; bookings memang harus menunggu
+    // outlet.id — dua gelombang, sebelumnya tiga await berurutan.
+    const [outlet, today] = await Promise.all([getCurrentOutlet(), getEffectiveToday()]);
     const week = Array.from({ length: 7 }, (_, i) => addDays(today, i - 3));
     const allBookings = await getBookingsForOutlet(outlet.id);
     const jobsByDay = buildJobsByDay(allBookings, signedIn.id, week);

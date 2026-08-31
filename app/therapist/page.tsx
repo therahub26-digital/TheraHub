@@ -33,21 +33,28 @@ import { getTenantTheme } from "@/lib/data/tenant";
 // ---------------------------------------------------------------------
 
 export default async function TherapistHomePage() {
-  const theme = await getTenantTheme();
-  const signedIn = await getSignedInTherapist();
+  // Item 7.27 (2026-08-31): theme, identitas, dan outlet tidak saling
+  // bergantung — diambil paralel supaya halaman pertama yang dibuka
+  // terapis tidak menunggu tiga rantai berurutan. Keluhan nyatanya:
+  // portal lambat sekali saat sinyal jelek, dan tiap await berurutan
+  // adalah satu round trip penuh ke Supabase.
+  const [theme, signedIn, outlet, today, now] = await Promise.all([
+    getTenantTheme(),
+    getSignedInTherapist(),
+    getCurrentOutlet(),
+    getEffectiveToday(),
+    getEffectiveNow(),
+  ]);
   const me = signedIn ?? ME_THERAPIST;
   const avatarTone = signedIn ? "teal" : ME_THERAPIST.avatarTone;
 
   if (signedIn) {
-    const outlet = await getCurrentOutlet();
-    const [today, now, todaysBookings, activeSession, notifications] = await Promise.all([
-      getEffectiveToday(),
-      getEffectiveNow(),
+    const [todaysBookings, activeSession, notifications, todayAttendance] = await Promise.all([
       getBookingsForOutlet(outlet.id),
       getSessionForTherapist(me.id),
       getNotificationsForTherapist(me.id, outlet.id),
+      getTodayAttendanceForTherapist(me.id, me.name, today),
     ]);
-    const todayAttendance = await getTodayAttendanceForTherapist(me.id, me.name, today);
 
     const jobs = todaysBookings.filter((b) => b.therapistId === me.id && b.date === today && b.status !== "CANCELLED");
     const upcoming = jobs.filter((b) => ["BOOKED", "CONFIRMED", "ARRIVED", "CHECKED_IN"].includes(b.status));

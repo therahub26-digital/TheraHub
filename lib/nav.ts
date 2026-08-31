@@ -142,7 +142,9 @@ export const ROLES: RoleDef[] = [
       { href: "/kasir/checkin", label: "Customer Check-in", icon: "user-check", section: "Front Office" },
       { href: "/kasir/sessions", label: "Session Monitor", icon: "timer", section: "Front Office" },
       { href: "/kasir/pos", label: "POS Cart", icon: "shopping-cart", section: "Transaksi" },
-      { href: "/kasir/payment", label: "Payment", icon: "credit-card", section: "Transaksi" },
+      // "/kasir/payment" dihapus dari nav 2026-08-31 — layar mock yang
+      // digantikan POS Cart; rutenya sendiri masih ada sebagai redirect
+      // ke /kasir/pos (lihat app/kasir/payment/page.tsx).
       { href: "/kasir/receipts", label: "Receipts & Reprint", icon: "printer", section: "Transaksi" },
       { href: "/kasir/closing", label: "Shift Closing", icon: "lock", section: "Transaksi" },
     ],

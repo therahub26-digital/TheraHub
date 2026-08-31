@@ -24,14 +24,21 @@ const TYPE_ICON: Record<string, string> = {
 };
 
 export default async function TherapistNotificationsPage() {
-  const theme = await getTenantTheme();
-  const signedIn = await getSignedInTherapist();
+  // Item 7.27: theme, identitas, dan outlet saling bebas — paralel.
+  // Outlet ikut diambil di muka (bukan di dalam cabang live) supaya
+  // notifikasi tinggal satu round trip lagi, bukan dua berurutan;
+  // getCurrentOutlet() di-cache per request jadi ini tidak menduplikasi
+  // kerja siapa pun.
+  const [theme, signedIn, outlet] = await Promise.all([
+    getTenantTheme(),
+    getSignedInTherapist(),
+    getCurrentOutlet(),
+  ]);
   const me = signedIn ?? ME_THERAPIST;
   const avatarTone = signedIn ? "teal" : ME_THERAPIST.avatarTone;
 
   let notifications = MOCK_NOTIFICATIONS;
   if (signedIn) {
-    const outlet = await getCurrentOutlet();
     notifications = await getNotificationsForTherapist(me.id, outlet.id);
   }
 

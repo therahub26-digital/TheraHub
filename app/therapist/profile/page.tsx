@@ -22,8 +22,8 @@ import { getTenantTheme } from "@/lib/data/tenant";
 // ---------------------------------------------------------------------
 
 export default async function TherapistProfilePage() {
-  const theme = await getTenantTheme();
-  const signedIn = await getSignedInTherapist();
+  // Item 7.27: theme & identitas paralel.
+  const [theme, signedIn] = await Promise.all([getTenantTheme(), getSignedInTherapist()]);
 
   if (signedIn) {
     const [employee, personalData, access] = await Promise.all([

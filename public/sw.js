@@ -58,6 +58,20 @@ self.addEventListener("fetch", (event) => {
         }
         return response;
       })
-      .catch(() => caches.match(event.request).then((cached) => cached || caches.match("/customer")))
+      .catch(() =>
+        caches.match(event.request).then((cached) => {
+          if (cached) return cached;
+          // Shell fallback hanya untuk navigasi halaman — aset/data yang
+          // gagal biar gagal apa adanya, menyodorkan HTML sebagai
+          // pengganti gambar/JSON cuma bikin error yang lebih aneh.
+          // Dipilih berdasarkan URL-nya: sebelumnya fallback ini hardcode
+          // "/customer", jadi terapis yang offline malah disuguhi shell
+          // portal pelanggan.
+          if (event.request.mode !== "navigate") return undefined;
+          const path = new URL(event.request.url).pathname;
+          const shell = path.startsWith("/therapist") ? "/therapist" : "/customer";
+          return caches.match(shell);
+        })
+      )
   );
 });

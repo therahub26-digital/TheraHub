@@ -28,35 +28,43 @@ import { getTenantTheme } from "@/lib/data/tenant";
 // ---------------------------------------------------------------------
 
 export default async function PayslipPage() {
-  const theme = await getTenantTheme();
-  const signedIn = await getSignedInTherapist();
-  const me = signedIn ?? ME_THERAPIST;
   // A therapist's payslip must read their OWN outlet's payroll_settings —
   // Mekarwangi and Cikawao can pay different components. getCurrentOutlet()
   // reads it off the signed-in session's own app_users.outlet_id, so this
   // is naturally correct per-therapist without needing to thread outletId
   // through getSignedInTherapist()'s return type (id/name/photoUrl only, no outletId).
-  const outlet = await getCurrentOutlet();
+  // Item 7.27: ketiganya saling bebas — paralel.
+  const [theme, signedIn, outlet] = await Promise.all([
+    getTenantTheme(),
+    getSignedInTherapist(),
+    getCurrentOutlet(),
+  ]);
+  const me = signedIn ?? ME_THERAPIST;
 
   const [payslips, settings] = await Promise.all([
     getPayrollForEmployee(me.id),
     getPayrollSettings(outlet.id),
   ]);
   const latest = payslips[0];
-  // The itemised lines for the payslip being shown. Fetched by that
-  // slip's period rather than "this month", so an old payslip keeps the
-  // lines it was actually built from.
-  const lines = latest ? await getAdjustmentsForEmployee(me.id, latest.period) : [];
-  const lineEarnings = lines.filter((l) => l.kind === "EARNING");
-  const lineDeductions = lines.filter((l) => l.kind === "DEDUCTION");
   const components = activeComponents(settings?.components ?? []);
   const { earnings } = splitComponents(components);
-
-  // Real entries now, not lib/mock. A savings balance is money the
-  // company is holding on this person's behalf; a decorative figure here
-  // would be a false statement about what they are owed.
   const showSavings = components.some((c) => c.key === "SAVINGS");
-  const savings = showSavings ? await getSavingsForEmployee(me.id) : [];
+
+  // Item 7.27: baris slip & tabungan tidak saling bergantung (baris
+  // butuh `latest`, tabungan butuh `showSavings` — dua-duanya sudah di
+  // tangan), jadi diambil satu gelombang, bukan dua await berurutan.
+  const [lines, savings] = await Promise.all([
+    // The itemised lines for the payslip being shown. Fetched by that
+    // slip's period rather than "this month", so an old payslip keeps the
+    // lines it was actually built from.
+    latest ? getAdjustmentsForEmployee(me.id, latest.period) : Promise.resolve([]),
+    // Real entries now, not lib/mock. A savings balance is money the
+    // company is holding on this person's behalf; a decorative figure here
+    // would be a false statement about what they are owed.
+    showSavings ? getSavingsForEmployee(me.id) : Promise.resolve([]),
+  ]);
+  const lineEarnings = lines.filter((l) => l.kind === "EARNING");
+  const lineDeductions = lines.filter((l) => l.kind === "DEDUCTION");
   const balance = balanceOf(savings);
   const avatarTone = signedIn ? "teal" : ME_THERAPIST.avatarTone;
 

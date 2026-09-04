@@ -1,6 +1,6 @@
 -- =====================================================================
--- 0034 — Tingkat pijatan terapis (BELUM DIJALANKAN — jalankan lewat
--- Supabase SQL Editor, aman & aditif, tanpa downtime)
+-- 0034 — Tingkat pijatan terapis (SUDAH DITERAPKAN — dijalankan Adjie
+-- via SQL Editor 2026-09-04, "Success. No rows returned")
 --
 -- Untuk landing page publik per tenant (2026-09-04, permintaan Adjie:
 -- website tenant menampilkan galeri terapis dengan badge Strong /

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { getLandingData } from "@/lib/data/landing";
+import { LANDING_ASSETS } from "@/lib/landingAssets";
 import { brandByKey } from "@/lib/brand";
 import "./landing.css";
 
@@ -53,8 +54,14 @@ export default async function TenantLandingPage({ params }: { params: Promise<{ 
   const data = await getLandingData(tenant);
   if (!data) notFound();
 
-  const brand = brandByKey(data.logoTone);
+  // Aset foto brand resmi tenant (lib/landingAssets.ts) — revisi Adjie
+  // 2026-09-04: hero memakai foto terapis di lobby, section ruangan
+  // memakai foto interior asli; brandKey memaksa palet mockup (lavender
+  // untuk Amethyst) tanpa menyentuh tema aplikasi.
+  const assets = LANDING_ASSETS[tenant] ?? {};
+  const brand = brandByKey(assets.brandKey ?? data.logoTone);
   const heroOutlet = data.outlets.find((o) => o.coverUrl) ?? data.outlets[0];
+  const heroImg = assets.hero ?? heroOutlet?.coverUrl ?? "";
   const wa = data.whatsapp.replace(/[^0-9]/g, "");
   const waHref = wa ? `https://wa.me/${wa.startsWith("0") ? "62" + wa.slice(1) : wa}` : null;
   const phoneShown = data.whatsapp || data.outlets.find((o) => o.phone)?.phone || "";
@@ -65,6 +72,10 @@ export default async function TenantLandingPage({ params }: { params: Promise<{ 
   // Urutan tampil tetap Strong → Medium → Medium Strong seperti mockup.
   const intensityOrder = (["STRONG", "MEDIUM", "MEDIUM_STRONG"] as const).filter((k) => intensitiesPresent.includes(k));
   const gallery = data.outlets.flatMap((o) => o.gallery).slice(0, 6);
+  // Foto brand resmi diutamakan; kalau tenant belum punya entri di
+  // landingAssets, jatuh ke galeri foto profil outlet dari database.
+  const roomCards: { src: string; label: string; desc?: string }[] =
+    assets.rooms ?? gallery.map((g) => ({ src: g.src, label: g.label }));
   const facilities = data.outlets.flatMap((o) => o.facilities);
   const seen = new Set<string>();
   const uniqueFacilities = facilities.filter((f) => (seen.has(f.name) ? false : (seen.add(f.name), true))).slice(0, 6);
@@ -85,7 +96,7 @@ export default async function TenantLandingPage({ params }: { params: Promise<{ 
           <nav className="lp-nav">
             <a href="#tentang">Tentang</a>
             {data.therapists.length > 0 && <a href="#terapis">Terapis</a>}
-            {gallery.length > 0 && <a href="#ruangan">Ruangan</a>}
+            {roomCards.length > 0 && <a href="#ruangan">Ruangan</a>}
             <a href="#kontak">Kontak</a>
           </nav>
           <Link href="/login" className="lp-btn lp-btn-primary">Masuk ke Aplikasi</Link>
@@ -106,7 +117,13 @@ export default async function TenantLandingPage({ params }: { params: Promise<{ 
               {data.tagline && <p className="lp-hero-tagline">{data.tagline}</p>}
               {heroOutlet?.description && <p className="lp-hero-desc">{heroOutlet.description}</p>}
               <div className="lp-hero-cta">
-                <Link href="/register" className="lp-btn lp-btn-primary">Booking Sekarang</Link>
+                {waHref ? (
+                  <a href={waHref} className="lp-btn lp-btn-primary" target="_blank" rel="noopener noreferrer">
+                    Booking via WhatsApp
+                  </a>
+                ) : (
+                  <Link href="/register" className="lp-btn lp-btn-primary">Booking Sekarang</Link>
+                )}
                 <Link href="/login" className="lp-btn lp-btn-outline">Masuk ke Aplikasi</Link>
               </div>
               {heroOutlet && heroOutlet.highlights.length > 0 && (
@@ -116,9 +133,9 @@ export default async function TenantLandingPage({ params }: { params: Promise<{ 
               )}
             </div>
             <div className="lp-hero-img">
-              {heroOutlet?.coverUrl ? (
+              {heroImg ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={heroOutlet.coverUrl} alt={heroOutlet.name} />
+                <img src={heroImg} alt={assets.heroAlt ?? heroOutlet?.name ?? data.tenantName} />
               ) : null}
             </div>
           </section>
@@ -145,6 +162,12 @@ export default async function TenantLandingPage({ params }: { params: Promise<{ 
           <section className="lp-section" id="tentang">
             <h2 className="lp-h2">Tentang {data.tenantName}</h2>
             <p className="lp-h2-sub">Alamat, jam buka, dan kontak tiap outlet.</p>
+            {assets.about && (
+              <div className="lp-about-photo">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={assets.about} alt={`Tampak depan ${data.tenantName}`} loading="lazy" />
+              </div>
+            )}
             <div className="lp-outlets">
               {data.outlets.map((o) => (
                 <div className="lp-outlet-card" key={o.name}>
@@ -192,19 +215,20 @@ export default async function TenantLandingPage({ params }: { params: Promise<{ 
             </section>
           )}
 
-          {(gallery.length > 0 || uniqueFacilities.length > 0) && (
+          {(roomCards.length > 0 || uniqueFacilities.length > 0) && (
             <section className="lp-section" id="ruangan">
               <h2 className="lp-h2">Ruangan &amp; Fasilitas</h2>
-              <p className="lp-h2-sub">Foto asli dari outlet — dikelola langsung oleh admin.</p>
-              {gallery.length > 0 && (
+              <p className="lp-h2-sub">Suasana ruangan dan fasilitas yang tersedia.</p>
+              {roomCards.length > 0 && (
                 <div className="lp-gallery" style={{ marginBottom: uniqueFacilities.length > 0 ? 18 : 0 }}>
-                  {gallery.map((g) => (
+                  {roomCards.map((g) => (
                     <div className="lp-room" key={g.src}>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={g.src} alt={g.label} loading="lazy" />
-                      {g.label && (
+                      {(g.label || g.desc) && (
                         <div>
                           <b>{g.label}</b>
+                          {g.desc && <p>{g.desc}</p>}
                         </div>
                       )}
                     </div>
@@ -235,7 +259,19 @@ export default async function TenantLandingPage({ params }: { params: Promise<{ 
             </section>
           )}
 
-          <section className="lp-cta" id="kontak">
+          <section
+            className="lp-cta"
+            id="kontak"
+            style={
+              assets.ctaBg
+                ? {
+                    backgroundImage: `linear-gradient(100deg, color-mix(in srgb, var(--lp-accent-2) 88%, transparent), color-mix(in srgb, var(--lp-accent-2) 45%, transparent)), url(${assets.ctaBg})`,
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                  }
+                : undefined
+            }
+          >
             <div>
               <h2>Siap untuk relaksasi yang nyaman?</h2>
               <p>Hubungi kami atau masuk ke aplikasi untuk booking lebih mudah.</p>
@@ -269,7 +305,7 @@ export default async function TenantLandingPage({ params }: { params: Promise<{ 
             <nav>
               <a href="#tentang">Tentang</a>
               {data.therapists.length > 0 && <a href="#terapis">Terapis</a>}
-              {gallery.length > 0 && <a href="#ruangan">Ruangan</a>}
+              {roomCards.length > 0 && <a href="#ruangan">Ruangan</a>}
               <Link href="/login">Masuk ke Aplikasi</Link>
             </nav>
           </div>

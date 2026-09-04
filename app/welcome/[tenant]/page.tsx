@@ -90,8 +90,20 @@ export default async function TenantLandingPage({ params }: { params: Promise<{ 
   const brand = brandByKey(assets.brandKey ?? data.logoTone);
   const heroOutlet = data.outlets.find((o) => o.coverUrl) ?? data.outlets[0];
   const heroImg = assets.hero ?? heroOutlet?.coverUrl ?? "";
-  const wa = data.whatsapp.replace(/[^0-9]/g, "");
-  const waHref = wa ? `https://wa.me/${wa.startsWith("0") ? "62" + wa.slice(1) : wa}` : null;
+  // Nomor WA booking: per outlet dari landingAssets (lihat catatan di
+  // sana soal kenapa terpisah dari outlets.phone), jatuh ke nomor WA
+  // tenant kalau outlet itu belum punya.
+  function waLink(nomor: string | undefined, sapaan: string): string | null {
+    const digit = (nomor ?? "").replace(/[^0-9]/g, "");
+    if (!digit) return null;
+    const intl = digit.startsWith("0") ? "62" + digit.slice(1) : digit;
+    return `https://wa.me/${intl}?text=${encodeURIComponent(sapaan)}`;
+  }
+  const waOutlet = (o: { code: string; name: string }) =>
+    waLink(assets.waPerOutlet?.[o.code] ?? data.whatsapp, `Halo ${o.name}, saya mau booking pijat.`);
+  const waHref =
+    (heroOutlet ? waOutlet(heroOutlet) : null) ??
+    waLink(data.whatsapp, `Halo ${data.tenantName}, saya mau booking pijat.`);
   const phoneShown = data.whatsapp || data.outlets.find((o) => o.phone)?.phone || "";
   const cities = Array.from(new Set(data.outlets.map((o) => o.city).filter(Boolean)));
   const intensitiesPresent = Array.from(
@@ -127,7 +139,11 @@ export default async function TenantLandingPage({ params }: { params: Promise<{ 
             {roomCards.length > 0 && <a href="#ruangan">Ruangan</a>}
             <a href="#kontak">Kontak</a>
           </nav>
-          <Link href="/login" className="lp-btn lp-btn-primary">Masuk ke Aplikasi</Link>
+          {/* Revisi Adjie 2026-09-04 ("apa bedanya ... buat siapa?"):
+              pintu /login mayoritas dipakai STAF, jadi tidak pantas jadi
+              tombol paling menonjol di website pemasaran. Dikecilkan
+              jadi tautan teks; tombol besar milik tamu ada di hero. */}
+          <Link href="/login" className="lp-staff-link">Login staf &amp; member</Link>
         </header>
 
         <main>
@@ -144,16 +160,22 @@ export default async function TenantLandingPage({ params }: { params: Promise<{ 
               </h1>
               {data.tagline && <p className="lp-hero-tagline">{data.tagline}</p>}
               {heroOutlet?.description && <p className="lp-hero-desc">{heroOutlet.description}</p>}
+              {/* Satu tombol besar untuk tamu. Jalur "sudah punya akun"
+                  turun jadi baris kecil di bawahnya — dulu dua tombol
+                  sejajar bikin tamu tidak tahu yang mana miliknya. */}
               <div className="lp-hero-cta">
                 {waHref ? (
-                  <a href={waHref} className="lp-btn lp-btn-primary" target="_blank" rel="noopener noreferrer">
+                  <a href={waHref} className="lp-btn lp-btn-primary lp-btn-lg" target="_blank" rel="noopener noreferrer">
                     Booking via WhatsApp
                   </a>
                 ) : (
-                  <Link href="/register" className="lp-btn lp-btn-primary">Booking Sekarang</Link>
+                  <Link href="/register" className="lp-btn lp-btn-primary lp-btn-lg">Booking Sekarang</Link>
                 )}
-                <Link href="/login" className="lp-btn lp-btn-outline">Masuk ke Aplikasi</Link>
               </div>
+              <p className="lp-hero-alt">
+                Belum punya akun? <Link href="/register">Daftar member</Link> · Sudah punya?{" "}
+                <Link href="/login">Masuk</Link>
+              </p>
               {heroOutlet && heroOutlet.highlights.length > 0 && (
                 <div className="lp-hero-points">
                   {heroOutlet.highlights.slice(0, 3).map((h) => <span key={h}>{h}</span>)}
@@ -210,6 +232,19 @@ export default async function TenantLandingPage({ params }: { params: Promise<{ 
                     <div className="lp-highlights">
                       {o.highlights.map((h) => <span key={h}>{h}</span>)}
                     </div>
+                  )}
+                  {/* Tombol booking per outlet — tamu memesan ke outlet
+                      yang benar tanpa perlu memilih ulang di chat. */}
+                  {waOutlet(o) && (
+                    <a
+                      href={waOutlet(o)!}
+                      className="lp-btn lp-btn-primary lp-btn-sm"
+                      style={{ marginTop: 14 }}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Booking di {o.name.replace(/^.*—\s*/, "")}
+                    </a>
                   )}
                 </div>
               ))}
@@ -302,7 +337,7 @@ export default async function TenantLandingPage({ params }: { params: Promise<{ 
           >
             <div>
               <h2>Siap untuk relaksasi yang nyaman?</h2>
-              <p>Hubungi kami atau masuk ke aplikasi untuk booking lebih mudah.</p>
+              <p>Hubungi kami lewat WhatsApp — terapis dan jam yang kosong langsung kami bantu carikan.</p>
             </div>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
               {waHref && (
@@ -310,7 +345,6 @@ export default async function TenantLandingPage({ params }: { params: Promise<{ 
                   Hubungi Kami
                 </a>
               )}
-              <Link href="/login" className="lp-btn lp-btn-outline">Masuk ke Aplikasi</Link>
             </div>
           </section>
         </main>
@@ -334,7 +368,8 @@ export default async function TenantLandingPage({ params }: { params: Promise<{ 
               <a href="#tentang">Tentang</a>
               {data.therapists.length > 0 && <a href="#terapis">Terapis</a>}
               {roomCards.length > 0 && <a href="#ruangan">Ruangan</a>}
-              <Link href="/login">Masuk ke Aplikasi</Link>
+              <Link href="/register">Daftar member</Link>
+              <Link href="/login">Login staf &amp; member</Link>
             </nav>
           </div>
           <div>

@@ -36,6 +36,14 @@ export type LandingAssets = {
   baseUrl?: string;
   /** Gambar Open Graph 1200×630 untuk preview link (WA, socmed). */
   ogImage?: string;
+  /**
+   * Nomor WhatsApp BOOKING per outlet, dikunci pada kode outlet
+   * (mis. "AMY-CKW"). Sengaja terpisah dari `outlets.phone` di database:
+   * nomor telepon outlet dan nomor yang melayani booking WA tidak selalu
+   * sama — di Amethyst memang berbeda (telepon 6564/6767, booking 6565).
+   * Format bebas; dinormalkan ke 62… di titik pemakaian.
+   */
+  waPerOutlet?: Record<string, string>;
 };
 
 export const LANDING_ASSETS: Record<string, LandingAssets> = {
@@ -47,6 +55,13 @@ export const LANDING_ASSETS: Record<string, LandingAssets> = {
     ctaBg: "/img/landing/amethyst/ambience.jpg",
     baseUrl: "https://www.amethystbdg.my.id",
     ogImage: "/img/landing/amethyst/og.jpg",
+    // Adjie 2026-09-04: kedua outlet sementara memakai satu nomor
+    // booking yang sama. Dibuat per outlet supaya Mekarwangi tinggal
+    // diganti satu baris begitu punya nomornya sendiri.
+    waPerOutlet: {
+      "AMY-CKW": "087788116565",
+      "AMY-MKW": "087788116565",
+    },
     rooms: [
       {
         src: "/img/landing/amethyst/private-room.jpg",

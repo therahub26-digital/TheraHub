@@ -34,6 +34,10 @@ export type LandingTherapist = {
 };
 
 export type LandingOutlet = {
+  /** Kode outlet (mis. "AMY-CKW") — dipakai memetakan nomor WA booking
+   *  di lib/landingAssets.ts. Bukan data sensitif: kode ini tercetak di
+   *  nomor struk yang diterima tamu. */
+  code: string;
   name: string;
   address: string;
   city: string;
@@ -73,7 +77,7 @@ export const getLandingData = cache(async (slug: string): Promise<LandingData | 
 
   const { data: outletRows } = await admin
     .from("outlets")
-    .select("id, name, address, city, phone, open_hours")
+    .select("id, code, name, address, city, phone, open_hours")
     .eq("tenant_id", tenant.id)
     .eq("status", "ACTIVE")
     .order("code");
@@ -116,6 +120,7 @@ export const getLandingData = cache(async (slug: string): Promise<LandingData | 
   const outlets: LandingOutlet[] = outletRows.map((o) => {
     const p = profileByOutlet.get(o.id as string);
     return {
+      code: (o.code as string) ?? "",
       name: (o.name as string) ?? "",
       address: (o.address as string) ?? "",
       city: (o.city as string) ?? "",

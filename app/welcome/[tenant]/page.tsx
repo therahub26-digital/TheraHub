@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { getLandingData } from "@/lib/data/landing";
 import { LANDING_ASSETS } from "@/lib/landingAssets";
 import { brandByKey } from "@/lib/brand";
+import LandingCarousel from "@/components/LandingCarousel";
 import "./landing.css";
 
 // ---------------------------------------------------------------------
@@ -43,9 +44,36 @@ export async function generateMetadata({ params }: { params: Promise<{ tenant: s
   const { tenant } = await params;
   const data = await getLandingData(tenant);
   if (!data) return { title: "TheraHub" };
+
+  const assets = LANDING_ASSETS[tenant] ?? {};
+  const title = `${data.tenantName} — Pijat & Refleksi`;
+  const description = data.tagline || `${data.tenantName} — pijat & refleksi profesional.`;
+
+  // Open Graph (revisi Adjie 2026-09-04: link yang dibagikan lewat
+  // WhatsApp harus menampilkan preview foto terapis di lobby).
+  // metadataBase wajib supaya og:image jadi URL absolut — tanpa itu WA
+  // tidak menampilkan gambar sama sekali.
   return {
-    title: `${data.tenantName} — Pijat & Refleksi`,
-    description: data.tagline || `${data.tenantName} — pijat & refleksi profesional.`,
+    title,
+    description,
+    ...(assets.baseUrl ? { metadataBase: new URL(assets.baseUrl) } : {}),
+    openGraph: {
+      title,
+      description,
+      url: "/",
+      siteName: data.tenantName,
+      type: "website",
+      locale: "id_ID",
+      ...(assets.ogImage
+        ? { images: [{ url: assets.ogImage, width: 1200, height: 630, alt: assets.heroAlt ?? data.tenantName }] }
+        : {}),
+    },
+    twitter: {
+      card: assets.ogImage ? "summary_large_image" : "summary",
+      title,
+      description,
+      ...(assets.ogImage ? { images: [assets.ogImage] } : {}),
+    },
   };
 }
 
@@ -192,7 +220,7 @@ export default async function TenantLandingPage({ params }: { params: Promise<{ 
             <section className="lp-section" id="terapis">
               <h2 className="lp-h2">Terapis Kami</h2>
               <p className="lp-h2-sub">Terapis aktif beserta tingkat pijatannya.</p>
-              <div className="lp-therapists">
+              <LandingCarousel>
                 {data.therapists.map((t) => (
                   <div className="lp-therapist" key={t.name}>
                     <div className="lp-therapist-photo">
@@ -211,7 +239,7 @@ export default async function TenantLandingPage({ params }: { params: Promise<{ 
                     </div>
                   </div>
                 ))}
-              </div>
+              </LandingCarousel>
             </section>
           )}
 

@@ -31,6 +31,11 @@ export type LandingAssets = {
   about?: string;
   /** Foto latar band CTA (diberi overlay gradasi brand di CSS). */
   ctaBg?: string;
+  /** URL kanonik landing tenant — jadi metadataBase supaya og:image
+   *  absolut dan preview link WhatsApp/socmed menampilkan foto. */
+  baseUrl?: string;
+  /** Gambar Open Graph 1200×630 untuk preview link (WA, socmed). */
+  ogImage?: string;
 };
 
 export const LANDING_ASSETS: Record<string, LandingAssets> = {
@@ -40,6 +45,8 @@ export const LANDING_ASSETS: Record<string, LandingAssets> = {
     heroAlt: "Terapis Amethyst di lobby",
     about: "/img/landing/amethyst/storefront.jpg",
     ctaBg: "/img/landing/amethyst/ambience.jpg",
+    baseUrl: "https://www.amethystbdg.my.id",
+    ogImage: "/img/landing/amethyst/og.jpg",
     rooms: [
       {
         src: "/img/landing/amethyst/private-room.jpg",

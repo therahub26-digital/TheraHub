@@ -24,6 +24,12 @@
   line-height: 1.6;
 }
 .lp * { box-sizing: border-box; }
+/* globals.css aplikasi (tema gelap) ikut termuat lewat root layout dan
+   memberi heading warna teks terang — di landing yang terang, judul jadi
+   pucat nyaris tak terbaca (terlihat di uji live pertama 2026-09-04).
+   Warna heading ditegaskan ulang di sini supaya tidak bergantung pada
+   apa pun yang didefinisikan tema aplikasi. */
+.lp h1, .lp h3, .lp h4, .lp b, .lp strong { color: var(--lp-ink); }
 .lp img { max-width: 100%; display: block; }
 .lp a { color: inherit; text-decoration: none; }
 

@@ -1,8 +1,29 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 import { ROLE_HOME, roleForPath } from "@/lib/route-guard";
+import { tenantSlugForHost } from "@/lib/tenantDomains";
 
 export async function middleware(request: NextRequest) {
+  // ---- Routing per-domain (2026-09-04) ------------------------------
+  // Domain tenant (mis. amethystbdg.my.id) menyajikan WEBSITE PUBLIK
+  // tenant di "/", bukan pemilih role demo — pemilih role tetap jadi
+  // "/" untuk domain platform (therahub.web.id / *.vercel.app).
+  // Rewrite, bukan redirect: URL di address bar tamu tetap bersih
+  // (amethystbdg.my.id), yang tersaji app/welcome/<slug>.
+  //
+  // Dicek SEBELUM updateSession(): landing itu publik — menggantungkan
+  // halaman depan tenant pada keterjangkauan server auth berarti website
+  // mereka ikut tumbang setiap auth bermasalah, padahal tidak butuh
+  // sesi sama sekali.
+  if (request.nextUrl.pathname === "/") {
+    const slug = tenantSlugForHost(request.headers.get("host"));
+    if (slug) {
+      const url = request.nextUrl.clone();
+      url.pathname = `/welcome/${slug}`;
+      return NextResponse.rewrite(url);
+    }
+  }
+
   const { supabaseResponse, user, supabase, authUnreachable } = await updateSession(request);
 
   const { pathname } = request.nextUrl;

@@ -143,6 +143,7 @@ export default async function TherapistsPage() {
                             name: t.name,
                             jobRole: t.jobRole,
                             therapistGrade: t.therapistGrade,
+                            massageIntensity: t.massageIntensity,
                             phone: t.phone,
                             email: t.email,
                             joinDate: t.joinDate,

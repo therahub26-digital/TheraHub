@@ -1,0 +1,169 @@
+/* ------------------------------------------------------------------
+   Landing publik tenant (app/welcome/[tenant]) — 2026-09-04.
+   Desain mengikuti mockup Adjie (nuansa lavender terang, kartu lembut),
+   tapi SEMUA warna aksen diturunkan dari brand preset tenant lewat
+   variabel --lp-* yang di-set inline oleh page.tsx — tenant lain
+   otomatis tampil dengan warnanya sendiri tanpa menyentuh file ini.
+   Terpisah penuh dari globals.css aplikasi (yang dark-premium): tema
+   landing selalu terang, tidak ikut ThemeToggle.
+------------------------------------------------------------------- */
+
+.lp {
+  --lp-ink: #241b33;
+  --lp-ink-2: #55496b;
+  --lp-ink-3: #7d7292;
+  --lp-line: color-mix(in srgb, var(--lp-accent-2) 14%, #e6e1ef);
+  --lp-bg: color-mix(in srgb, var(--lp-accent) 6%, #faf8fd);
+  --lp-card: #ffffff;
+  --lp-soft: color-mix(in srgb, var(--lp-accent) 12%, #ffffff);
+
+  min-height: 100vh;
+  background: var(--lp-bg);
+  color: var(--lp-ink);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.6;
+}
+.lp * { box-sizing: border-box; }
+.lp img { max-width: 100%; display: block; }
+.lp a { color: inherit; text-decoration: none; }
+
+.lp-wrap { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
+
+/* ---------------- Header ---------------- */
+.lp-header {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; padding: 18px 0;
+}
+.lp-logo { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 19px; }
+.lp-logo img { width: 40px; height: 40px; border-radius: 10px; object-fit: contain; }
+.lp-logo-mark {
+  width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center;
+  background: linear-gradient(135deg, var(--lp-accent), var(--lp-accent-2));
+  color: #fff; font-size: 19px; font-weight: 800;
+}
+.lp-nav { display: flex; gap: 22px; font-size: 14.5px; color: var(--lp-ink-2); font-weight: 600; }
+.lp-nav a:hover { color: var(--lp-accent-2); }
+@media (max-width: 760px) { .lp-nav { display: none; } }
+
+/* ---------------- Tombol ---------------- */
+.lp-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 11px 20px; border-radius: 999px; font-weight: 700; font-size: 14.5px;
+  border: 1.5px solid transparent; cursor: pointer; white-space: nowrap;
+}
+.lp-btn-primary { background: linear-gradient(135deg, var(--lp-accent-2), var(--lp-accent)); color: #fff; }
+.lp-btn-primary:hover { filter: brightness(1.06); }
+.lp-btn-outline { border-color: var(--lp-accent-2); color: var(--lp-accent-2); background: #fff; }
+.lp-btn-outline:hover { background: var(--lp-soft); }
+
+/* ---------------- Hero ---------------- */
+.lp-hero {
+  display: grid; grid-template-columns: 1.05fr 1fr; gap: 36px;
+  align-items: center; padding: 34px 0 44px;
+}
+@media (max-width: 860px) { .lp-hero { grid-template-columns: 1fr; } }
+.lp-hero h1 { font-size: clamp(32px, 5vw, 48px); line-height: 1.12; margin: 0 0 10px; font-weight: 800; }
+.lp-hero h1 .lp-accent-text { color: var(--lp-accent-2); }
+.lp-hero-tagline { color: #a2762a; font-weight: 700; margin: 0 0 14px; font-size: 16px; }
+.lp-hero-desc { color: var(--lp-ink-2); margin: 0 0 22px; max-width: 46ch; }
+.lp-hero-cta { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 22px; }
+.lp-hero-img {
+  border-radius: 22px; overflow: hidden; box-shadow: 0 24px 60px -28px color-mix(in srgb, var(--lp-accent-2) 45%, transparent);
+  aspect-ratio: 4 / 3; background: linear-gradient(135deg, var(--lp-soft), var(--lp-accent));
+}
+.lp-hero-img img { width: 100%; height: 100%; object-fit: cover; }
+.lp-hero-points { display: flex; gap: 22px; flex-wrap: wrap; font-size: 13.5px; font-weight: 600; color: var(--lp-ink-2); }
+.lp-hero-points span::before { content: "✓"; color: var(--lp-accent-2); font-weight: 800; margin-right: 6px; }
+
+/* ---------------- Bar statistik ---------------- */
+.lp-stats {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  background: var(--lp-card); border: 1px solid var(--lp-line); border-radius: 18px;
+  padding: 20px 8px; margin-bottom: 52px;
+  box-shadow: 0 12px 34px -24px color-mix(in srgb, var(--lp-accent-2) 40%, transparent);
+}
+@media (max-width: 760px) { .lp-stats { grid-template-columns: repeat(2, 1fr); gap: 14px 0; } }
+.lp-stat { text-align: center; padding: 0 12px; border-right: 1px solid var(--lp-line); }
+.lp-stat:last-child, .lp-stat:nth-child(2n):not(:last-child) { border-right-width: 0; }
+@media (min-width: 761px) { .lp-stat:nth-child(2n):not(:last-child) { border-right-width: 1px; } }
+.lp-stat b { display: block; font-size: 22px; color: var(--lp-accent-2); }
+.lp-stat span { font-size: 13px; color: var(--lp-ink-2); font-weight: 600; }
+
+/* ---------------- Section umum ---------------- */
+.lp-section { padding: 8px 0 52px; }
+.lp-h2 { text-align: center; font-size: 27px; font-weight: 800; margin: 0 0 6px; color: var(--lp-accent-2); }
+.lp-h2-sub { text-align: center; color: var(--lp-ink-3); font-size: 14px; margin: 0 0 26px; }
+
+/* ---------------- Tentang + kontak outlet ---------------- */
+.lp-outlets { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; }
+.lp-outlet-card {
+  background: var(--lp-card); border: 1px solid var(--lp-line); border-radius: 16px; padding: 22px;
+}
+.lp-outlet-card h3 { margin: 0 0 6px; font-size: 17px; }
+.lp-outlet-card p { margin: 0 0 12px; color: var(--lp-ink-2); font-size: 14px; }
+.lp-outlet-meta { display: grid; gap: 7px; font-size: 13.5px; color: var(--lp-ink-2); }
+.lp-outlet-meta b { color: var(--lp-ink); }
+.lp-highlights { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.lp-highlights span {
+  background: var(--lp-soft); color: var(--lp-accent-2); font-weight: 600; font-size: 12.5px;
+  padding: 4px 11px; border-radius: 999px;
+}
+
+/* ---------------- Terapis ---------------- */
+.lp-therapists { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 16px; }
+.lp-therapist {
+  background: var(--lp-card); border: 1px solid var(--lp-line); border-radius: 14px; overflow: hidden;
+}
+.lp-therapist-photo { aspect-ratio: 4 / 5; background: var(--lp-soft); }
+.lp-therapist-photo img { width: 100%; height: 100%; object-fit: cover; }
+.lp-therapist-photo .lp-initial {
+  width: 100%; height: 100%; display: grid; place-items: center;
+  font-size: 40px; font-weight: 800; color: var(--lp-accent-2);
+}
+.lp-therapist-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 9px 11px; }
+.lp-therapist-row b { font-size: 13.5px; }
+.lp-badge {
+  font-size: 10.5px; font-weight: 800; letter-spacing: .02em; white-space: nowrap;
+  padding: 3px 9px; border-radius: 999px; color: #fff; background: var(--lp-accent-2);
+}
+.lp-badge.medium { background: #b8860b; }
+.lp-badge.medium-strong { background: color-mix(in srgb, var(--lp-accent-2) 70%, #b8860b); }
+
+/* ---------------- Galeri ruangan ---------------- */
+.lp-gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
+.lp-room { background: var(--lp-card); border: 1px solid var(--lp-line); border-radius: 16px; overflow: hidden; }
+.lp-room img { aspect-ratio: 3 / 2; width: 100%; object-fit: cover; }
+.lp-room div { padding: 14px 16px; }
+.lp-room b { font-size: 15px; }
+.lp-room p { margin: 4px 0 0; font-size: 13px; color: var(--lp-ink-2); }
+
+/* ---------------- Pilihan pijatan ---------------- */
+.lp-intensities { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.lp-intensity { background: var(--lp-card); border: 1px solid var(--lp-line); border-radius: 14px; padding: 18px 20px; }
+.lp-intensity b { display: block; font-size: 15.5px; margin-bottom: 3px; color: var(--lp-accent-2); }
+.lp-intensity p { margin: 0; font-size: 13.5px; color: var(--lp-ink-2); }
+.lp-intensity-note { text-align: center; font-size: 12.5px; color: var(--lp-ink-3); font-style: italic; margin-top: 14px; }
+
+/* ---------------- CTA ---------------- */
+.lp-cta {
+  display: flex; align-items: center; justify-content: space-between; gap: 18px; flex-wrap: wrap;
+  background: linear-gradient(120deg, var(--lp-accent-2), var(--lp-accent));
+  color: #fff; border-radius: 20px; padding: 26px 30px; margin-bottom: 52px;
+}
+.lp-cta h2 { margin: 0 0 4px; font-size: 21px; }
+.lp-cta p { margin: 0; font-size: 14px; opacity: .92; }
+.lp-cta .lp-btn-outline { border-color: #fff; color: #fff; background: transparent; }
+.lp-cta .lp-btn-outline:hover { background: rgba(255, 255, 255, .14); }
+.lp-cta .lp-btn-primary { background: #fff; color: var(--lp-accent-2); }
+
+/* ---------------- Footer ---------------- */
+.lp-footer {
+  border-top: 1px solid var(--lp-line); padding: 30px 0 40px;
+  display: grid; grid-template-columns: 1.2fr 1fr 1.4fr; gap: 26px;
+  font-size: 13.5px; color: var(--lp-ink-2);
+}
+@media (max-width: 760px) { .lp-footer { grid-template-columns: 1fr; } }
+.lp-footer h4 { margin: 0 0 8px; font-size: 13px; color: var(--lp-ink); text-transform: uppercase; letter-spacing: .06em; }
+.lp-footer nav { display: grid; gap: 6px; }
+.lp-footer nav a:hover { color: var(--lp-accent-2); }
+.lp-powered { margin-top: 18px; font-size: 12px; color: var(--lp-ink-3); grid-column: 1 / -1; }

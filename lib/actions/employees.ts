@@ -299,6 +299,13 @@ export type UpdateEmployeeProfileInput = {
   jobRole: string;
   grade?: string;
   therapistGrade?: "Junior" | "Senior" | "Master" | null;
+  /**
+   * Tingkat pijatan untuk landing publik (migrasi 0034). null = admin
+   * mengosongkan ("Belum diatur"); undefined = field tidak dikirim sama
+   * sekali (kolomnya tidak disentuh — penting supaya save dari form lama
+   * atau untuk non-terapis tidak menulis kolom yang mungkin belum ada).
+   */
+  massageIntensity?: "STRONG" | "MEDIUM" | "MEDIUM_STRONG" | null;
   phone?: string;
   email?: string;
   joinDate: string;
@@ -327,6 +334,9 @@ export async function updateEmployeeProfile(input: UpdateEmployeeProfileInput): 
       email: input.email?.trim() || null,
       join_date: input.joinDate,
       contract_type: input.contractType,
+      // Kolom baru (0034) hanya disentuh kalau field-nya benar-benar
+      // dikirim — undefined berarti "biarkan apa adanya".
+      ...(input.massageIntensity !== undefined ? { massage_intensity: input.massageIntensity } : {}),
     })
     .eq("id", input.employeeId);
 

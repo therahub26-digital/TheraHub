@@ -35,6 +35,7 @@ type EmployeeRow = {
   is_therapist: boolean;
   skills: string[] | null;
   therapist_grade: string | null;
+  massage_intensity: string | null;
   max_sessions_per_day: number | null;
   presence: string | null;
   featured: boolean;
@@ -67,6 +68,7 @@ function mapEmployee(row: EmployeeRow): Employee {
     isTherapist: row.is_therapist,
     skills: row.skills ?? [],
     therapistGrade: (row.therapist_grade as Employee["therapistGrade"]) ?? undefined,
+    massageIntensity: (row.massage_intensity as Employee["massageIntensity"]) ?? undefined,
     maxSessionsPerDay: row.max_sessions_per_day ?? undefined,
     presence: (row.presence as Employee["presence"]) ?? undefined,
     featured: row.featured,

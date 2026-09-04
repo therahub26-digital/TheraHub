@@ -53,11 +53,22 @@ function ErrorNote({ error }: { error: string | null }) {
   );
 }
 
+// "" = Belum diatur — dikirim sebagai null ke server, dan landing publik
+// tidak menampilkan badge apa pun ("belum diatur ≠ nol").
+const MASSAGE_INTENSITIES = [
+  { value: "", label: "Belum diatur" },
+  { value: "STRONG", label: "Strong" },
+  { value: "MEDIUM", label: "Medium" },
+  { value: "MEDIUM_STRONG", label: "Medium Strong" },
+] as const;
+type MassageIntensityValue = (typeof MASSAGE_INTENSITIES)[number]["value"];
+
 type FormValues = {
   name: string;
   jobRole: JobRole;
   grade: string;
   therapistGrade: (typeof THERAPIST_GRADES)[number];
+  massageIntensity: MassageIntensityValue;
   phone: string;
   email: string;
   joinDate: string;
@@ -99,12 +110,20 @@ function FormFields({
       </div>
 
       {isTherapist && (
-        <label className="stack g1">
-          <span className="tiny dim">Grade terapis</span>
-          <select className="select" value={values.therapistGrade} disabled={disabled} onChange={(e) => onChange({ therapistGrade: e.target.value as FormValues["therapistGrade"] })}>
-            {THERAPIST_GRADES.map((g) => <option key={g} value={g}>{g}</option>)}
-          </select>
-        </label>
+        <div className="row g2">
+          <label className="stack g1" style={{ flex: 1 }}>
+            <span className="tiny dim">Grade terapis</span>
+            <select className="select" value={values.therapistGrade} disabled={disabled} onChange={(e) => onChange({ therapistGrade: e.target.value as FormValues["therapistGrade"] })}>
+              {THERAPIST_GRADES.map((g) => <option key={g} value={g}>{g}</option>)}
+            </select>
+          </label>
+          <label className="stack g1" style={{ flex: 1 }}>
+            <span className="tiny dim">Tingkat pijatan (landing publik)</span>
+            <select className="select" value={values.massageIntensity} disabled={disabled} onChange={(e) => onChange({ massageIntensity: e.target.value as MassageIntensityValue })}>
+              {MASSAGE_INTENSITIES.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+            </select>
+          </label>
+        </div>
       )}
 
       <div className="row g2">
@@ -133,7 +152,7 @@ export function NewStaffForm({ outletId, tenantId }: { outletId: string; tenantI
   const [open, setOpen] = useState(false);
   const anchorRef = useRef<HTMLButtonElement>(null);
   const empty: FormValues = {
-    name: "", jobRole: "Terapis", grade: "", therapistGrade: "Junior",
+    name: "", jobRole: "Terapis", grade: "", therapistGrade: "Junior", massageIntensity: "",
     phone: "", email: "", joinDate: todayIso(), contractType: "Tetap",
   };
   const [values, setValues] = useState<FormValues>(empty);
@@ -250,6 +269,7 @@ export function EditStaffButton({
     name: string;
     jobRole: JobRole;
     therapistGrade?: "Junior" | "Senior" | "Master";
+    massageIntensity?: "STRONG" | "MEDIUM" | "MEDIUM_STRONG";
     phone: string;
     email: string;
     joinDate: string;
@@ -263,6 +283,7 @@ export function EditStaffButton({
     jobRole: initial.jobRole,
     grade: "",
     therapistGrade: initial.therapistGrade ?? "Junior",
+    massageIntensity: initial.massageIntensity ?? "",
     phone: initial.phone,
     email: initial.email,
     joinDate: initial.joinDate,
@@ -305,6 +326,7 @@ export function EditStaffButton({
                     name: values.name,
                     jobRole: values.jobRole,
                     therapistGrade: values.jobRole === "Terapis" ? values.therapistGrade : null,
+                    massageIntensity: values.jobRole === "Terapis" ? (values.massageIntensity || null) : null,
                     phone: values.phone,
                     email: values.email,
                     joinDate: values.joinDate,

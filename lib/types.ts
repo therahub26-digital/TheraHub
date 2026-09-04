@@ -204,6 +204,13 @@ export interface Room {
 
 export type JobRole = "Terapis" | "Kasir" | "Manager" | "Office Boy" | "Admin Umum" | "Supervisor";
 
+/**
+ * Tiga tingkat pijatan yang tampil sebagai badge di landing publik tenant.
+ * Nilai disimpan di employees.massage_intensity (migrasi 0034, CHECK
+ * constraint dengan tiga nilai yang sama persis).
+ */
+export type MassageIntensity = "STRONG" | "MEDIUM" | "MEDIUM_STRONG";
+
 export interface Employee {
   id: string;
   tenantId: string;
@@ -224,6 +231,12 @@ export interface Employee {
   isTherapist: boolean;
   skills: string[];
   therapistGrade?: "Junior" | "Senior" | "Master";
+  /**
+   * Tingkat pijatan untuk landing publik tenant (migrasi 0034).
+   * undefined = belum diatur admin — landing tidak menampilkan badge,
+   * BUKAN menampilkan "Medium" ("belum diatur ≠ nol").
+   */
+  massageIntensity?: MassageIntensity;
   /** Real staff headshot path (e.g. "/img/therapists/CKW/amelia.jpg"). Undefined for mock/demo employees — UI falls back to the initials avatar. */
   photoUrl?: string;
   /**

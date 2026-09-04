@@ -116,6 +116,7 @@ export default async function TenantLandingPage({ params }: { params: Promise<{ 
   // landingAssets, jatuh ke galeri foto profil outlet dari database.
   const roomCards: { src: string; label: string; desc?: string }[] =
     assets.rooms ?? gallery.map((g) => ({ src: g.src, label: g.label }));
+  const tenantHighlights = Array.from(new Set(data.outlets.flatMap((o) => o.highlights)));
   const facilities = data.outlets.flatMap((o) => o.facilities);
   const seen = new Set<string>();
   const uniqueFacilities = facilities.filter((f) => (seen.has(f.name) ? false : (seen.add(f.name), true))).slice(0, 6);
@@ -212,6 +213,14 @@ export default async function TenantLandingPage({ params }: { params: Promise<{ 
           <section className="lp-section" id="tentang">
             <h2 className="lp-h2">Tentang {data.tenantName}</h2>
             <p className="lp-h2-sub">Alamat, jam buka, dan kontak tiap outlet.</p>
+            {/* Revisi Adjie 2026-09-04: poin unggulan berlaku umum untuk
+                semua lokasi, jadi tampil SEKALI di bawah judul — bukan
+                diulang di tiap kartu outlet. */}
+            {tenantHighlights.length > 0 && (
+              <div className="lp-highlights lp-highlights-center">
+                {tenantHighlights.map((h) => <span key={h}>{h}</span>)}
+              </div>
+            )}
             {assets.about && (
               <div className="lp-about-photo">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -219,35 +228,71 @@ export default async function TenantLandingPage({ params }: { params: Promise<{ 
               </div>
             )}
             <div className="lp-outlets">
-              {data.outlets.map((o) => (
-                <div className="lp-outlet-card" key={o.name}>
-                  <h3>{o.name}</h3>
-                  {(o.tagline || o.description) && <p>{o.tagline || o.description}</p>}
-                  <div className="lp-outlet-meta">
-                    {o.address && <div>📍 <b>{o.address}</b>{o.city ? `, ${o.city}` : ""}</div>}
-                    {o.openHours && <div>🕐 {o.openHours}</div>}
-                    {o.phone && <div>📞 {o.phone}</div>}
-                  </div>
-                  {o.highlights.length > 0 && (
-                    <div className="lp-highlights">
-                      {o.highlights.map((h) => <span key={h}>{h}</span>)}
+              {data.outlets.map((o) => {
+                const ekstra = assets.outletExtras?.[o.code];
+                const namaPendek = o.name.replace(/^.*—\s*/, "");
+                return (
+                  <div className="lp-outlet-card" key={o.code || o.name}>
+                    {/* Foto kecil tampak depan (asli, dari Street View) + ikon
+                        peta — tamu langsung tahu bangunan mana yang dicari. */}
+                    {ekstra?.photo && (
+                      <div className="lp-outlet-photo">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={ekstra.photo} alt={`Tampak depan ${o.name}`} loading="lazy" />
+                        {ekstra.photoCredit && <span className="lp-photo-credit">{ekstra.photoCredit}</span>}
+                      </div>
+                    )}
+                    <div className="lp-outlet-head">
+                      <h3>{o.name}</h3>
+                      {ekstra?.mapsUrl && (
+                        <a
+                          href={ekstra.mapsUrl}
+                          className="lp-maps-link"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          aria-label={`Buka ${o.name} di Google Maps`}
+                          title="Buka di Google Maps"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                            <path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z" />
+                            <circle cx="12" cy="10" r="2.6" />
+                          </svg>
+                          Google Maps
+                        </a>
+                      )}
                     </div>
-                  )}
-                  {/* Tombol booking per outlet — tamu memesan ke outlet
-                      yang benar tanpa perlu memilih ulang di chat. */}
-                  {waOutlet(o) && (
-                    <a
-                      href={waOutlet(o)!}
-                      className="lp-btn lp-btn-primary lp-btn-sm"
-                      style={{ marginTop: 14 }}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      Booking di {o.name.replace(/^.*—\s*/, "")}
-                    </a>
-                  )}
-                </div>
-              ))}
+                    {(o.tagline || o.description) && <p>{o.tagline || o.description}</p>}
+                    <div className="lp-outlet-meta">
+                      {o.address && (
+                        <div>
+                          📍{" "}
+                          {ekstra?.mapsUrl ? (
+                            <a href={ekstra.mapsUrl} target="_blank" rel="noopener noreferrer"><b>{o.address}</b></a>
+                          ) : (
+                            <b>{o.address}</b>
+                          )}
+                          {o.city ? `, ${o.city}` : ""}
+                        </div>
+                      )}
+                      {o.openHours && <div>🕐 {o.openHours}</div>}
+                      {o.phone && <div>📞 {o.phone}</div>}
+                    </div>
+                    {/* Tombol booking per outlet — tamu memesan ke outlet
+                        yang benar tanpa perlu memilih ulang di chat. */}
+                    {waOutlet(o) && (
+                      <a
+                        href={waOutlet(o)!}
+                        className="lp-btn lp-btn-primary lp-btn-sm"
+                        style={{ marginTop: 14 }}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Booking di {namaPendek}
+                      </a>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </section>
 

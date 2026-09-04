@@ -44,6 +44,15 @@ export type LandingAssets = {
    * Format bebas; dinormalkan ke 62… di titik pemakaian.
    */
   waPerOutlet?: Record<string, string>;
+  /**
+   * Pelengkap kartu outlet, dikunci pada kode outlet: foto kecil tampak
+   * depan + tautan Google Maps (Adjie 2026-09-04). Foto tampak depan
+   * saat ini potongan Google Street View — atribusi "Foto: Google Street
+   * View" WAJIB tetap tampil di bawahnya sesuai ketentuan Google; ganti
+   * dengan foto sendiri kapan saja dengan menimpa file & menghapus
+   * `photoCredit`.
+   */
+  outletExtras?: Record<string, { photo?: string; photoCredit?: string; mapsUrl?: string }>;
 };
 
 export const LANDING_ASSETS: Record<string, LandingAssets> = {
@@ -61,6 +70,18 @@ export const LANDING_ASSETS: Record<string, LandingAssets> = {
     waPerOutlet: {
       "AMY-CKW": "087788116565",
       "AMY-MKW": "087788116565",
+    },
+    outletExtras: {
+      "AMY-CKW": {
+        photo: "/img/landing/amethyst/outlet-ckw.jpg",
+        photoCredit: "Foto: Google Street View",
+        mapsUrl: "https://maps.app.goo.gl/WHeLF3Bf9aDF1eTH8",
+      },
+      "AMY-MKW": {
+        photo: "/img/landing/amethyst/outlet-mkw.jpg",
+        photoCredit: "Foto: Google Street View",
+        mapsUrl: "https://maps.app.goo.gl/A4a3zpwQ5LKDTq9V9",
+      },
     },
     rooms: [
       {

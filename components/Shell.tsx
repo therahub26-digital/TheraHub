@@ -248,21 +248,27 @@ export default function Shell({
           <div className="grow" />
 
           <div className="row g2">
-            <button
-              className="btn btn-ghost btn-sm"
-              onClick={() => setSwitcher((v) => !v)}
-              style={{ position: "relative" }}
-            >
-              <Icon name="repeat" size={14} />
-              <span className="nowrap">Ganti Role</span>
-              <Icon name="chevron-down" size={13} />
-            </button>
+            {/* Temuan UAT 2026-09-26 (U1): dengan sesi asli, "Ganti Role"
+                adalah kontrol mati — middleware memantulkan setiap portal
+                lain kembali ke portal milik peran ini. Tombolnya hanya
+                punya arti di mode contoh, jadi hanya tampil di sana. */}
+            {!signedInName && (
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={() => setSwitcher((v) => !v)}
+                style={{ position: "relative" }}
+              >
+                <Icon name="repeat" size={14} />
+                <span className="nowrap">Ganti Role</span>
+                <Icon name="chevron-down" size={13} />
+              </button>
+            )}
             <ThemeToggle />
             <NotificationBell href={notificationHref} count={notificationCount} />
           </div>
         </header>
 
-        {switcher && (
+        {switcher && !signedInName && (
           <div
             style={{
               position: "sticky",

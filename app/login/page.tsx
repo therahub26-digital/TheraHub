@@ -223,7 +223,11 @@ export default function LoginPage() {
             Belum punya akun customer? <Link href="/register">Daftar di sini</Link>.
           </div>
           <div className="tiny dim" style={{ marginTop: 6, textAlign: "center" }}>
-            Masih ingin lihat demo tanpa login? <Link href="/">Kembali ke halaman demo</Link>.
+            {/* Temuan UAT 2026-09-26 (U2): dulu berbunyi "lihat demo tanpa
+                login" → "/". Di domain tenant "/" adalah website publik
+                tenant, dan portal berperan memang tidak bisa dibuka tanpa
+                login (middleware) — janji "demo"-nya sudah tidak benar. */}
+            <Link href="/">← Kembali ke beranda</Link>
           </div>
         </div>
       </main>

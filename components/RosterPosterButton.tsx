@@ -123,6 +123,8 @@ function onAccent(hex: string): string {
 
 type Chip = { label: string; w: number };
 
+export type PosterColumns = 3 | 4;
+
 export async function renderRosterPoster(data: RosterPosterData): Promise<Blob> {
   const display = cssFont("--font-outfit", "system-ui, sans-serif");
   const body = cssFont("--font-inter", "system-ui, sans-serif");
@@ -156,7 +158,7 @@ export async function renderRosterPoster(data: RosterPosterData): Promise<Blob> 
   ctx.fillRect(0, 0, W, H);
 
   // ---- HERO
-  const HERO_H = 560;
+  const HERO_H = 420;
   ctx.save();
   ctx.beginPath();
   ctx.rect(0, 0, W, HERO_H);
@@ -183,7 +185,7 @@ export async function renderRosterPoster(data: RosterPosterData): Promise<Blob> 
   ctx.restore();
 
   // baris atas: logo + brand/outlet + chip tanggal
-  const topY = 64;
+  const topY = 44;
   const LOGO = 76;
   if (logo) {
     ctx.save();
@@ -226,16 +228,16 @@ export async function renderRosterPoster(data: RosterPosterData): Promise<Blob> 
 
   // headline
   ctx.fillStyle = TEXT;
-  ctx.font = `800 104px ${display}`;
-  ctx.fillText("Your Relax", PAD - 4, 318);
-  ctx.fillText("Squad", PAD - 4, 418);
+  ctx.font = `800 96px ${display}`;
+  ctx.fillText("Your Relax", PAD - 4, 236);
+  ctx.fillText("Squad", PAD - 4, 328);
   const squadW = ctx.measureText("Squad ").width;
   ctx.fillStyle = data.accent;
-  ctx.fillText("✦", PAD - 4 + squadW, 418);
+  ctx.fillText("✦", PAD - 4 + squadW, 328);
 
   ctx.fillStyle = MUTED;
   ctx.font = `600 28px ${body}`;
-  ctx.fillText("Siap bikin harimu rileks. Pilih favoritmu, langsung booking.", PAD, 484);
+  ctx.fillText("Siap bikin harimu rileks. Pilih favoritmu, langsung booking.", PAD, 386);
 
   // ---- FOOTER (dihitung dulu, supaya grid tahu sisa tinggi)
   ctx.font = `600 25px ${body}`;
@@ -313,8 +315,8 @@ export async function renderRosterPoster(data: RosterPosterData): Promise<Blob> 
 
   // ---- GRID terapis bertugas
   const n = data.onDuty.length;
-  const gridTop = HERO_H + 48;
-  const gridBottom = footerTop - 28;
+  const gridTop = HERO_H + 36;
+  const gridBottom = footerTop - 24;
   if (n === 0) {
     ctx.fillStyle = MUTED;
     ctx.font = `600 32px ${body}`;
@@ -322,17 +324,28 @@ export async function renderRosterPoster(data: RosterPosterData): Promise<Blob> 
     ctx.fillText("Belum ada terapis bertugas hari ini.", W / 2, (gridTop + gridBottom) / 2);
     ctx.textAlign = "left";
   } else {
-    const cols = n <= 4 ? 2 : n <= 9 ? 3 : n <= 16 ? 4 : 5;
-    const rows = Math.ceil(n / cols);
-    const gap = cols >= 4 ? 20 : 28;
-    const nameH = cols >= 4 ? 34 : 44;
+    // Auto-fit (Adjie 2026-10-08): format 3 atau 4 kolom, kotak foto 4:5,
+    // dipilih otomatis mana yang menghasilkan FOTO TERBESAR untuk jumlah
+    // terapis hari itu. Lebar kotak dibatasi lebar ATAU tinggi area (mana
+    // yang lebih sempit) supaya semua tetap muat satu poster. Hasilnya:
+    // 1–9 terapis → 3 kolom; 10 ke atas → 4 kolom (di 10–12 orang, 3 kolom
+    // butuh 4 baris sehingga fotonya justru lebih kecil dari 4 kolom).
     const availW = W - PAD * 2;
     const availH = gridBottom - gridTop;
-    const tile = Math.floor(
-      Math.min((availW - gap * (cols - 1)) / cols, (availH - rows * (nameH + 12) - gap * (rows - 1)) / rows)
-    );
-    const cellH = tile + 12 + nameH;
-    const gridW = cols * tile + (cols - 1) * gap;
+    const layoutFor = (c: PosterColumns) => {
+      const rows = Math.ceil(n / c);
+      const gap = c === 4 ? 18 : 24;
+      const nameH = c === 4 ? 32 : 40;
+      const byWidth = (availW - gap * (c - 1)) / c;
+      const byHeight = ((availH - rows * (nameH + 10) - gap * (rows - 1)) / rows) * (4 / 5);
+      return { cols: c, rows, gap, nameH, tw: Math.floor(Math.min(byWidth, byHeight)) };
+    };
+    const three = layoutFor(3);
+    const four = layoutFor(4);
+    const { cols, rows, gap, nameH, tw } = four.tw > three.tw ? four : three;
+    const th = Math.floor((tw * 5) / 4);
+    const cellH = th + 10 + nameH;
+    const gridW = cols * tw + (cols - 1) * gap;
     const gridH = rows * cellH + (rows - 1) * gap;
     const x0 = (W - gridW) / 2;
     const y0 = gridTop + Math.max(0, (availH - gridH) / 2);
@@ -343,43 +356,43 @@ export async function renderRosterPoster(data: RosterPosterData): Promise<Blob> 
       const c = i % cols;
       // baris terakhir yang tidak penuh ditengahkan
       const inRow = r === rows - 1 ? n - r * cols : cols;
-      const rowOffset = ((cols - inRow) * (tile + gap)) / 2;
-      const x = x0 + rowOffset + c * (tile + gap);
+      const rowOffset = ((cols - inRow) * (tw + gap)) / 2;
+      const x = x0 + rowOffset + c * (tw + gap);
       const y = y0 + r * (cellH + gap);
 
       ctx.save();
-      roundRect(ctx, x, y, tile, tile, Math.round(tile * 0.1));
+      roundRect(ctx, x, y, tw, th, Math.round(tw * 0.09));
       ctx.clip();
       const photo = photos[i];
       if (photo) {
-        drawCover(ctx, photo, x, y, tile, tile, 0.25);
+        drawCover(ctx, photo, x, y, tw, th, 0.2);
       } else {
         ctx.fillStyle = hexToRgba(data.accent, tileTones[i % tileTones.length]);
-        ctx.fillRect(x, y, tile, tile);
+        ctx.fillRect(x, y, tw, th);
         ctx.fillStyle = data.accent;
-        ctx.font = `800 ${Math.round(tile * 0.32)}px ${display}`;
+        ctx.font = `800 ${Math.round(tw * 0.32)}px ${display}`;
         ctx.textAlign = "center";
-        ctx.fillText(initials(t.name), x + tile / 2, y + tile / 2 + tile * 0.11);
+        ctx.fillText(initials(t.name), x + tw / 2, y + th / 2 + tw * 0.11);
         ctx.textAlign = "left";
       }
       if (t.skill) {
-        const fs = cols >= 4 ? 15 : 19;
+        const fs = cols === 4 ? 15 : 18;
         ctx.font = `600 ${fs}px ${body}`;
-        const label = fitText(ctx, t.skill, tile - 48);
+        const label = fitText(ctx, t.skill, tw - 48);
         const bw = ctx.measureText(label).width + 26;
         const bh = fs + 16;
-        roundRect(ctx, x + 10, y + tile - bh - 10, bw, bh, bh / 2);
+        roundRect(ctx, x + 10, y + th - bh - 10, bw, bh, bh / 2);
         ctx.fillStyle = "rgba(0,0,0,0.58)";
         ctx.fill();
         ctx.fillStyle = "#ffffff";
-        ctx.fillText(label, x + 23, y + tile - 10 - bh / 2 + fs * 0.36);
+        ctx.fillText(label, x + 23, y + th - 10 - bh / 2 + fs * 0.36);
       }
       ctx.restore();
 
       ctx.fillStyle = TEXT;
-      ctx.font = `700 ${cols >= 4 ? 24 : cols === 3 ? 29 : 34}px ${display}`;
+      ctx.font = `700 ${cols === 4 ? 24 : 28}px ${display}`;
       ctx.textAlign = "center";
-      ctx.fillText(fitText(ctx, t.name, tile), x + tile / 2, y + tile + 12 + nameH * 0.72);
+      ctx.fillText(fitText(ctx, t.name, tw), x + tw / 2, y + th + 10 + nameH * 0.72);
       ctx.textAlign = "left";
     });
   }

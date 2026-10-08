@@ -98,7 +98,7 @@ export default async function OutletSettingsPage() {
               { label: "Minimum Lead Time Booking", desc: "Jarak minimal booking dibuat sebelum jadwal", value: "30 menit", on: true },
               { label: "Auto-confirm Booking Online", desc: "Booking dari Customer App langsung terkonfirmasi", value: "", on: true },
               { label: "Izinkan Walk-in Overbook", desc: "Booking walk-in melebihi slot terjadwal", value: "", on: false },
-              { label: "Reminder H-1 via WhatsApp", desc: "Kirim pengingat otomatis 1 hari sebelum jadwal", value: "", on: true },
+              { label: "Reminder H-1 via WhatsApp", desc: "Belum ada. Yang berjalan adalah reminder 15 menit sebelum jadwal, diatur Admin di Integrations", value: "", on: false },
               { label: "Konfirmasi Ulang Booking Non-Hari-Ini", desc: "Wajib dikonfirmasi ulang tamu pada hari-H, minimal 1 jam sebelum jadwal — lewat itu otomatis dianggap batal", value: "min. 1 jam", on: true },
               { label: "Batas Waktu Cancel Gratis", desc: "Cancel di bawah batas ini dikenakan biaya", value: "2 jam", on: true },
             ].map((row) => (

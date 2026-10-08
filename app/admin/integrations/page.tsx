@@ -3,20 +3,24 @@ import { PageHead, Card, Badge } from "@/components/ui";
 import MockDataNotice from "@/components/MockDataNotice";
 import { INTEGRATIONS } from "@/lib/mock";
 import { fmtDateTime } from "@/lib/format";
+import FonnteCard from "@/components/FonnteCard";
+import { getFonnteStatus } from "@/lib/data/integrations";
 
-export default function IntegrationsPage() {
+export default async function IntegrationsPage() {
+  const fonnte = await getFonnteStatus();
   return (
     <>
       <PageHead title="Integrations" desc="Koneksi ke penyedia pihak ketiga: notifikasi, pembayaran, maps, dan print bridge." />
 
-      <MockDataNotice title="Belum ada satu pun integrasi yang aktif">
-        Halaman ini masih tampilan contoh. <strong>Tidak ada</strong> integrasi yang benar-benar
-        terhubung — termasuk Midtrans, WhatsApp Business API, Google Maps, dan Print Bridge.
-        Tombol di kartu-kartu di bawah belum tersambung ke apa pun.
+      <FonnteCard status={fonnte} />
+
+      <MockDataNotice title="Integrasi lain di bawah masih tampilan contoh">
+        Hanya kartu <strong>WhatsApp — Fonnte</strong> di atas yang benar-benar tersambung. Midtrans,
+        Google Maps, Print Bridge, dan lainnya di bawah belum terhubung — tombolnya belum tersambung ke apa pun.
       </MockDataNotice>
 
       <div className="grid grid-2">
-        {INTEGRATIONS.map((it) => (
+        {INTEGRATIONS.filter((it) => it.key !== "wa").map((it) => (
           <Card key={it.key} className="card-pad" hover>
             <div className="row between" style={{ alignItems: "flex-start" }}>
               <div className="row g3">

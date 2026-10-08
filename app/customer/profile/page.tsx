@@ -99,7 +99,6 @@ export default async function ProfilePage() {
             </div>
             {[
               { label: "Notifikasi Push", on: true },
-              { label: "Reminder Booking", on: true },
               { label: "Newsletter Email", on: false },
             ].map((s) => (
               <div key={s.label} className="m-row">
@@ -107,6 +106,10 @@ export default async function ProfilePage() {
                 <Switch on={s.on} label={s.label} title="Belum tersedia — pengingat & newsletter otomatis belum dikirim aplikasi ini." />
               </div>
             ))}
+            <div className="m-row">
+              <span className="small" style={{ color: "var(--text-1)", flex: 1 }}>Reminder Booking</span>
+              <span className="tiny dim">Otomatis via WhatsApp, 15 menit sebelum jadwal</span>
+            </div>
           </div>
         </div>
 

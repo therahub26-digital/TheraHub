@@ -9,6 +9,10 @@ import { fmtDateLong } from "@/lib/format";
 import ScheduleCheckBoard from "@/components/ScheduleCheckBoard";
 import LeavePlanBoard from "@/components/LeavePlanBoard";
 import LeaveRequestApprovalBoard from "@/components/LeaveRequestApprovalBoard";
+import RosterPosterButton, { type RosterPosterData } from "@/components/RosterPosterButton";
+import { getCurrentTenant, getTenantTheme } from "@/lib/data/tenant";
+import { brandByKey, backgroundByKey } from "@/lib/brand";
+import { ACTIVE_TENANT } from "@/lib/mock";
 
 // ---------------------------------------------------------------------
 // Shared page body for /manager/schedule-check and /kasir/schedule-check
@@ -43,6 +47,7 @@ export default async function ScheduleCheckPage() {
     getUpcomingScheduleExceptions(outlet.id, plusDays(today, 1)),
     getLeaveRequestsForOutlet(outlet.id),
   ]);
+  const [tenant, theme] = await Promise.all([getCurrentTenant(), getTenantTheme()]);
   const therapistBoardProps = therapists.map((t) => ({
     id: t.id,
     name: t.name,
@@ -51,6 +56,33 @@ export default async function ScheduleCheckPage() {
     photoUrl: t.photoUrl ?? null,
   }));
 
+  // Poster "Your Relax Squad" (Adjie 2026-10-08, Opsi B): bertugas =
+  // semua terapis aktif outlet ini dikurangi yang OFF/LEAVE hari ini —
+  // bukan berdasarkan check-in, karena poster dibuat pagi sebelum semua
+  // terapis datang.
+  const offById = new Map(exceptions.map((e) => [e.employeeId, e.type]));
+  const brand = brandByKey(theme.brandKey);
+  const bg = backgroundByKey(theme.bgKey);
+  const posterData: RosterPosterData = {
+    date: today,
+    dateLabel: fmtDateLong(today),
+    brandName: tenant?.brandName ?? ACTIVE_TENANT.name,
+    outletName: outlet.name,
+    logoUrl: theme.logoUrl,
+    heroPhotoUrl: theme.backgroundPhotoUrl ?? bg.image ?? null,
+    accent: brand.accent,
+    accent2: brand.accent2,
+    base: bg.base,
+    whatsapp: tenant?.whatsapp || outlet.phone || null,
+    instagram: tenant?.instagram || null,
+    onDuty: therapists
+      .filter((t) => !offById.has(t.id))
+      .map((t) => ({ id: t.id, name: t.name, photoUrl: t.photoUrl ?? null, skill: t.skills?.[0] ?? null })),
+    off: therapists
+      .filter((t) => offById.has(t.id))
+      .map((t) => ({ name: t.name, type: offById.get(t.id) as "OFF" | "LEAVE" })),
+  };
+
   const activeBookingsToday = bookingsToday.filter((b) => ACTIVE_STATUSES.includes(b.status));
 
   return (
@@ -58,6 +90,7 @@ export default async function ScheduleCheckPage() {
       <PageHead
         title="Cek Jadwal Terapis"
         desc={`${outlet.name} · ${fmtDateLong(today)} — tandai terapis yang off/libur, lalu putuskan booking yang terdampak.`}
+        actions={<RosterPosterButton data={posterData} />}
       />
 
       <InfoNote icon="info" tone="info" title="Rutinitas harian">

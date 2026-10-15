@@ -1,7 +1,7 @@
 -- ---------------------------------------------------------------------
 -- 0039_reviews_rls_tighten.sql
 --
--- STATUS: DRAFT — belum dijalankan ke produksi.
+-- STATUS: LIVE — dijalankan Adjie via SQL Editor 2026-10-15 20:47, sukses.
 -- Aman dijalankan kapan saja (hanya mengganti 3 policy, idempoten,
 -- tanpa menyentuh data). Jalankan SEBELUM harness
 -- scripts/uat-2026-10-15-fitur-baru.sql supaya uji R5/R11/R12 lolos.

@@ -89,7 +89,7 @@ export const ROLES: RoleDef[] = [
     persona: { name: "Bpk. Hendra Wijaya", sub: "Owner · Amethyst Group" },
     nav: [
       { href: "/owner", label: "All Outlets KPI", icon: "layout-dashboard", section: "Business" },
-      { href: "/owner/revenue", label: "Revenue & Profitability", icon: "trending-up", section: "Business" },
+      { href: "/owner/revenue", label: "Laporan Keuangan", icon: "trending-up", section: "Business" },
       { href: "/owner/payroll", label: "Payroll Liability", icon: "wallet", section: "Finance" },
       { href: "/owner/expenses", label: "Expenses", icon: "receipt", section: "Finance" },
       { href: "/owner/inventory", label: "Inventory Summary", icon: "package", section: "Operations" },
@@ -123,6 +123,7 @@ export const ROLES: RoleDef[] = [
       { href: "/manager/payroll-settings", label: "Pengaturan Payroll", icon: "sliders-horizontal", section: "Insight" },
       { href: "/manager/inventory", label: "Inventory", icon: "package", section: "Commerce" },
       { href: "/manager/expenses", label: "Expenses", icon: "wallet", section: "Commerce" },
+      { href: "/manager/finance", label: "Laporan Keuangan", icon: "line-chart", section: "Insight" },
       { href: "/manager/reports", label: "Reports", icon: "bar-chart-3", section: "Insight" },
       { href: "/manager/performance", label: "Kinerja Terapis", icon: "star", section: "Insight" },
       { href: "/manager/settings", label: "Outlet Settings", icon: "sliders-horizontal", section: "Insight" },

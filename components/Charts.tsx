@@ -214,7 +214,12 @@ export function GroupedBars({
         <CartesianGrid stroke={CHART_GRID} vertical={false} />
         <XAxis dataKey={xKey} tick={axisTick} axisLine={{ stroke: CHART_GRID }} tickLine={false} />
         <YAxis tick={axisTick} axisLine={false} tickLine={false} width={40} tickFormatter={(v) => fmtY(v, money)} />
-        <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: CHART_INK_2, marginBottom: 4, fontWeight: 600 }} />
+        <Tooltip
+          contentStyle={tooltipStyle}
+          labelStyle={{ color: CHART_INK_2, marginBottom: 4, fontWeight: 600 }}
+          cursor={{ fill: "rgba(255,255,255,0.04)" }}
+          formatter={(v) => (money ? rp(Number(v)) : num(Number(v)))}
+        />
         <Legend verticalAlign="top" align="right" height={28} iconType="circle" iconSize={7} wrapperStyle={{ fontSize: 12, color: CHART_INK_2 }} />
         {series.map((s, i) => (
           <Bar key={s.key} dataKey={s.key} name={s.label} fill={CAT[i % CAT.length]} radius={[4, 4, 0, 0]} maxBarSize={22} isAnimationActive={false} />

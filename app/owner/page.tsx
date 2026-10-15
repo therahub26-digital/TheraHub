@@ -5,8 +5,61 @@ import MockDataNotice from "@/components/MockDataNotice";
 import { TrendArea, BarsChart, DonutChart, LegendList } from "@/components/Charts";
 import { OUTLETS, MONTHLY_TREND, CONSOLIDATED_PNL, TENANT_PNL, THERAPIST_RANKING, APPROVALS } from "@/lib/mock";
 import { rp, pct } from "@/lib/format";
+import FinanceReport from "@/components/FinanceReport";
+import { getOutlets, isLiveOutletsData } from "@/lib/data/outlets";
+import { getEffectiveToday } from "@/lib/data/bookings";
+import { getFinanceRows } from "@/lib/data/financeReport";
+import { parseFinanceParams, trendBuckets } from "@/lib/finance/periods";
 
-export default function OwnerDashboard() {
+// ---------------------------------------------------------------------
+// UPDATE 2026-10-15 — beranda owner kini LIVE untuk sesi sungguhan:
+// konsolidasi semua cabang (default Bulanan, bisa Harian/Mingguan),
+// perbandingan & kontribusi per cabang, tren pendapatan per cabang —
+// komponen yang sama dengan /owner/revenue. Mode demo "Ganti Role"
+// tetap menampilkan dashboard contoh lama di bawah, berbanner (§6.2).
+// ---------------------------------------------------------------------
+
+export default async function OwnerDashboard({
+  searchParams,
+}: {
+  searchParams: Promise<{ g?: string; d?: string }>;
+}) {
+  const [sp, live] = await Promise.all([searchParams, isLiveOutletsData()]);
+  if (live) {
+    const [outlets, today] = await Promise.all([getOutlets(), getEffectiveToday()]);
+    const { gran, date } = parseFinanceParams(sp, today, "month");
+    const buckets = trendBuckets(gran, date);
+    const rows = await getFinanceRows(outlets.map((o) => o.id), buckets[0].start, buckets[buckets.length - 1].endExcl);
+    return (
+      <>
+        <PageHead
+          title="All Outlets KPI"
+          desc={`Konsolidasi ${outlets.length} cabang — keuangan per hari, minggu, atau bulan.`}
+          actions={
+            <Link href="/owner/revenue" className="btn btn-ghost btn-sm">
+              Laporan per cabang <Icon name="arrow-right" size={13} />
+            </Link>
+          }
+        />
+        {rows ? (
+          <FinanceReport
+            basePath="/owner"
+            outletLinkBase="/owner/revenue"
+            outlets={outlets.map((o) => ({ id: o.id, name: o.name, code: o.code }))}
+            gran={gran}
+            date={date}
+            today={today}
+            rows={rows}
+            scopeLabel={`Semua cabang (${outlets.length})`}
+            csvBase="semua-cabang"
+          />
+        ) : (
+          <MockDataNotice>Sesi login tidak terbaca — muat ulang halaman atau masuk kembali.</MockDataNotice>
+        )}
+      </>
+    );
+  }
+
   const outletBars = CONSOLIDATED_PNL.map((p) => ({
     name: OUTLETS.find((o) => o.id === p.outletId)!.name.replace("Amethyst — ", ""),
     revenue: p.revenue,

@@ -110,6 +110,33 @@ export type OutletAttendanceToday = {
   status: AttendanceEvent["status"];
 };
 
+/**
+ * Baris absensi satu outlet dalam rentang [fromDate, toDateExcl) —
+ * untuk rekap bulanan di halaman Kinerja Terapis. Mengembalikan juga
+ * late_minutes (kolom tersimpan saat check-in, dihitung terhadap jam
+ * masuk staf outlet — lihat lib/actions/attendance.ts).
+ */
+export type OutletAttendanceRangeRow = OutletAttendanceToday & { date: string; lateMinutes: number };
+
+export async function getAttendanceForOutletInRange(outletId: string, fromDate: string, toDateExcl: string): Promise<OutletAttendanceRangeRow[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("attendance_events")
+    .select("employee_id, date, check_in_at, check_out_at, status, late_minutes")
+    .eq("outlet_id", outletId)
+    .gte("date", fromDate)
+    .lt("date", toDateExcl);
+  if (error || !data) return [];
+  return (data as Pick<AttendanceRow, "employee_id" | "date" | "check_in_at" | "check_out_at" | "status" | "late_minutes">[]).map((row) => ({
+    employeeId: row.employee_id,
+    date: row.date,
+    checkInAt: row.check_in_at,
+    checkOutAt: row.check_out_at,
+    status: row.status,
+    lateMinutes: row.late_minutes ?? 0,
+  }));
+}
+
 export async function getAttendanceForOutletOnDate(outletId: string, date: string): Promise<OutletAttendanceToday[]> {
   const supabase = await createClient();
   const { data, error } = await supabase

@@ -65,6 +65,19 @@ export async function getScheduleExceptions(outletId: string, date: string): Pro
  * check-the-roster routine), this is for staff planning AHEAD — seeing
  * what's already been marked for the coming days, not just today.
  */
+/** Exception jadwal satu outlet dalam rentang [fromDate, toDateExcl) — untuk rekap bulanan kinerja (hari cuti/libur mengurangi hari kerja yang diharapkan). */
+export async function getScheduleExceptionsInRange(outletId: string, fromDate: string, toDateExcl: string): Promise<ScheduleException[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("employee_schedule_exceptions")
+    .select("*")
+    .eq("outlet_id", outletId)
+    .gte("date", fromDate)
+    .lt("date", toDateExcl);
+  if (error || !data) return [];
+  return (data as ScheduleExceptionRow[]).map(mapRow);
+}
+
 export async function getUpcomingScheduleExceptions(outletId: string, fromDate: string): Promise<ScheduleException[]> {
   const supabase = await createClient();
   const { data, error } = await supabase

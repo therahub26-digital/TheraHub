@@ -2,7 +2,9 @@ import Icon from "@/components/Icon";
 import { Badge } from "@/components/ui";
 import MobileShell from "@/components/MobileShell";
 import CancelBookingButton from "@/components/CancelBookingButton";
+import CustomerReviewForm from "@/components/CustomerReviewForm";
 import { getCurrentCustomer } from "@/lib/data/customers";
+import { getReviewsForCustomer } from "@/lib/data/reviews";
 import { getBookingsForCustomer, getEffectiveToday } from "@/lib/data/bookings";
 import { ME_CUSTOMER, BOOKINGS as MOCK_BOOKINGS, TODAY as MOCK_TODAY } from "@/lib/mock";
 import { rp, fmtDateShort, fmtTime } from "@/lib/format";
@@ -33,6 +35,11 @@ export default async function HistoryPage() {
   const bookings = live
     ? (await getBookingsForCustomer(me.id)).sort((a, b) => b.date.localeCompare(a.date))
     : MOCK_BOOKINGS.filter((b) => b.customerId === me.id).sort((a, b) => b.date.localeCompare(a.date));
+
+  // Penilaian kunjungan (0038): kunjungan PAID yang belum dinilai dapat
+  // tombol "Beri Penilaian"; yang sudah, menampilkan bintangnya.
+  const myReviews = live ? await getReviewsForCustomer(me.id) : [];
+  const reviewByBooking = new Map(myReviews.map((r) => [r.bookingId, r]));
 
   const upcoming = bookings.filter((b) => b.date >= today && !["CANCELLED", "NO_SHOW"].includes(b.status));
   const past = bookings.filter((b) => b.date < today || ["CANCELLED", "NO_SHOW"].includes(b.status));
@@ -84,21 +91,35 @@ export default async function HistoryPage() {
             <div className="small dim" style={{ textAlign: "center", padding: "12px 0" }}>Belum ada riwayat kunjungan.</div>
           ) : (
             <div className="stack g2">
-              {past.slice(0, 15).map((b) => (
-                <div key={b.id} className="m-row">
-                  <span className="stat-icon" style={{ width: 32, height: 32, borderRadius: 9, flexShrink: 0 }}>
-                    <Icon name="hand-heart" size={14} />
-                  </span>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div className="tiny bold truncate" style={{ color: "var(--text-1)" }}>{b.packageName}</div>
-                    <div className="tiny dim truncate">{fmtDateShort(b.date)} · {b.therapistName || "—"}</div>
+              {past.slice(0, 15).map((b) => {
+                const review = reviewByBooking.get(b.id);
+                const canReview = live && b.status === "PAID" && !!b.therapistId && !review;
+                return (
+                  <div key={b.id} className="m-card m-card-tight">
+                    <div className="m-row" style={{ padding: 0, background: "transparent", border: "none" }}>
+                      <span className="stat-icon" style={{ width: 32, height: 32, borderRadius: 9, flexShrink: 0 }}>
+                        <Icon name="hand-heart" size={14} />
+                      </span>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div className="tiny bold truncate" style={{ color: "var(--text-1)" }}>{b.packageName}</div>
+                        <div className="tiny dim truncate">{fmtDateShort(b.date)} · {b.therapistName || "—"}</div>
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <div className="tiny bold" style={{ color: "var(--text-1)" }}>{rp(b.price, { short: true })}</div>
+                        <Badge tone={b.status === "PAID" ? "success" : b.status === "CANCELLED" ? "neutral" : "danger"}>{b.status.replace(/_/g, " ")}</Badge>
+                      </div>
+                    </div>
+                    {review && (
+                      <div className="tiny" style={{ marginTop: 8 }}>
+                        <span style={{ color: "var(--gold)" }}>{"★".repeat(review.rating)}</span>
+                        <span style={{ color: "var(--text-3)" }}>{"★".repeat(5 - review.rating)}</span>
+                        <span className="dim"> · Penilaian Anda{review.comment ? ` — "${review.comment}"` : ""}</span>
+                      </div>
+                    )}
+                    {canReview && <CustomerReviewForm bookingId={b.id} therapistName={b.therapistName || ""} />}
                   </div>
-                  <div style={{ textAlign: "right" }}>
-                    <div className="tiny bold" style={{ color: "var(--text-1)" }}>{rp(b.price, { short: true })}</div>
-                    <Badge tone={b.status === "PAID" ? "success" : b.status === "CANCELLED" ? "neutral" : "danger"}>{b.status.replace(/_/g, " ")}</Badge>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

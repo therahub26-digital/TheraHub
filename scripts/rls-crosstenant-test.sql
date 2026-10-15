@@ -1,5 +1,5 @@
 -- ============================================================
--- scripts/rls-crosstenant-test.sql  — v2 (2026-10-15)
+-- scripts/rls-crosstenant-test.sql  — v2.1 (2026-10-15)
 -- UJI ISOLASI RLS LINTAS-TENANT (handover §14.3 no.1 — prasyarat
 -- mutlak sebelum tenant/klien kedua).
 --
@@ -53,7 +53,9 @@ declare
   n int; tot int; bocor int;
   ok_tables text[] := '{}'; fail_tables text[] := '{}';
   src jsonb; ov jsonb;
-  bk_payload jsonb;   -- disiapkan sebagai postgres: setelah ganti peran, booking B memang tak terbaca
+  bk_payload jsonb;
+  bmap jsonb := '{}'::jsonb;   -- nama tabel → id baris Tenant B hasil klon (untuk menyambung FK anak ke induk B)
+  fk record;   -- disiapkan sebagai postgres: setelah ganti peran, booking B memang tak terbaca
   key text;
   keycols text[] := array['tenant_id','outlet_id','employee_id','therapist_id','customer_id','booking_id'];
 begin
@@ -80,20 +82,38 @@ begin
         end loop;
         execute format('insert into public.%1$I select * from jsonb_populate_record(null::public.%1$I, $1)', r.t) using src || ov;
         ok_tables := ok_tables || r.t;
+        bmap := bmap || jsonb_build_object(r.t, (src || ov)->>'id');
       exception when others then
         fail_tables := fail_tables || (r.t || ': ' || sqlerrm);
       end;
     end loop;
 
     -- sisa tabel ber-kunci kepemilikan: klon 1 baris, alihkan semua kunci ke B
+    -- v2.1 (temuan UAT 2026-10-15): urutan INDUK SEBELUM ANAK + FK disambung ke
+    -- baris induk Tenant B. Tanpa ini, transaction_items hasil klon tetap
+    -- menunjuk transaksi Tenant A, dan staf A "melihat" item yang memang
+    -- berada di transaksinya sendiri → BOCOR palsu.
     for r in
-      select distinct c.table_name as t
-        from information_schema.columns c
-        join information_schema.tables x on x.table_schema = c.table_schema and x.table_name = c.table_name
-       where c.table_schema = 'public' and x.table_type = 'BASE TABLE'
-         and c.column_name = any (keycols)
-         and c.table_name not in ('tenants','outlets','employees','customers','bookings')
-       order by 1
+      with recursive cand as (
+        select distinct c.table_name::text as t
+          from information_schema.columns c
+          join information_schema.tables x on x.table_schema = c.table_schema and x.table_name = c.table_name
+         where c.table_schema = 'public' and x.table_type = 'BASE TABLE'
+           and c.column_name = any (keycols)
+           and c.table_name not in ('tenants','outlets','employees','customers','bookings')
+      ), fkg as (
+        select ct.relname::text as child, cf.relname::text as parent
+          from pg_constraint k
+          join pg_class ct on ct.oid = k.conrelid
+          join pg_class cf on cf.oid = k.confrelid
+         where k.contype = 'f' and ct.relnamespace = 'public'::regnamespace and k.conrelid <> k.confrelid
+      ), d (t, depth) as (
+        select t, 0 from cand
+        union all
+        select fkg.child, d.depth + 1 from fkg join d on fkg.parent = d.t
+         where d.depth < 12 and fkg.child in (select t from cand)
+      )
+      select t, max(depth) as depth from d group by t order by 2, 1
     loop
       begin
         execute format('select to_jsonb(x) from public.%I x limit 1', r.t) into src;
@@ -111,8 +131,21 @@ begin
         foreach key in array array['slug','code','receipt_prefix','email','phone','ref','receipt_no','invoice_no'] loop
           if src ? key and jsonb_typeof(src->key) = 'string' then ov := ov || jsonb_build_object(key, (src->>key) || '-' || sfx); end if;
         end loop;
+        -- sambungkan setiap FK satu-kolom ke baris induk Tenant B yang sudah diklon
+        for fk in
+          select a.attname::text as col, cf.relname::text as parent
+            from pg_constraint k
+            join pg_class ct on ct.oid = k.conrelid
+            join pg_class cf on cf.oid = k.confrelid
+            join pg_attribute a on a.attrelid = k.conrelid and a.attnum = k.conkey[1]
+           where k.contype = 'f' and ct.relname = r.t and ct.relnamespace = 'public'::regnamespace
+             and array_length(k.conkey, 1) = 1 and k.conrelid <> k.confrelid
+        loop
+          if src ? fk.col and bmap ? fk.parent then ov := ov || jsonb_build_object(fk.col, bmap->>fk.parent); end if;
+        end loop;
         execute format('insert into public.%1$I select * from jsonb_populate_record(null::public.%1$I, $1)', r.t) using src || ov;
         ok_tables := ok_tables || r.t;
+        if (src || ov) ? 'id' then bmap := bmap || jsonb_build_object(r.t, (src || ov)->>'id'); end if;
       exception when others then
         fail_tables := fail_tables || (r.t || ': ' || left(sqlerrm, 80));
       end;

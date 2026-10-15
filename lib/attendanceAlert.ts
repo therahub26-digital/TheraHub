@@ -51,6 +51,18 @@ export function computeAttendanceAlert(input: {
   now: string;
   /** Jam masuk outlet "HH:mm" (outlets.work_start_time, default 10:00). */
   workStart: string;
+  /**
+   * Jam pulang outlet "HH:mm" (outlets.work_end_time, default 22:00).
+   * TEMUAN UAT 2026-10-15 (F5): tanpa batas ini alert tidak pernah
+   * tutup — pukul 21:54 semua terapis masih merah "lewat 714 mnt", dan
+   * setelah jam pulang angkanya terus bertambah. Mulai jam pulang alert
+   * berhenti (hari kerja sudah usai; tidak ada yang bisa diperbaiki
+   * lagi dengan absen). Opsional supaya pemanggil lama tetap jalan.
+   * Shift lintas tengah malam (pulang ≤ masuk, mis. 14:00–02:00):
+   * jendela berlaku dari T−5 sampai 23:59 hari itu; bagian dini hari
+   * sesudah tengah malam milik tanggal berikutnya dan tidak dialarmkan.
+   */
+  workEnd?: string;
   /** Sudah check-in hari ini? */
   checkedIn: boolean;
   /** Ada keterangan sah hari ini? (lihat doc di atas) */
@@ -60,7 +72,23 @@ export function computeAttendanceAlert(input: {
   const nowMin = hhmmToMin(input.now);
   const startMin = hhmmToMin(input.workStart);
   if (nowMin < 0 || startMin < 0) return { kind: "none" };
+  const endMin = input.workEnd ? hhmmToMin(input.workEnd) : -1;
+  if (endMin > startMin && nowMin >= endMin) return { kind: "none" };
   if (nowMin < startMin - ATTENDANCE_ALERT_LEAD_MIN) return { kind: "none" };
   if (nowMin < startMin) return { kind: "due", workStart: input.workStart };
   return { kind: "late", workStart: input.workStart, minutesLate: nowMin - startMin };
+}
+
+/**
+ * Fase hari kerja outlet saat ini — untuk kalimat kartu manager
+ * ("belum memasuki jendela alert" vs "jam kerja sudah selesai").
+ */
+export function attendanceWindowPhase(now: string, workStart: string, workEnd?: string): "before" | "open" | "after" {
+  const nowMin = hhmmToMin(now);
+  const startMin = hhmmToMin(workStart);
+  const endMin = workEnd ? hhmmToMin(workEnd) : -1;
+  if (nowMin < 0 || startMin < 0) return "before";
+  if (endMin > startMin && nowMin >= endMin) return "after";
+  if (nowMin < startMin - ATTENDANCE_ALERT_LEAD_MIN) return "before";
+  return "open";
 }

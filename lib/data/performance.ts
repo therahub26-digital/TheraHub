@@ -41,8 +41,15 @@ export type TherapistPerformanceRow = {
   lateMinutesTotal: number;
   /** Hari yang sudah berlalu bulan itu minus hari cuti/libur tercatat. 0 untuk bulan depan. */
   expectedDays: number;
-  /** presentDays / expectedDays, null bila expectedDays 0. */
+  /** presentDays / expectedDays, null bila expectedDays 0 ATAU outlet belum punya data absensi bulan itu. */
   attendancePct: number | null;
+  /**
+   * TEMUAN UAT 2026-10-15 (F6): false bila SELURUH outlet tidak punya satu
+   * pun baris absensi di bulan itu — artinya absensi GPS belum dipakai,
+   * bukan semua terapis bolos. Ditampilkan "Belum ada data absensi",
+   * bukan "0/15 hari (0%)" (prinsip §6.3: belum ada data ≠ nol).
+   */
+  attendanceTracked: boolean;
   /** Keterangan tercatat bulan itu (status bukan REJECTED), per jenis. */
   leaveSick: number;
   leaveOff: number;
@@ -99,6 +106,7 @@ export async function getTherapistPerformance(outletId: string, period: string, 
   }
 
   const managementByTherapist = new Map(managementReviews.map((r) => [r.employeeId, r]));
+  const attendanceTracked = attendance.some((a) => a.checkInAt);
 
   return therapists.map((t) => {
     const att = attendance.filter((a) => a.employeeId === t.id && a.checkInAt);
@@ -131,7 +139,8 @@ export async function getTherapistPerformance(outletId: string, period: string, 
       lateCount: lateRows.length,
       lateMinutesTotal: lateRows.reduce((s, a) => s + a.lateMinutes, 0),
       expectedDays,
-      attendancePct: expectedDays > 0 ? (presentDays / expectedDays) * 100 : null,
+      attendancePct: attendanceTracked && expectedDays > 0 ? (presentDays / expectedDays) * 100 : null,
+      attendanceTracked,
       leaveSick: myLeave.filter((r) => r.type === "LEAVE").length,
       leaveOff: myLeave.filter((r) => r.type === "OFF").length,
       leaveLate: myLeave.filter((r) => r.type === "LATE").length,

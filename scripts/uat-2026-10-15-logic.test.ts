@@ -2,7 +2,7 @@
 // Tanpa database; menguji fungsi yang menentukan perilaku alert absensi,
 // jendela bulan rekap kinerja, dan urutan tabel kinerja.
 import assert from "node:assert/strict";
-import { computeAttendanceAlert, ATTENDANCE_ALERT_LEAD_MIN } from "@/lib/attendanceAlert";
+import { computeAttendanceAlert, attendanceWindowPhase, ATTENDANCE_ALERT_LEAD_MIN } from "@/lib/attendanceAlert";
 import { monthWindow } from "@/lib/data/performance";
 import { sortPerformanceRows } from "@/components/TherapistPerformanceTable";
 import type { TherapistPerformanceRow } from "@/lib/data/performance";
@@ -53,7 +53,7 @@ t("MW5", "September → 30 hari", () => assert.equal(monthWindow("2026-09").days
 function row(p: Partial<TherapistPerformanceRow> & { name: string }): TherapistPerformanceRow {
   return {
     id: p.name, code: "X", avatarTone: "teal", photoUrl: null,
-    guests: 0, presentDays: 0, lateCount: 0, lateMinutesTotal: 0, expectedDays: 0, attendancePct: null,
+    guests: 0, presentDays: 0, lateCount: 0, lateMinutesTotal: 0, expectedDays: 0, attendancePct: null, attendanceTracked: true,
     leaveSick: 0, leaveOff: 0, leaveLate: 0, customerAvg: null, customerCount: 0, management: null,
     ...p,
   };
@@ -79,6 +79,24 @@ t("SO10", "Tidak memutasi array asli", () => {
   sortPerformanceRows(rows, "guests", true);
   assert.equal(names(rows), before);
 });
+
+
+// ------------------------------------------- F5: alert tutup di jam pulang (regresi UAT browser)
+const withEnd = { ...base, workEnd: "22:00" };
+t("F5a", "21:54 belum absen → masih late (6 menit sebelum pulang)", () => assert.equal(computeAttendanceAlert({ ...withEnd, now: "21:54" }).kind, "late"));
+t("F5b", "22:00 tepat jam pulang → none (alert tutup)", () => assert.equal(computeAttendanceAlert({ ...withEnd, now: "22:00" }).kind, "none"));
+t("F5c", "23:30 → none, menit tidak terus bertambah", () => assert.equal(computeAttendanceAlert({ ...withEnd, now: "23:30" }).kind, "none"));
+t("F5d", "Shift lintas tengah malam 14:00–02:00: 23:30 → late 570", () => {
+  const r = computeAttendanceAlert({ ...base, workStart: "14:00", workEnd: "02:00", now: "23:30" });
+  assert.equal(r.kind === "late" && r.minutesLate, 570);
+});
+t("F5e", "Fase kartu manager: before / open / after", () => {
+  assert.equal(attendanceWindowPhase("09:00", "10:00", "22:00"), "before");
+  assert.equal(attendanceWindowPhase("09:55", "10:00", "22:00"), "open");
+  assert.equal(attendanceWindowPhase("21:59", "10:00", "22:00"), "open");
+  assert.equal(attendanceWindowPhase("22:00", "10:00", "22:00"), "after");
+});
+t("F5f", "Tanpa workEnd (pemanggil lama) → perilaku lama", () => assert.equal(computeAttendanceAlert({ ...base, now: "23:30" }).kind, "late"));
 
 // ------------------------------------------------------------- laporan
 for (const r of results) console.log(`${r.ok ? "L" : "G"}  ${r.id.padEnd(5)} ${r.name}${r.ok ? "" : `\n      → ${r.detail}`}`);

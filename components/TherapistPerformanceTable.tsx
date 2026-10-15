@@ -147,7 +147,11 @@ export default function TherapistPerformanceTable({
               </td>
               <td className="num strong">{t.guests}</td>
               <td>
-                {t.expectedDays > 0 ? (
+                {!t.attendanceTracked && t.expectedDays > 0 ? (
+                  <span className="tiny dim" title="Tidak ada satu pun check-in di outlet ini pada bulan tersebut — absensi GPS belum dipakai, bukan berarti terapis tidak hadir.">
+                    Belum ada data absensi
+                  </span>
+                ) : t.expectedDays > 0 ? (
                   <span className="small">
                     <span className="strong" style={{ color: "var(--text-1)" }}>{t.presentDays}/{t.expectedDays} hari</span>{" "}
                     <span className="tiny dim">({Math.min(100, Math.round(t.attendancePct ?? 0))}%)</span>

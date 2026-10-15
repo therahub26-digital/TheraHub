@@ -60,6 +60,7 @@ export default async function AttendancePage() {
     const attendanceAlert = computeAttendanceAlert({
       now,
       workStart: outlet.workStartTime,
+      workEnd: outlet.workEndTime,
       checkedIn,
       hasExcuse:
         todayExceptions.some((e) => e.employeeId === signedIn.id) ||

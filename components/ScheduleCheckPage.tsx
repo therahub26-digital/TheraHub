@@ -3,7 +3,7 @@ import { getCurrentOutlet } from "@/lib/data/outlets";
 import { getTherapistsForOutlet } from "@/lib/data/employees";
 import { getBookingsForOutlet, getEffectiveToday, getEffectiveNow } from "@/lib/data/bookings";
 import { getAttendanceForOutletOnDate } from "@/lib/data/attendance";
-import { computeAttendanceAlert, ATTENDANCE_ALERT_LEAD_MIN } from "@/lib/attendanceAlert";
+import { computeAttendanceAlert, attendanceWindowPhase, ATTENDANCE_ALERT_LEAD_MIN } from "@/lib/attendanceAlert";
 import { fmtTime } from "@/lib/format";
 import { getScheduleExceptions, getUpcomingScheduleExceptions } from "@/lib/data/scheduleExceptions";
 import { getLeaveRequestsForOutlet } from "@/lib/data/leaveRequests";
@@ -112,6 +112,7 @@ export default async function ScheduleCheckPage() {
     const alert = computeAttendanceAlert({
       now,
       workStart: outlet.workStartTime,
+      workEnd: outlet.workEndTime,
       checkedIn: !!att,
       hasExcuse: !!exc || !!req,
     });
@@ -120,8 +121,10 @@ export default async function ScheduleCheckPage() {
   const missing = rollCall.filter((r) => r.alert.kind !== "none");
   // Jendela alert outlet ini sedang aktif? (probe tanpa check-in/keterangan
   // — persis definisi jendelanya sendiri, T−5 menit dan seterusnya.)
-  const alertWindowOpen =
-    computeAttendanceAlert({ now, workStart: outlet.workStartTime, checkedIn: false, hasExcuse: false }).kind !== "none";
+  // Fase hari kerja: sebelum jendela (T−5), terbuka, atau sudah lewat jam
+  // pulang (temuan UAT F5 — dulu kartu tetap merah sampai tengah malam).
+  const windowPhase = attendanceWindowPhase(now, outlet.workStartTime, outlet.workEndTime);
+  const alertWindowOpen = windowPhase === "open";
 
   return (
     <>
@@ -147,11 +150,18 @@ export default async function ScheduleCheckPage() {
             sub={
               alertWindowOpen
                 ? `Jam masuk ${outlet.workStartTime} · ${missing.length} terapis belum absen tanpa keterangan`
-                : `Jam masuk ${outlet.workStartTime} — alert aktif ${ATTENDANCE_ALERT_LEAD_MIN} menit sebelumnya`
+                : windowPhase === "after"
+                  ? `Jam kerja ${outlet.workStartTime}–${outlet.workEndTime} · sudah selesai hari ini`
+                  : `Jam masuk ${outlet.workStartTime} — alert aktif ${ATTENDANCE_ALERT_LEAD_MIN} menit sebelumnya`
             }
           />
           <div className="card-body">
-            {!alertWindowOpen ? (
+            {windowPhase === "after" ? (
+              <div className="small dim">
+                Jam kerja hari ini sudah selesai (pulang {outlet.workEndTime}) — alert absensi tidak aktif lagi.
+                Rekap kehadiran bulanan ada di menu Kinerja Terapis.
+              </div>
+            ) : !alertWindowOpen ? (
               <div className="small dim">
                 Belum memasuki jendela alert. Daftar terapis yang belum absen tanpa keterangan muncul di sini mulai{" "}
                 {ATTENDANCE_ALERT_LEAD_MIN} menit sebelum jam masuk ({outlet.workStartTime}).

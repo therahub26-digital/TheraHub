@@ -69,6 +69,7 @@ export default async function TherapistHomePage() {
     const attendanceAlert = computeAttendanceAlert({
       now,
       workStart: outlet.workStartTime,
+      workEnd: outlet.workEndTime,
       checkedIn: !!todayAttendance?.checkInAt,
       hasExcuse:
         todayExceptions.some((e) => e.employeeId === me.id) ||

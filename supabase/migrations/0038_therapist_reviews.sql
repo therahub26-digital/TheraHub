@@ -1,7 +1,8 @@
 -- ---------------------------------------------------------------------
 -- 0038_therapist_reviews.sql
 --
--- STATUS: DRAFT — belum dijalankan ke produksi.
+-- STATUS: SUDAH DITERAPKAN — dijalankan Adjie via SQL Editor 2026-10-15
+-- 19:49 WIB, "Success. No rows returned" (screenshot snippet 038).
 -- Jalankan SEBELUM deploy kode gelombang "review kinerja terapis" —
 -- halaman kinerja & form rating customer membaca/menulis kedua tabel
 -- ini. Tanpa migrasi, pembacaannya jatuh ke "belum ada data" (error

@@ -1,7 +1,8 @@
 -- ---------------------------------------------------------------------
 -- 0037_leave_request_auto_record.sql
 --
--- STATUS: DRAFT — belum dijalankan ke produksi.
+-- STATUS: SUDAH DITERAPKAN — dijalankan Adjie via SQL Editor 2026-10-15
+-- 19:48 WIB setelah 0036, "Success. No rows returned" (screenshot snippet 037).
 -- Jalankan SETELAH 0036 (butuh jenis 'LATE' di CHECK), dan SEBELUM
 -- deploy kode gelombang ini — tanpa trigger ini kode tetap aman
 -- (pengajuan sekadar tinggal PENDING dan alur ACC lama masih bekerja),

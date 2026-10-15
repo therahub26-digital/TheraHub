@@ -1,8 +1,9 @@
 -- ---------------------------------------------------------------------
 -- 0036_work_hours_and_late_excuse.sql
 --
--- STATUS: DRAFT — belum dijalankan ke produksi.
--- ⚠️ URUTAN DEPLOY: jalankan migrasi ini DULU, baru push/deploy kode
+-- STATUS: SUDAH DITERAPKAN — dijalankan Adjie via SQL Editor 2026-10-15
+-- 19:48 WIB, "Success. No rows returned" (screenshot snippet 036).
+-- ⚠️ URUTAN DEPLOY (sudah terpenuhi): jalankan migrasi ini DULU, baru push/deploy kode
 -- yang memakainya. lib/actions/outlets.ts (setOutletIdentity) menulis
 -- kolom work_start_time/work_end_time secara eksplisit — tanpa kolomnya,
 -- tombol simpan outlet di /admin/outlets gagal total. Jalur BACA sudah

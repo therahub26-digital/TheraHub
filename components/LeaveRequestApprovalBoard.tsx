@@ -9,18 +9,21 @@ import { fmtDateLong, fmtDateTime } from "@/lib/format";
 import type { LeaveRequestStatus, LeaveRequestType } from "@/lib/data/leaveRequests";
 
 // ---------------------------------------------------------------------
-// Manager/kasir side of the therapist leave-request workflow (user,
-// 2026-08-23: "di role terapis ajukan cuti dan disetujui manager", then
-// "manager & kasir bisa menyetujui" when asked who). Approving here
-// calls approveLeaveRequest() (lib/actions/leaveRequests.ts), which both
-// marks this request row APPROVED and writes the real OFF/LEAVE
-// exception to employee_schedule_exceptions in the same action — so an
-// approved request shows up in LeavePlanBoard/ScheduleCheckBoard above
-// with no separate step.
+// Manager/kasir side of the therapist keterangan workflow.
 //
-// Only PENDING requests get action buttons; APPROVED/REJECTED ones are
-// shown read-only underneath as a short recent-decisions log so staff
-// can see what was already decided without a second page.
+// SEJAK 0037 INI PAPAN PEMBERITAHUAN, BUKAN PAPAN PERSETUJUAN (Adjie
+// 2026-10-15: "tidak usah minta ijin, hanya pemberitahuan dan tercatat
+// saja, takutnya si manager terlewatkan"). Keterangan terapis tercatat
+// otomatis oleh trigger database begitu dikirim — Cuti/Sakit & Libur
+// sekaligus menulis exception jadwal (tidak bekerja hari itu, muncul di
+// LeavePlanBoard/ScheduleCheckBoard tanpa langkah apa pun), Ijin Masuk
+// Siang hanya tercatat. Daftar di bawah adalah catatannya, supaya tidak
+// terlewat; yang perlu "dibatalkan" dikerjakan manager lewat Roster
+// (set Tersedia) seperti biasa.
+//
+// Tombol Setujui/Tolak dipertahankan HANYA untuk baris PENDING warisan
+// alur ACC lama (pra-0037, atau database yang belum menjalankan
+// migrasinya) — baris baru tidak pernah PENDING.
 // ---------------------------------------------------------------------
 
 export type RequestTherapist = { id: string; name: string; code: string; avatarTone: string; photoUrl: string | null };
@@ -83,7 +86,9 @@ export default function LeaveRequestApprovalBoard({
       )}
 
       {pending.length === 0 ? (
-        <div className="small dim">Tidak ada pengajuan cuti yang menunggu keputusan.</div>
+        <div className="small dim">
+          Keterangan terapis tercatat otomatis — tidak ada yang menunggu persetujuan. Daftar terbaru di bawah.
+        </div>
       ) : (
         <div className="stack g2">
           {pending.map((r) => {
@@ -116,14 +121,14 @@ export default function LeaveRequestApprovalBoard({
 
       {decided.length > 0 && (
         <div>
-          <div className="tiny dim" style={{ marginBottom: 6 }}>Keputusan terbaru</div>
+          <div className="tiny dim" style={{ marginBottom: 6 }}>Keterangan terbaru</div>
           <div className="stack g1">
             {decided.map((r) => {
               const t = therapistById.get(r.employeeId);
               return (
                 <div key={r.id} className="row between tiny" style={{ padding: "4px 0" }}>
-                  <span className="dim">{t?.name ?? "—"} · {fmtDateLong(r.date)} · {TYPE_LABEL[r.type]}</span>
-                  <Badge tone={r.status === "APPROVED" ? "success" : "neutral"}>{r.status === "APPROVED" ? "Disetujui" : "Ditolak"}</Badge>
+                  <span className="dim">{t?.name ?? "—"} · {fmtDateLong(r.date)} · {TYPE_LABEL[r.type]}{r.note ? ` · ${r.note}` : ""}</span>
+                  <Badge tone={r.status === "APPROVED" ? "success" : "neutral"}>{r.status === "APPROVED" ? "Tercatat" : "Ditolak"}</Badge>
                 </div>
               );
             })}

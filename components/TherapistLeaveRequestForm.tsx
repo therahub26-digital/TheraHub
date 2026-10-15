@@ -27,9 +27,12 @@ import type { LeaveRequestStatus, LeaveRequestType } from "@/lib/data/leaveReque
 
 export type MyLeaveRequest = { id: string; date: string; type: LeaveRequestType; note: string | null; status: LeaveRequestStatus };
 
+// Sejak 0037 keterangan tercatat otomatis — APPROVED praktis berarti
+// "Tercatat" (decided_by kosong, decision_note "Tercatat otomatis").
+// PENDING/REJECTED hanya muncul pada baris warisan alur ACC lama.
 const STATUS_LABEL: Record<LeaveRequestStatus, string> = {
   PENDING: "Menunggu",
-  APPROVED: "Disetujui",
+  APPROVED: "Tercatat",
   REJECTED: "Ditolak",
 };
 const STATUS_TONE: Record<LeaveRequestStatus, "warning" | "success" | "danger"> = {
@@ -84,6 +87,10 @@ export default function TherapistLeaveRequestForm({ minDate, requests }: { minDa
             <option value="LATE">Ijin Masuk Siang</option>
           </select>
         </label>
+        <div className="tiny dim">
+          Cuti/Sakit dan Libur langsung menandai Anda <b>tidak bekerja</b> pada tanggal itu (tidak bisa
+          dibooking). Ijin Masuk Siang hanya tercatat — Anda tetap bekerja.
+        </div>
         <label className="stack g1">
           <span className="tiny dim">Alasan (opsional)</span>
           <input className="input" value={note} disabled={isPending} onChange={(e) => setNote(e.target.value)} placeholder="mis. sakit, acara keluarga" />
@@ -91,7 +98,7 @@ export default function TherapistLeaveRequestForm({ minDate, requests }: { minDa
         <button className="m-btn m-btn-primary" disabled={isPending || !date} onClick={submit}>
           <Icon name="calendar-plus" size={15} /> {isPending ? "Mengirim…" : "Kirim Pengajuan"}
         </button>
-        {sent && !error && <div className="tiny" style={{ color: "var(--success, #2e9e5b)" }}>Pengajuan terkirim, menunggu persetujuan manager/kasir.</div>}
+        {sent && !error && <div className="tiny" style={{ color: "var(--success, #2e9e5b)" }}>Keterangan tercatat dan langsung terlihat oleh manager/kasir — tidak perlu menunggu persetujuan.</div>}
         {error && (
           <div className="tiny" style={{ color: "var(--danger)" }}>
             <Icon name="alert-triangle" size={11} style={{ verticalAlign: "-1px", marginRight: 3 }} />

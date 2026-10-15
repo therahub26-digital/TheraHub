@@ -54,11 +54,22 @@ function revalidateLeave() {
 }
 
 /**
- * Therapist submits a leave/sick-day, plain day-off, OR late-arrival
- * ("Ijin Masuk Siang", type LATE — migrasi 0036) request for a future
+ * Therapist sends a leave/sick-day, plain day-off, OR late-arrival
+ * ("Ijin Masuk Siang", type LATE — migrasi 0036) note for a future
  * (or today's) date. Today is deliberately allowed: the attendance
  * alert's "Kirim Keterangan" path is exactly a same-day submission
  * (sakit dadakan / keperluan mendadak / ijin masuk siang).
+ *
+ * SEJAK 0037 TIDAK ADA LAGI PERSETUJUAN (Adjie 2026-10-15: "tidak usah
+ * minta ijin, hanya pemberitahuan dan tercatat saja, takutnya si
+ * manager terlewatkan"). Baris tetap di-insert PENDING lewat RLS biasa
+ * (policy insert terapis memang mewajibkan PENDING); trigger database
+ * `leave_request_auto_record` (SECURITY DEFINER, migrasi 0037) yang
+ * langsung menaikkannya jadi APPROVED "Tercatat otomatis" dan — untuk
+ * Cuti/Sakit & Libur — menulis exception jadwal sehingga terapisnya
+ * otomatis tidak bekerja hari itu. LATE tidak menulis exception.
+ * Pada database yang belum menjalankan 0037, baris tinggal PENDING dan
+ * alur ACC lama di bawah masih bekerja — aman dua arah.
  */
 export async function requestLeave(date: string, type: "OFF" | "LEAVE" | "LATE", note?: string): Promise<ActionResult> {
   const { supabase, employee, error } = await resolveSignedInEmployee();
@@ -67,17 +78,29 @@ export async function requestLeave(date: string, type: "OFF" | "LEAVE" | "LATE",
   const today = todayIsoDate();
   if (date < today) return { ok: false, error: "Tidak bisa mengajukan cuti untuk tanggal yang sudah lewat." };
 
-  // One PENDING request per date per therapist — a second ask before the
-  // first is decided would leave the manager/kasir approving duplicates
-  // for the same day.
+  // Satu keterangan hidup per tanggal per terapis. Dulu hanya PENDING
+  // yang ditolak (duplikat menunggu ACC); sekarang keterangan langsung
+  // tercatat, jadi APPROVED pada tanggal yang sama pun duplikat —
+  // kiriman kedua akan menimpa catatan pertama lewat upsert trigger
+  // tanpa ada yang menyadarinya. Hanya REJECTED (warisan alur lama)
+  // yang boleh dikirim ulang.
   const { data: existing } = await supabase
     .from("employee_leave_requests")
-    .select("id")
+    .select("id, status")
     .eq("employee_id", employee.id)
     .eq("date", date)
-    .eq("status", "PENDING")
+    .in("status", ["PENDING", "APPROVED"])
+    .limit(1)
     .maybeSingle();
-  if (existing) return { ok: false, error: "Sudah ada pengajuan cuti yang menunggu keputusan untuk tanggal ini." };
+  if (existing) {
+    return {
+      ok: false,
+      error:
+        existing.status === "PENDING"
+          ? "Sudah ada pengajuan yang menunggu keputusan untuk tanggal ini."
+          : "Sudah ada keterangan tercatat untuk tanggal ini — hubungi manager bila perlu diubah.",
+    };
+  }
 
   const { error: insertErr } = await supabase.from("employee_leave_requests").insert({
     employee_id: employee.id,
@@ -98,11 +121,13 @@ export async function requestLeave(date: string, type: "OFF" | "LEAVE" | "LATE",
 }
 
 /**
- * Manager or kasir approves a PENDING request: marks it APPROVED, then
- * writes the actual LEAVE exception to employee_schedule_exceptions —
- * the table every booking-conflict check already reads from. The
- * request row itself never drives scheduling; approving it is what
- * does, exactly once, here.
+ * LEGACY sejak 0037 (keterangan tercatat otomatis lewat trigger —
+ * lihat requestLeave di atas): dipertahankan hanya untuk baris PENDING
+ * warisan sebelum migrasi itu, atau untuk database yang belum
+ * menjalankannya. Manager/kasir approves a PENDING request: marks it
+ * APPROVED, then writes the actual LEAVE exception to
+ * employee_schedule_exceptions — the table every booking-conflict
+ * check already reads from.
  */
 export async function approveLeaveRequest(requestId: string, decisionNote?: string): Promise<ActionResult> {
   const { supabase, employee, error } = await resolveSignedInEmployee();

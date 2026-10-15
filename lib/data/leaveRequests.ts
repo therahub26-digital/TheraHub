@@ -16,10 +16,11 @@ import { createClient } from "@/lib/supabase/server";
 export type LeaveRequestStatus = "PENDING" | "APPROVED" | "REJECTED";
 
 // "LATE" = Ijin Masuk Siang (migrasi 0036) — terapis tetap bekerja hari
-// itu, hanya datang terlambat dengan ijin. Beda dari OFF/LEAVE: saat
-// disetujui TIDAK ditulis ke employee_schedule_exceptions (terapis masih
-// bisa menerima booking); gunanya menekan alert absensi hari itu dan
-// memberi manager catatan resmi.
+// itu, hanya datang terlambat dengan ijin. Beda dari OFF/LEAVE: TIDAK
+// pernah ditulis ke employee_schedule_exceptions (terapis masih bisa
+// menerima booking); gunanya menekan alert absensi hari itu dan memberi
+// manager catatan. Sejak 0037 semua jenis tercatat OTOMATIS saat
+// dikirim (trigger leave_request_auto_record) — tidak ada ACC lagi.
 export type LeaveRequestType = "OFF" | "LEAVE" | "LATE";
 
 export type LeaveRequest = {

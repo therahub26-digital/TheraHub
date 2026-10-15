@@ -104,8 +104,8 @@ export default function AttendanceAlertBanner({
       </div>
       <div className="tiny dim" style={{ marginBottom: 10 }}>
         {late
-          ? `Anda terhitung terlambat ${minutesLate} menit dan belum ada keterangan. Absen sekarang, atau kirim keterangan (sakit dadakan, keperluan, atau ijin masuk siang) untuk disetujui manager.`
-          : `Jam masuk outlet Anda ${workStart}. Absen sekarang, atau kirim keterangan bila berhalangan — pengajuan akan diputuskan manager/kasir.`}
+          ? `Anda terhitung terlambat ${minutesLate} menit dan belum ada keterangan. Absen sekarang, atau kirim keterangan (sakit dadakan, keperluan, atau ijin masuk siang) — langsung tercatat dan terlihat manager.`
+          : `Jam masuk outlet Anda ${workStart}. Absen sekarang, atau kirim keterangan bila berhalangan — keterangan langsung tercatat tanpa perlu persetujuan.`}
       </div>
       <div className="row g2 wrap">
         {showAttendanceLink && (

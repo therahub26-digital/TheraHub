@@ -172,7 +172,7 @@ export default async function ScheduleCheckPage() {
                       <Badge tone="neutral" dot>{exc === "OFF" ? "Libur" : "Cuti/Sakit"}</Badge>
                     ) : req ? (
                       <Badge tone={req.status === "PENDING" ? "warning" : "info"} dot>
-                        {REQ_TYPE_LABEL[req.type]}{req.status === "PENDING" ? " · menunggu ACC" : " · disetujui"}
+                        {REQ_TYPE_LABEL[req.type]}{req.status === "PENDING" ? " · menunggu ACC" : " · tercatat"}
                       </Badge>
                     ) : (
                       <Badge tone="danger" dot>
@@ -195,11 +195,11 @@ export default async function ScheduleCheckPage() {
         <Card style={{ marginBottom: 20 }}>
           <CardHead
             title="Cuti & Libur Terapis"
-            sub={`${leaveRequests.filter((r) => r.status === "PENDING").length} pengajuan menunggu keputusan`}
+            sub={`${leaveRequests.filter((r) => r.date === today && r.status !== "REJECTED").length} keterangan untuk hari ini · tercatat otomatis, tanpa persetujuan`}
           />
           <div className="card-body">
             <div className="small strong" style={{ color: "var(--text-1)", marginBottom: 4 }}>
-              Pengajuan Cuti Terapis
+              Keterangan dari Terapis (tercatat otomatis)
             </div>
             <LeaveRequestApprovalBoard
               therapists={therapistBoardProps}

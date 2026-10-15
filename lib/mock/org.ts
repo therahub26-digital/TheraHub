@@ -14,6 +14,8 @@ export const OUTLETS: Outlet[] = [
     geofenceRadius: 120,
     accuracyThreshold: 45,
     openHours: "Setiap hari · 10:00–21:30",
+    workStartTime: "10:00",
+    workEndTime: "22:00",
     status: "ACTIVE",
     roomCount: 12,
     // Jumlah terapis dari "SQUAD TODAY" absen 20 Agustus 2026 (data nyata).
@@ -83,6 +85,8 @@ export const OUTLETS: Outlet[] = [
     // Google Maps: tutup 22:00; jam buka belum dikonfirmasi, diasumsikan sama
     // seperti Cikawao (10:00) sampai ada data pasti.
     openHours: "Setiap hari · 10:00–22:00",
+    workStartTime: "10:00",
+    workEndTime: "22:00",
     status: "ACTIVE",
     roomCount: 12,
     // Jumlah terapis dari "SQUAD TODAY" absen 20 Agustus 2026 (data nyata).

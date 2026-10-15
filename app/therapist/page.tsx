@@ -9,6 +9,10 @@ import { getSessionForTherapist } from "@/lib/data/sessions";
 import { getNotificationsForTherapist } from "@/lib/data/notifications";
 import { getTodayAttendanceForTherapist } from "@/lib/data/attendance";
 import { getBookingsForOutlet, getEffectiveToday, getEffectiveNow } from "@/lib/data/bookings";
+import { getScheduleExceptions } from "@/lib/data/scheduleExceptions";
+import { getMyLeaveRequests } from "@/lib/data/leaveRequests";
+import { computeAttendanceAlert } from "@/lib/attendanceAlert";
+import AttendanceAlertBanner from "@/components/AttendanceAlertBanner";
 import { rp, fmtTime } from "@/lib/format";
 import { getTenantTheme } from "@/lib/data/tenant";
 
@@ -49,12 +53,27 @@ export default async function TherapistHomePage() {
   const avatarTone = signedIn ? "teal" : ME_THERAPIST.avatarTone;
 
   if (signedIn) {
-    const [todaysBookings, activeSession, notifications, todayAttendance] = await Promise.all([
+    const [todaysBookings, activeSession, notifications, todayAttendance, todayExceptions, myLeaveRequests] = await Promise.all([
       getBookingsForOutlet(outlet.id),
       getSessionForTherapist(me.id),
       getNotificationsForTherapist(me.id, outlet.id),
       getTodayAttendanceForTherapist(me.id, me.name, today),
+      getScheduleExceptions(outlet.id, today),
+      getMyLeaveRequests(me.id),
     ]);
+
+    // Alert absensi T−5 menit (lib/attendanceAlert.ts, no-cron §6.4):
+    // keterangan yang menekan alert = exception jadwal hari ini (cuti/
+    // libur yang sudah berlaku) ATAU pengajuan hari ini yang PENDING/
+    // APPROVED (termasuk Ijin Masuk Siang). REJECTED tidak menekan.
+    const attendanceAlert = computeAttendanceAlert({
+      now,
+      workStart: outlet.workStartTime,
+      checkedIn: !!todayAttendance?.checkInAt,
+      hasExcuse:
+        todayExceptions.some((e) => e.employeeId === me.id) ||
+        myLeaveRequests.some((r) => r.date === today && (r.status === "PENDING" || r.status === "APPROVED")),
+    });
 
     const jobs = todaysBookings.filter((b) => b.therapistId === me.id && b.date === today && b.status !== "CANCELLED");
     const upcoming = jobs.filter((b) => ["BOOKED", "CONFIRMED", "ARRIVED", "CHECKED_IN"].includes(b.status));
@@ -77,6 +96,14 @@ export default async function TherapistHomePage() {
         }
       >
         <div className="stack g4">
+          {attendanceAlert.kind !== "none" && (
+            <AttendanceAlertBanner
+              date={today}
+              workStart={attendanceAlert.workStart}
+              minutesLate={attendanceAlert.kind === "late" ? attendanceAlert.minutesLate : null}
+              showAttendanceLink
+            />
+          )}
           <div
             className="m-card"
             style={{

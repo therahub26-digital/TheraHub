@@ -40,6 +40,7 @@ const STATUS_TONE: Record<LeaveRequestStatus, "warning" | "success" | "danger"> 
 const TYPE_LABEL: Record<LeaveRequestType, string> = {
   LEAVE: "Cuti/Sakit",
   OFF: "Libur",
+  LATE: "Ijin Masuk Siang",
 };
 
 export default function TherapistLeaveRequestForm({ minDate, requests }: { minDate: string; requests: MyLeaveRequest[] }) {
@@ -80,6 +81,7 @@ export default function TherapistLeaveRequestForm({ minDate, requests }: { minDa
           <select className="select" value={type} disabled={isPending} onChange={(e) => setType(e.target.value as LeaveRequestType)}>
             <option value="LEAVE">Cuti/Sakit</option>
             <option value="OFF">Libur</option>
+            <option value="LATE">Ijin Masuk Siang</option>
           </select>
         </label>
         <label className="stack g1">

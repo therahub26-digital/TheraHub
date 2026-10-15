@@ -89,6 +89,10 @@ export interface Outlet {
   geofenceRadius: number;
   accuracyThreshold: number;
   openHours: string;
+  /** Jam masuk kerja staf "HH:mm" (default '10:00') — patokan alert absensi & lateMinutes, per outlet (migrasi 0036). */
+  workStartTime: string;
+  /** Jam pulang kerja staf "HH:mm" (default '22:00'), per outlet (migrasi 0036). */
+  workEndTime: string;
   status: "ACTIVE" | "SETUP" | "INACTIVE";
   roomCount: number;
   therapistCount: number;

@@ -35,6 +35,11 @@ type OutletRow = {
   geofence_radius: number;
   accuracy_threshold: number;
   open_hours: string | null;
+  // Optional: pre-0036 rows (before the migration runs) won't have these
+  // keys — mapOutlet() treats absence as the column's own DB default
+  // ('10:00'/'22:00'), same tolerance pattern as tax_enabled (0023).
+  work_start_time?: string | null;
+  work_end_time?: string | null;
   status: Outlet["status"];
   manager_name: string | null;
   late_policy: Outlet["latePolicy"];
@@ -105,6 +110,8 @@ function mapOutlet(
     geofenceRadius: row.geofence_radius,
     accuracyThreshold: row.accuracy_threshold,
     openHours: row.open_hours ?? "",
+    workStartTime: row.work_start_time ?? "10:00",
+    workEndTime: row.work_end_time ?? "22:00",
     status: row.status,
     roomCount,
     therapistCount,

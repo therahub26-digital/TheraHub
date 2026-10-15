@@ -53,8 +53,14 @@ function revalidateLeave() {
   revalidatePath("/kasir/schedule-check");
 }
 
-/** Therapist submits a leave/sick-day OR plain day-off request for a future (or today's) date. */
-export async function requestLeave(date: string, type: "OFF" | "LEAVE", note?: string): Promise<ActionResult> {
+/**
+ * Therapist submits a leave/sick-day, plain day-off, OR late-arrival
+ * ("Ijin Masuk Siang", type LATE — migrasi 0036) request for a future
+ * (or today's) date. Today is deliberately allowed: the attendance
+ * alert's "Kirim Keterangan" path is exactly a same-day submission
+ * (sakit dadakan / keperluan mendadak / ijin masuk siang).
+ */
+export async function requestLeave(date: string, type: "OFF" | "LEAVE" | "LATE", note?: string): Promise<ActionResult> {
   const { supabase, employee, error } = await resolveSignedInEmployee();
   if (error || !employee) return { ok: false, error: error ?? "Data karyawan tidak ditemukan." };
 
@@ -125,6 +131,17 @@ export async function approveLeaveRequest(requestId: string, decisionNote?: stri
     .eq("id", requestId)
     .eq("status", "PENDING");
   if (updateErr) return { ok: false, error: "Gagal menyetujui — coba lagi." };
+
+  // LATE ("Ijin Masuk Siang") BERHENTI di sini dengan sengaja: terapisnya
+  // tetap bekerja hari itu dan tetap harus bisa dipilih saat booking,
+  // jadi tidak ada baris employee_schedule_exceptions yang ditulis
+  // (tabel itu pula ber-CHECK OFF/LEAVE saja). Approval-nya sendiri sudah
+  // tercatat di employee_leave_requests dan itulah yang menekan alert
+  // absensi + jadi catatan resmi manager.
+  if ((reqRow as { type?: "OFF" | "LEAVE" | "LATE" }).type === "LATE") {
+    revalidateLeave();
+    return { ok: true };
+  }
 
   const { error: excErr } = await supabase.from("employee_schedule_exceptions").upsert(
     {

@@ -59,10 +59,12 @@ export default async function OutletSettingsPage() {
               <Field label="Alamat"><input defaultValue={outlet.address} readOnly /></Field>
               <Field label="Telepon"><input defaultValue={outlet.phone} readOnly /></Field>
               <Field label="Jam Operasional"><input defaultValue={outlet.openHours} readOnly /></Field>
+              <Field label="Jam Masuk–Pulang Staf"><input defaultValue={`${outlet.workStartTime} – ${outlet.workEndTime}`} readOnly /></Field>
               <Field label="Manager"><input defaultValue={outlet.managerName} readOnly /></Field>
             </div>
             <InfoNote icon="info">
-              Perubahan alamat, geofence, dan jam buka master dilakukan oleh Admin Tenant di menu Outlets.
+              Perubahan alamat, geofence, jam buka master, dan jam masuk/pulang staf dilakukan oleh Admin Tenant di menu Outlets.
+              Jam masuk–pulang staf adalah patokan alert absensi terapis (default 10:00–22:00, bisa berbeda per outlet).
             </InfoNote>
           </div>
         </Card>

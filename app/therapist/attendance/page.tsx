@@ -8,7 +8,10 @@ import { getSignedInTherapist } from "@/lib/data/commissions";
 import { getCurrentOutlet } from "@/lib/data/outlets";
 import { getAttendanceHistoryForTherapist } from "@/lib/data/attendance";
 import { getMyLeaveRequests } from "@/lib/data/leaveRequests";
-import { getEffectiveToday } from "@/lib/data/bookings";
+import { getScheduleExceptions } from "@/lib/data/scheduleExceptions";
+import { getEffectiveToday, getEffectiveNow } from "@/lib/data/bookings";
+import { computeAttendanceAlert } from "@/lib/attendanceAlert";
+import AttendanceAlertBanner from "@/components/AttendanceAlertBanner";
 import { fmtTime, fmtDateShort, minutesToHm } from "@/lib/format";
 import { getTenantTheme } from "@/lib/data/tenant";
 
@@ -37,19 +40,43 @@ export default async function AttendancePage() {
   if (signedIn) {
     // Keempatnya juga saling bebas (history/leave hanya butuh identitas,
     // yang sudah di tangan) — satu gelombang, bukan dua.
-    const [outlet, today, history, myLeaveRequests] = await Promise.all([
+    const [outlet, today, now, history, myLeaveRequests] = await Promise.all([
       getCurrentOutlet(),
       getEffectiveToday(),
+      getEffectiveNow(),
       getAttendanceHistoryForTherapist(signedIn.id, signedIn.name, 7),
       getMyLeaveRequests(signedIn.id),
     ]);
+    // Exception jadwal butuh outlet.id — satu gelombang susulan kecil,
+    // bukan digabung ke atas (outlet belum di tangan di gelombang itu).
+    const todayExceptions = await getScheduleExceptions(outlet.id, today);
     const todayRow = history.find((a) => a.date === today);
     const checkedIn = !!todayRow?.checkInAt;
     const checkedOut = !!todayRow?.checkOutAt;
 
+    // Alert absensi T−5 menit — logika sama persis dengan Beranda
+    // (lib/attendanceAlert.ts); halaman ini hanya tidak memuat tombol
+    // "Absen Sekarang" di bannernya karena tombol check-in sudah di layar.
+    const attendanceAlert = computeAttendanceAlert({
+      now,
+      workStart: outlet.workStartTime,
+      checkedIn,
+      hasExcuse:
+        todayExceptions.some((e) => e.employeeId === signedIn.id) ||
+        myLeaveRequests.some((r) => r.date === today && (r.status === "PENDING" || r.status === "APPROVED")),
+    });
+
     return (
       <MobileShell role="therapist" brandKey={theme.brandKey} bgKey={theme.bgKey} title="Absensi GPS" subtitle={outlet.name} avatarName={signedIn.name} avatarUrl={signedIn.photoUrl} avatarTone="teal">
         <div className="stack g4">
+          {attendanceAlert.kind !== "none" && (
+            <AttendanceAlertBanner
+              date={today}
+              workStart={attendanceAlert.workStart}
+              minutesLate={attendanceAlert.kind === "late" ? attendanceAlert.minutesLate : null}
+              showAttendanceLink={false}
+            />
+          )}
           <div
             className="m-card"
             style={{
@@ -125,10 +152,14 @@ export default async function AttendancePage() {
             </div>
           </div>
 
-          <TherapistLeaveRequestForm
-            minDate={today}
-            requests={myLeaveRequests.map((r) => ({ id: r.id, date: r.date, type: r.type, note: r.note, status: r.status }))}
-          />
+          {/* id="keterangan": sasaran lompatan tombol "Kirim Keterangan"
+              di AttendanceAlertBanner (Beranda & halaman ini). */}
+          <div id="keterangan">
+            <TherapistLeaveRequestForm
+              minDate={today}
+              requests={myLeaveRequests.map((r) => ({ id: r.id, date: r.date, type: r.type, note: r.note, status: r.status }))}
+            />
+          </div>
 
           <div>
             <div className="m-section">Riwayat 7 Hari</div>

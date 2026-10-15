@@ -296,8 +296,14 @@ export type OutletIdentityInput = {
   city: string;
   phone: string;
   openHours: string;
+  /** Jam masuk kerja staf "HH:mm" — patokan alert absensi (migrasi 0036). */
+  workStartTime: string;
+  /** Jam pulang kerja staf "HH:mm" (migrasi 0036). */
+  workEndTime: string;
   managerName: string;
 };
+
+const HHMM_RE = /^([01][0-9]|2[0-3]):[0-5][0-9]$/;
 
 /**
  * The outlet's own name/address/contact details.
@@ -317,6 +323,13 @@ export async function setOutletIdentity(outletId: string, input: OutletIdentityI
   if (!name) return { ok: false, error: "Nama outlet wajib diisi." };
   if (!address) return { ok: false, error: "Alamat outlet wajib diisi." };
   if (!city) return { ok: false, error: "Kota wajib diisi." };
+  // Jam masuk/pulang wajib "HH:mm" — kolomnya NOT NULL ber-CHECK format
+  // (0036), jadi lebih baik ditolak di sini dengan kalimat jelas daripada
+  // gagal di constraint database dengan pesan generik.
+  const workStartTime = input.workStartTime.trim();
+  const workEndTime = input.workEndTime.trim();
+  if (!HHMM_RE.test(workStartTime)) return { ok: false, error: "Jam masuk harus berformat HH:mm, mis. 10:00." };
+  if (!HHMM_RE.test(workEndTime)) return { ok: false, error: "Jam pulang harus berformat HH:mm, mis. 22:00." };
 
   const { error: writeErr } = await supabase
     .from("outlets")
@@ -326,6 +339,10 @@ export async function setOutletIdentity(outletId: string, input: OutletIdentityI
       city,
       phone: input.phone.trim() || null,
       open_hours: input.openHours.trim() || null,
+      // Butuh migrasi 0036 — jalankan migrasinya SEBELUM deploy kode ini,
+      // atau tombol simpan outlet gagal karena kolomnya belum ada.
+      work_start_time: workStartTime,
+      work_end_time: workEndTime,
       manager_name: input.managerName.trim() || null,
     })
     .eq("id", outletId);

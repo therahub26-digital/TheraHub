@@ -39,6 +39,8 @@ export default function OutletEditor({ outlet }: { outlet: Outlet }) {
     city: outlet.city,
     phone: outlet.phone,
     openHours: outlet.openHours,
+    workStartTime: outlet.workStartTime,
+    workEndTime: outlet.workEndTime,
     managerName: outlet.managerName,
   };
   const [open, setOpen] = useState(false);
@@ -90,6 +92,32 @@ export default function OutletEditor({ outlet }: { outlet: Outlet }) {
               onChange={(e) => setV({ ...v, openHours: e.target.value })}
             />
           </label>
+          <div className="row g2">
+            <label className="stack g1" style={{ flex: 1 }}>
+              <span className="tiny dim">Jam masuk staf</span>
+              <input
+                className="input"
+                type="time"
+                value={v.workStartTime}
+                disabled={isPending}
+                onChange={(e) => setV({ ...v, workStartTime: e.target.value })}
+              />
+            </label>
+            <label className="stack g1" style={{ flex: 1 }}>
+              <span className="tiny dim">Jam pulang staf</span>
+              <input
+                className="input"
+                type="time"
+                value={v.workEndTime}
+                disabled={isPending}
+                onChange={(e) => setV({ ...v, workEndTime: e.target.value })}
+              />
+            </label>
+          </div>
+          <div className="tiny dim">
+            Jam masuk/pulang dipakai alert absensi terapis (peringatan muncul 5 menit sebelum jam
+            masuk bila belum check-in dan tidak ada keterangan cuti/libur).
+          </div>
           <label className="stack g1">
             <span className="tiny dim">Nama manager</span>
             <input className="input" value={v.managerName} disabled={isPending} onChange={(e) => setV({ ...v, managerName: e.target.value })} />

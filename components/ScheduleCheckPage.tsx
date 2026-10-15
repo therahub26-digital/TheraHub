@@ -1,7 +1,10 @@
-import { PageHead, Card, CardHead, InfoNote } from "@/components/ui";
+import { PageHead, Card, CardHead, InfoNote, Badge, PersonCell } from "@/components/ui";
 import { getCurrentOutlet } from "@/lib/data/outlets";
 import { getTherapistsForOutlet } from "@/lib/data/employees";
-import { getBookingsForOutlet, getEffectiveToday } from "@/lib/data/bookings";
+import { getBookingsForOutlet, getEffectiveToday, getEffectiveNow } from "@/lib/data/bookings";
+import { getAttendanceForOutletOnDate } from "@/lib/data/attendance";
+import { computeAttendanceAlert, ATTENDANCE_ALERT_LEAD_MIN } from "@/lib/attendanceAlert";
+import { fmtTime } from "@/lib/format";
 import { getScheduleExceptions, getUpcomingScheduleExceptions } from "@/lib/data/scheduleExceptions";
 import { getLeaveRequestsForOutlet } from "@/lib/data/leaveRequests";
 import { plusDays } from "@/lib/wallclock";
@@ -38,14 +41,15 @@ const ACTIVE_STATUSES = ["BOOKED", "CONFIRMED", "ARRIVED", "CHECKED_IN", "IN_SES
 
 export default async function ScheduleCheckPage() {
   const outlet = await getCurrentOutlet();
-  const today = await getEffectiveToday();
+  const [today, now] = await Promise.all([getEffectiveToday(), getEffectiveNow()]);
 
-  const [therapists, exceptions, bookingsToday, upcomingExceptions, leaveRequests] = await Promise.all([
+  const [therapists, exceptions, bookingsToday, upcomingExceptions, leaveRequests, attendanceToday] = await Promise.all([
     getTherapistsForOutlet(outlet.id),
     getScheduleExceptions(outlet.id, today),
     getBookingsForOutlet(outlet.id, today),
     getUpcomingScheduleExceptions(outlet.id, plusDays(today, 1)),
     getLeaveRequestsForOutlet(outlet.id),
+    getAttendanceForOutletOnDate(outlet.id, today),
   ]);
   const [tenant, theme] = await Promise.all([getCurrentTenant(), getTenantTheme()]);
   const therapistBoardProps = therapists.map((t) => ({
@@ -85,6 +89,40 @@ export default async function ScheduleCheckPage() {
 
   const activeBookingsToday = bookingsToday.filter((b) => ACTIVE_STATUSES.includes(b.status));
 
+  // -------------------------------------------------------------------
+  // Kartu "Absensi Menjelang Jam Masuk" (Adjie 2026-10-15) — sisi
+  // manager/kasir dari alert absensi terapis. Dihitung saat dibaca
+  // (§6.4), logika per orang persis lib/attendanceAlert.ts yang dipakai
+  // PWA terapis, supaya kedua sisi tidak pernah berbeda pendapat.
+  // Keterangan yang menekan status "belum absen": exception hari ini
+  // (sudah ada di `exceptions`) atau pengajuan hari ini PENDING/APPROVED
+  // (Cuti/Sakit, Libur, Ijin Masuk Siang).
+  // -------------------------------------------------------------------
+  const checkInByEmployee = new Map(attendanceToday.filter((a) => a.checkInAt).map((a) => [a.employeeId, a]));
+  const todaysRequestByEmployee = new Map(
+    leaveRequests
+      .filter((r) => r.date === today && (r.status === "PENDING" || r.status === "APPROVED"))
+      .map((r) => [r.employeeId, r])
+  );
+  const REQ_TYPE_LABEL = { LEAVE: "Cuti/Sakit", OFF: "Libur", LATE: "Ijin Masuk Siang" } as const;
+  const rollCall = therapists.map((t) => {
+    const att = checkInByEmployee.get(t.id);
+    const exc = offById.get(t.id);
+    const req = todaysRequestByEmployee.get(t.id);
+    const alert = computeAttendanceAlert({
+      now,
+      workStart: outlet.workStartTime,
+      checkedIn: !!att,
+      hasExcuse: !!exc || !!req,
+    });
+    return { t, att, exc, req, alert };
+  });
+  const missing = rollCall.filter((r) => r.alert.kind !== "none");
+  // Jendela alert outlet ini sedang aktif? (probe tanpa check-in/keterangan
+  // — persis definisi jendelanya sendiri, T−5 menit dan seterusnya.)
+  const alertWindowOpen =
+    computeAttendanceAlert({ now, workStart: outlet.workStartTime, checkedIn: false, hasExcuse: false }).kind !== "none";
+
   return (
     <>
       <PageHead
@@ -99,6 +137,55 @@ export default async function ScheduleCheckPage() {
       </InfoNote>
 
       <div style={{ marginTop: 20 }}>
+        {/* Absensi menjelang jam masuk (2026-10-15) — pasangan manager
+            dari alert T−5 menit di PWA terapis. Baca-saja: keputusan
+            (ACC keterangan) tetap satu pintu di board Pengajuan Cuti di
+            bawah, dan menandai OFF/LIBUR tetap lewat Roster. */}
+        <Card style={{ marginBottom: 20 }}>
+          <CardHead
+            title="Absensi Menjelang Jam Masuk"
+            sub={
+              alertWindowOpen
+                ? `Jam masuk ${outlet.workStartTime} · ${missing.length} terapis belum absen tanpa keterangan`
+                : `Jam masuk ${outlet.workStartTime} — alert aktif ${ATTENDANCE_ALERT_LEAD_MIN} menit sebelumnya`
+            }
+          />
+          <div className="card-body">
+            {!alertWindowOpen ? (
+              <div className="small dim">
+                Belum memasuki jendela alert. Daftar terapis yang belum absen tanpa keterangan muncul di sini mulai{" "}
+                {ATTENDANCE_ALERT_LEAD_MIN} menit sebelum jam masuk ({outlet.workStartTime}).
+              </div>
+            ) : (
+              <div className="stack g2">
+                {missing.length === 0 && (
+                  <div className="small dim">
+                    Semua terapis sudah absen atau punya keterangan (cuti/libur/ijin) hari ini.
+                  </div>
+                )}
+                {rollCall.map(({ t, att, exc, req, alert }) => (
+                  <div key={t.id} className="row between g2" style={{ padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
+                    <PersonCell name={t.name} sub={t.code} toneKey={t.avatarTone} photoUrl={t.photoUrl ?? undefined} size={30} />
+                    {att?.checkInAt ? (
+                      <Badge tone="success" dot>Absen {fmtTime(att.checkInAt)}</Badge>
+                    ) : exc ? (
+                      <Badge tone="neutral" dot>{exc === "OFF" ? "Libur" : "Cuti/Sakit"}</Badge>
+                    ) : req ? (
+                      <Badge tone={req.status === "PENDING" ? "warning" : "info"} dot>
+                        {REQ_TYPE_LABEL[req.type]}{req.status === "PENDING" ? " · menunggu ACC" : " · disetujui"}
+                      </Badge>
+                    ) : (
+                      <Badge tone="danger" dot>
+                        {alert.kind === "late" ? `Belum absen · lewat ${alert.minutesLate} mnt` : "Belum absen"}
+                      </Badge>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </Card>
+
         {/* Cuti/libur terapis digabung jadi satu kotak (2026-08-24, umpan
             balik pengguna) — sebelumnya dua Card terpisah untuk hal yang
             sama-sama "cuti terapis", cuma beda apakah untuk hari ini

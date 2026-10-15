@@ -96,6 +96,36 @@ export async function getAttendanceHistoryForTherapist(employeeId: string, emplo
   return (data as AttendanceRow[]).map((row) => mapAttendanceRow(row, employeeName));
 }
 
+/**
+ * Semua baris absensi satu outlet untuk satu tanggal — untuk kartu
+ * "Absensi Menjelang Jam Masuk" di Cek Jadwal Terapis (manager/kasir).
+ * RLS `attendance_events_read` memang memberi staf akses baca
+ * tenant-wide; filter outlet di sini adalah scoping tampilan, bukan
+ * pagar keamanan. Hanya kolom yang kartu itu butuhkan yang dikembalikan.
+ */
+export type OutletAttendanceToday = {
+  employeeId: string;
+  checkInAt: string | null;
+  checkOutAt: string | null;
+  status: AttendanceEvent["status"];
+};
+
+export async function getAttendanceForOutletOnDate(outletId: string, date: string): Promise<OutletAttendanceToday[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("attendance_events")
+    .select("employee_id, check_in_at, check_out_at, status")
+    .eq("outlet_id", outletId)
+    .eq("date", date);
+  if (error || !data) return [];
+  return (data as Pick<AttendanceRow, "employee_id" | "check_in_at" | "check_out_at" | "status">[]).map((row) => ({
+    employeeId: row.employee_id,
+    checkInAt: row.check_in_at,
+    checkOutAt: row.check_out_at,
+    status: row.status,
+  }));
+}
+
 /** Just today's row (or undefined if the therapist hasn't checked in yet today), for the Beranda card + the top of /therapist/attendance. */
 export async function getTodayAttendanceForTherapist(employeeId: string, employeeName: string, today: string): Promise<AttendanceEvent | undefined> {
   const supabase = await createClient();

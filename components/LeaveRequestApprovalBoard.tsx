@@ -37,6 +37,10 @@ export type LeaveRequestRow = {
 const TYPE_LABEL: Record<LeaveRequestType, string> = {
   LEAVE: "Cuti/Sakit",
   OFF: "Libur",
+  // Disetujui ≠ libur: terapis LATE tetap bekerja (tidak menulis
+  // schedule exception — lihat approveLeaveRequest), hanya datang siang
+  // dengan ijin; yang ditekan adalah alert absensinya hari itu.
+  LATE: "Ijin Masuk Siang",
 };
 
 export default function LeaveRequestApprovalBoard({

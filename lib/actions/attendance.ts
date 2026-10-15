@@ -106,9 +106,14 @@ export async function checkIn(lat: number, lng: number, accuracy: number): Promi
   if (existing?.check_in_at && !existing.check_out_at) return { ok: false, error: "Sudah check-in hari ini." };
   if (existing?.check_out_at) return { ok: false, error: "Absensi hari ini sudah selesai (sudah check-out)." };
 
+  // select("*") dengan sengaja (pelajaran §11.A.1): kolom
+  // work_start_time baru lahir di migrasi 0036 — select eksplisit yang
+  // menyebutnya akan menggagalkan SELURUH check-in pada database yang
+  // belum menjalankan 0036. Dengan "*", kolom yang belum ada sekadar
+  // tidak hadir dan jatuh ke fallback parseOpenTime di bawah.
   const { data: outlet, error: outletErr } = await supabase
     .from("outlets")
-    .select("lat, lng, geofence_radius, accuracy_threshold, open_hours")
+    .select("*")
     .eq("id", employee!.outlet_id)
     .maybeSingle();
   if (outletErr || !outlet) return { ok: false, error: "Data outlet tidak ditemukan." };
@@ -119,8 +124,15 @@ export async function checkIn(lat: number, lng: number, accuracy: number): Promi
   const locationStatus: "VALID" | "OUTSIDE" | "LOW_ACCURACY" = outsideGeofence ? "OUTSIDE" : lowAccuracy ? "LOW_ACCURACY" : "VALID";
 
   const checkInAt = nowIso();
-  const openTime = parseOpenTime(outlet.open_hours);
-  const lateMinutes = openTime ? Math.max(0, Math.round(minutesBetween(wallClockIso(today, openTime), checkInAt))) : 0;
+  // Sejak 0036 patokan "terlambat" adalah jam masuk staf per outlet
+  // (outlets.work_start_time, default 10:00, diatur Admin di menu
+  // Outlets) — bukan lagi tebakan "HH:mm pertama di open_hours". Parse
+  // open_hours dipertahankan murni sebagai fallback pra-migrasi.
+  const workStart: string | null =
+    typeof outlet.work_start_time === "string" && /^\d{2}:\d{2}$/.test(outlet.work_start_time)
+      ? outlet.work_start_time
+      : parseOpenTime(outlet.open_hours);
+  const lateMinutes = workStart ? Math.max(0, Math.round(minutesBetween(wallClockIso(today, workStart), checkInAt))) : 0;
 
   const suspicious = locationStatus !== "VALID";
   const status: "SUSPICIOUS" | "LATE" | "CHECKED_IN" = suspicious ? "SUSPICIOUS" : lateMinutes > 0 ? "LATE" : "CHECKED_IN";

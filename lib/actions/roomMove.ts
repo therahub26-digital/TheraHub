@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getEffectiveToday } from "@/lib/data/bookings";
 
 // ---------------------------------------------------------------------
@@ -71,14 +72,27 @@ export async function moveMyActiveBookingRoom(roomId: string): Promise<RoomMoveR
   if (room.outlet_id !== booking.outlet_id) return { ok: false, error: "Kamar ini bukan milik outlet Anda." };
   if (room.status !== "ACTIVE") return { ok: false, error: `Kamar ${room.name} sedang ${room.status.toLowerCase()} — pilih kamar lain.` };
 
-  const { data: holder } = await supabase
+  // ⚠️ TEMUAN UAT 2026-10-15 — pengecekan ini WAJIB lewat admin client.
+  // Versi pertama memakai client terapis sendiri, padahal RLS
+  // bookings_therapist_read hanya memperlihatkan booking MILIK terapis
+  // itu: booking terapis lain yang sedang memakai kamar tujuan tidak
+  // pernah terlihat, sehingga pengecekan selalu lolos dan dua tamu bisa
+  // berakhir di kamar yang sama. Pola yang sama persis dengan
+  // pengecekan bentrok di lib/actions/customerBookings.ts: admin client
+  // HANYA untuk membaca lintas batas privasi (satu kolom id, dibatasi
+  // outlet + kamar), sementara UPDATE di bawah tetap lewat client
+  // terapis sehingga RLS tetap membatasi apa yang boleh ia ubah.
+  const admin = createAdminClient();
+  const { data: holders, error: holderErr } = await admin
     .from("bookings")
     .select("id")
+    .eq("outlet_id", booking.outlet_id)
     .eq("room_id", roomId)
     .in("status", MOVABLE_STATUSES)
     .neq("id", booking.id)
-    .maybeSingle();
-  if (holder) return { ok: false, error: `Kamar ${room.name} sedang dipakai tamu lain — pilih kamar lain.` };
+    .limit(1);
+  if (holderErr) return { ok: false, error: "Gagal memeriksa kamar tujuan — coba lagi." };
+  if (holders && holders.length > 0) return { ok: false, error: `Kamar ${room.name} sedang dipakai tamu lain — pilih kamar lain.` };
 
   const { error: updateErr } = await supabase
     .from("bookings")

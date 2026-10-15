@@ -1,212 +1,219 @@
 -- ============================================================
--- scripts/rls-crosstenant-test.sql
--- STATUS: DRAFT — belum pernah dijalankan
---
+-- scripts/rls-crosstenant-test.sql  — v2 (2026-10-15)
 -- UJI ISOLASI RLS LINTAS-TENANT (handover §14.3 no.1 — prasyarat
 -- mutlak sebelum tenant/klien kedua).
 --
--- Cara kerja: SELURUH skrip berjalan dalam SATU transaksi yang
--- diakhiri ROLLBACK. Di dalamnya:
---   1. (sebagai postgres) buat fixture minimal "Tenant B": tenant +
---      outlet + customer + booking korban.
---   2. Berpindah identitas jadi user login Tenant A
---      (set role authenticated + request.jwt.claims.sub).
---   3. Probe otomatis SEMUA tabel public yang punya kolom tenant_id,
---      dan SEMUA tabel yang punya outlet_id (scope lewat outlet):
---      - SELECT baris Tenant B  → harus 0 baris
---      - UPDATE baris Tenant B  → harus 0 baris terdampak / ditolak
---   4. Probe INSERT lintas-tenant (booking ke outlet B) → harus gagal.
---   5. Tampilkan tabel hasil, lalu ROLLBACK — fixture lenyap,
---      percobaan tulis lenyap, database kembali persis seperti semula.
+-- CARA PAKAI: tempel SELURUH file ke SQL Editor Supabase → Run.
+-- Tidak perlu mengedit apa pun (v1 meminta auth_user_id diisi manual
+-- dan dijalankan 2×; v2 memilih SEMUA identitas otomatis).
 --
--- Karena rollback total, skrip ini aman dijalankan di produksi —
--- tapi tetap jalankan di luar jam sibuk, dan di staging dulu bila ada.
+-- KRITERIA LULUS: baris berhasil = 'RINGKASAN' dengan 0 bocor untuk
+-- setiap identitas, dan TIDAK ADA baris berhasil = 'BOCOR'.
 --
--- SEBELUM MENJALANKAN — isi dua nilai:
---   (a) :SUB — auth_user_id user Tenant A yang dipakai menyamar.
---       Uji minimal dengan DUA identitas terpisah (jalankan skrip 2×):
---       admin (hak terluas dalam tenant) dan kasir.
---       Cari nilainya:  select email, role, auth_user_id from app_users;
---   Ganti teks  <<GANTI_AUTH_USER_ID>>  di bawah dengan UUID tersebut.
+-- Cara kerja (semua di dalam satu sub-transaksi yang DIGAGALKAN di
+-- akhir — tidak ada satu baris pun yang tersimpan):
+--   1. (sebagai postgres) membuat fixture "Tenant B" sintetis di
+--      HAMPIR SEMUA tabel ber-tenant_id/outlet_id/employee_id/
+--      customer_id/booking_id — dengan MENGKLON satu baris milik
+--      Tenant A per tabel lalu mengganti kunci kepemilikannya ke B.
+--      Kloning (bukan INSERT tulisan tangan) berarti kolom NOT NULL
+--      apa pun yang ada di produksi otomatis terisi — fixture tidak
+--      bergantung pada daftar kolom yang ditebak.
+--   2. Untuk SETIAP identitas Tenant A — satu akun per peran yang ada
+--      (super-admin, admin, owner, manager, kasir, therapist), satu
+--      customer ber-login, dan anon — menyamar
+--      (set role + request.jwt.claims) lalu untuk setiap tabel:
+--        SELECT baris milik B  → harus 0
+--        UPDATE baris milik B  → harus 0 terdampak / ditolak
+--      plus INSERT booking ke outlet B → harus ditolak.
+--   3. Mengembalikan tabel hasil.
 --
--- KRITERIA LULUS: semua baris hasil = 'LOLOS'. Satu saja 'BOCOR'
--- berarti policy tabel itu harus diperbaiki sebelum tenant kedua.
+-- v1 berakhir dengan `rollback;` sehingga SQL Editor hanya
+-- menampilkan "Success. No rows returned" — hasil ujinya tidak pernah
+-- terlihat. v2 menyimpan hasil di variabel lalu mengembalikannya.
+--
+-- Cakupan yang TIDAK diuji (uji terpisah): storage bucket (lewat API),
+-- jalur service-role platform.ts §6.8 (by design melewati RLS),
+-- tabel anak tanpa satu pun dari 5 kolom kunci di atas.
 -- ============================================================
 
-begin;
-
--- ------------------------------------------------------------
--- 0. Tabel hasil + konfigurasi (dibuat sebagai postgres,
---    di-grant supaya tetap bisa ditulis setelah ganti role)
--- ------------------------------------------------------------
-create temp table _rls_results (
-  tabel     text,
-  scope     text,          -- 'tenant_id' | 'outlet_id' | 'insert'
-  uji       text,          -- 'SELECT' | 'UPDATE' | 'INSERT'
-  terlihat  int,           -- baris tenant B yang terlihat/terdampak
-  verdict   text
-) on commit drop;
-grant select, insert on _rls_results to authenticated;
-
-create temp table _cfg on commit drop as
-select '<<GANTI_AUTH_USER_ID>>'::text as sub_a;
-grant select on _cfg to authenticated;
-
--- ------------------------------------------------------------
--- 1. Fixture Tenant B (akan di-ROLLBACK — tidak pernah tersimpan)
--- ------------------------------------------------------------
-create temp table _fx on commit drop as
-with t as (
-  insert into tenants (name, slug, legal_name, plan, status, city, admin_email)
-  values ('RLS Probe Tenant B', 'rls-probe-b', 'RLS Probe B', 'business', 'ACTIVE',
-          'Bandung', 'rls-probe-b@example.test')
-  returning id
-), o as (
-  insert into outlets (tenant_id, code, name, address, city, phone, lat, lng,
-                       geofence_radius, accuracy_threshold, open_hours, status,
-                       manager_name, tax_pct, service_charge_pct, receipt_prefix)
-  select id, 'RLSB-01', 'RLS Probe Outlet B', 'Jl. Probe 1', 'Bandung', '0800',
-         -6.9, 107.6, 100, 45, '10:00-21:00', 'ACTIVE', 'Probe Mgr', 10, 5, 'RLSB'
-  from t returning id, tenant_id
-), c as (
-  insert into customers (tenant_id, name, phone)
-  select tenant_id, 'RLS Probe Customer B', '0899-rls-probe' from o
-  returning id, tenant_id
-), b as (
-  insert into bookings (code, outlet_id, customer_id, package_id, duration_min,
-                        price, date, scheduled_start, scheduled_end, status,
-                        source, add_on_ids)
-  select 'BK-RLSPROBE-0001', o.id, c.id,
-         (select id from service_packages limit 1), -- paket mana pun, hanya FK
-         90, 180000, current_date,
-         (current_date::text || 'T10:00:00+00:00')::timestamptz,
-         (current_date::text || 'T11:30:00+00:00')::timestamptz,
-         'BOOKED', 'Walk-in', '{}'
-  from o, c returning id, outlet_id
-)
-select (select id from t)        as tenant_b,
-       (select id from o)        as outlet_b,
-       (select id from b)        as booking_b;
-grant select on _fx to authenticated;
-
--- ------------------------------------------------------------
--- 2. Menyamar sebagai user login Tenant A
--- ------------------------------------------------------------
-set local role authenticated;
-select set_config(
-  'request.jwt.claims',
-  json_build_object('sub', (select sub_a from _cfg), 'role', 'authenticated')::text,
-  true
-);
-
--- Sanity check identitas — HARUS mengembalikan UUID (bukan null) dan
--- tenant_id yang BUKAN tenant_b. Kalau null, format claims tidak cocok
--- dengan versi auth.uid() project ini — berhenti, laporkan.
-select auth.uid()                                  as uid_tersimulasi,
-       (select tenant_id from app_users
-         where auth_user_id = auth.uid())          as tenant_a,
-       (select tenant_b from _fx)                  as tenant_b;
-
--- ------------------------------------------------------------
--- 3. Probe otomatis seluruh tabel ber-tenant_id dan ber-outlet_id
--- ------------------------------------------------------------
-do $$
+create or replace function pg_temp.rls_crosstenant()
+returns table (identitas text, tabel text, scope text, uji text, terlihat int, hasil text)
+language plpgsql
+as $fn$
 declare
-  r record;
-  n int;
-  tb uuid := (select tenant_b from _fx);
-  ob uuid := (select outlet_b from _fx);
+  res jsonb := '[]'::jsonb;
+  tb uuid := gen_random_uuid();   -- tenant B
+  ob uuid := gen_random_uuid();   -- outlet B
+  eb uuid := gen_random_uuid();   -- terapis B
+  cb uuid := gen_random_uuid();   -- customer B
+  bb uuid := gen_random_uuid();   -- booking B
+  sfx text := 'rlsb' || substr(md5(random()::text), 1, 6);
+  r record; idn record;
+  n int; tot int; bocor int;
+  ok_tables text[] := '{}'; fail_tables text[] := '{}';
+  src jsonb; ov jsonb;
+  bk_payload jsonb;   -- disiapkan sebagai postgres: setelah ganti peran, booking B memang tak terbaca
+  key text;
+  keycols text[] := array['tenant_id','outlet_id','employee_id','therapist_id','customer_id','booking_id'];
 begin
-  -- 3a. tabel dengan kolom tenant_id
-  for r in
-    select c.table_name
-    from information_schema.columns c
-    join information_schema.tables t
-      on t.table_schema = c.table_schema and t.table_name = c.table_name
-    where c.table_schema = 'public' and c.column_name = 'tenant_id'
-      and t.table_type = 'BASE TABLE'
-    order by 1
-  loop
-    execute format('select count(*) from public.%I where tenant_id = $1', r.table_name)
-      into n using tb;
-    insert into _rls_results values
-      (r.table_name, 'tenant_id', 'SELECT', n, case when n = 0 then 'LOLOS' else 'BOCOR' end);
-
-    begin
-      execute format(
-        'with u as (update public.%I set tenant_id = tenant_id where tenant_id = $1 returning 1) select count(*) from u',
-        r.table_name) into n using tb;
-      insert into _rls_results values
-        (r.table_name, 'tenant_id', 'UPDATE', n, case when n = 0 then 'LOLOS' else 'BOCOR' end);
-    exception when others then
-      -- penolakan keras (mis. kolom generated / permission) juga berarti aman
-      insert into _rls_results values (r.table_name, 'tenant_id', 'UPDATE', 0, 'LOLOS (ditolak)');
-    end;
-  end loop;
-
-  -- 3b. tabel dengan kolom outlet_id (scope lewat outlet milik tenant B)
-  for r in
-    select c.table_name
-    from information_schema.columns c
-    join information_schema.tables t
-      on t.table_schema = c.table_schema and t.table_name = c.table_name
-    where c.table_schema = 'public' and c.column_name = 'outlet_id'
-      and t.table_type = 'BASE TABLE'
-      and c.table_name <> 'outlets'
-    order by 1
-  loop
-    execute format('select count(*) from public.%I where outlet_id = $1', r.table_name)
-      into n using ob;
-    insert into _rls_results values
-      (r.table_name, 'outlet_id', 'SELECT', n, case when n = 0 then 'LOLOS' else 'BOCOR' end);
-
-    begin
-      execute format(
-        'with u as (update public.%I set outlet_id = outlet_id where outlet_id = $1 returning 1) select count(*) from u',
-        r.table_name) into n using ob;
-      insert into _rls_results values
-        (r.table_name, 'outlet_id', 'UPDATE', n, case when n = 0 then 'LOLOS' else 'BOCOR' end);
-    exception when others then
-      insert into _rls_results values (r.table_name, 'outlet_id', 'UPDATE', 0, 'LOLOS (ditolak)');
-    end;
-  end loop;
-
-  -- 3c. INSERT lintas-tenant: booking ke outlet milik Tenant B
   begin
-    execute 'insert into bookings (code, outlet_id, customer_id, package_id, duration_min,
-             price, date, scheduled_start, scheduled_end, status, source, add_on_ids)
-             select $2, $1, c.id, (select id from service_packages limit 1), 90, 180000,
-             current_date, now(), now() + interval ''90 minutes'', ''BOOKED'', ''Walk-in'', ''{}''
-             from customers c limit 1'
-      using ob, 'BK-RLSPROBE-X';
-    insert into _rls_results values ('bookings', 'insert', 'INSERT', 1, 'BOCOR');
+    -- ======================================================== 1. FIXTURE TENANT B (sebagai postgres)
+    -- Fungsi kecil: klon satu baris dari tabel T, timpa kunci, insert.
+    -- Ditulis inline per tabel inti (urutan FK), lalu loop untuk sisanya.
+    for r in select unnest(array['tenants','outlets','employees','customers','bookings']) as t loop
+      begin
+        execute format('select to_jsonb(x) from public.%I x limit 1', r.t) into src;
+        if src is null then
+          fail_tables := fail_tables || (r.t || ': tidak ada baris contoh'); continue;
+        end if;
+        ov := case r.t
+          when 'tenants'   then jsonb_build_object('id', tb)
+          when 'outlets'   then jsonb_build_object('id', ob, 'tenant_id', tb)
+          when 'employees' then jsonb_build_object('id', eb, 'tenant_id', tb, 'outlet_id', ob)
+          when 'customers' then jsonb_build_object('id', cb, 'tenant_id', tb, 'auth_user_id', null)
+          when 'bookings'  then jsonb_build_object('id', bb, 'outlet_id', ob, 'customer_id', cb, 'therapist_id', eb, 'room_id', null)
+        end;
+        -- kolom unik umum → nilai unik
+        foreach key in array array['slug','code','receipt_prefix','email','phone','name'] loop
+          if src ? key and jsonb_typeof(src->key) = 'string' then ov := ov || jsonb_build_object(key, (src->>key) || '-' || sfx); end if;
+        end loop;
+        execute format('insert into public.%1$I select * from jsonb_populate_record(null::public.%1$I, $1)', r.t) using src || ov;
+        ok_tables := ok_tables || r.t;
+      exception when others then
+        fail_tables := fail_tables || (r.t || ': ' || sqlerrm);
+      end;
+    end loop;
+
+    -- sisa tabel ber-kunci kepemilikan: klon 1 baris, alihkan semua kunci ke B
+    for r in
+      select distinct c.table_name as t
+        from information_schema.columns c
+        join information_schema.tables x on x.table_schema = c.table_schema and x.table_name = c.table_name
+       where c.table_schema = 'public' and x.table_type = 'BASE TABLE'
+         and c.column_name = any (keycols)
+         and c.table_name not in ('tenants','outlets','employees','customers','bookings')
+       order by 1
+    loop
+      begin
+        execute format('select to_jsonb(x) from public.%I x limit 1', r.t) into src;
+        if src is null then continue; end if;   -- tabel kosong: tidak ada yang bisa bocor dari B
+        ov := '{}'::jsonb;
+        if src ? 'id' and jsonb_typeof(src->'id') = 'string' and (src->>'id') ~ '^[0-9a-f-]{36}$' then ov := ov || jsonb_build_object('id', gen_random_uuid()); end if;
+        if src ? 'tenant_id'    then ov := ov || jsonb_build_object('tenant_id', tb); end if;
+        if src ? 'outlet_id'    then ov := ov || jsonb_build_object('outlet_id', ob); end if;
+        if src ? 'employee_id'  then ov := ov || jsonb_build_object('employee_id', eb); end if;
+        if src ? 'therapist_id' then ov := ov || jsonb_build_object('therapist_id', eb); end if;
+        if src ? 'customer_id'  then ov := ov || jsonb_build_object('customer_id', cb); end if;
+        if src ? 'booking_id'   then ov := ov || jsonb_build_object('booking_id', bb); end if;
+        if src ? 'auth_user_id' then ov := ov || jsonb_build_object('auth_user_id', null); end if;
+        if src ? 'room_id'      then ov := ov || jsonb_build_object('room_id', null); end if;
+        foreach key in array array['slug','code','receipt_prefix','email','phone','ref','receipt_no','invoice_no'] loop
+          if src ? key and jsonb_typeof(src->key) = 'string' then ov := ov || jsonb_build_object(key, (src->>key) || '-' || sfx); end if;
+        end loop;
+        execute format('insert into public.%1$I select * from jsonb_populate_record(null::public.%1$I, $1)', r.t) using src || ov;
+        ok_tables := ok_tables || r.t;
+      exception when others then
+        fail_tables := fail_tables || (r.t || ': ' || left(sqlerrm, 80));
+      end;
+    end loop;
+
+    res := res || jsonb_build_object('identitas','(fixture)','tabel', array_length(ok_tables,1) || ' tabel terisi baris Tenant B',
+      'scope', array_to_string(ok_tables, ', '), 'uji','FIXTURE','terlihat', 0, 'hasil','INFO');
+    if array_length(fail_tables,1) > 0 then
+      res := res || jsonb_build_object('identitas','(fixture)','tabel', array_length(fail_tables,1) || ' tabel tidak bisa diklon (hanya mengurangi cakupan, bukan kegagalan)',
+        'scope', array_to_string(fail_tables, ' | '), 'uji','FIXTURE','terlihat', 0, 'hasil','INFO');
+    end if;
+
+    select to_jsonb(b) into bk_payload from public.bookings b where b.id = bb;
+
+    -- ======================================================== 2. PROBE PER IDENTITAS
+    for idn in
+      select * from (
+        select distinct on (au.role) au.role::text as label, au.auth_user_id as sub
+          from app_users au where au.auth_user_id is not null and au.tenant_id is distinct from tb
+         order by au.role
+      ) s
+      union all
+      select 'customer', c.auth_user_id from (select auth_user_id from customers where auth_user_id is not null and tenant_id <> tb limit 1) c
+      union all
+      select 'anon', null::uuid
+    loop
+      tot := 0; bocor := 0;
+      if idn.label = 'anon' then
+        set local role anon;
+        perform set_config('request.jwt.claims', '{"role":"anon"}', true);
+        perform set_config('request.jwt.claim.sub', '', true);
+      else
+        set local role authenticated;
+        perform set_config('request.jwt.claims', json_build_object('sub', idn.sub, 'role', 'authenticated')::text, true);
+        perform set_config('request.jwt.claim.sub', idn.sub::text, true);
+      end if;
+
+      for r in
+        select c.table_name as t, c.column_name as col
+          from information_schema.columns c
+          join information_schema.tables x on x.table_schema = c.table_schema and x.table_name = c.table_name
+         where c.table_schema = 'public' and x.table_type = 'BASE TABLE' and c.column_name = any (keycols)
+         order by 1, 2
+      loop
+        begin
+          execute format('select count(*) from public.%I where %I = $1', r.t, r.col) into n
+            using case r.col when 'tenant_id' then tb when 'outlet_id' then ob when 'customer_id' then cb when 'booking_id' then bb else eb end;
+        exception when others then n := 0;  -- tanpa hak baca sama sekali = aman
+        end;
+        tot := tot + 1;
+        if n > 0 then
+          bocor := bocor + 1;
+          res := res || jsonb_build_object('identitas', idn.label, 'tabel', r.t, 'scope', r.col, 'uji','SELECT','terlihat', n, 'hasil','BOCOR');
+        end if;
+
+        begin
+          execute format('with u as (update public.%1$I set %2$I = %2$I where %2$I = $1 returning 1) select count(*) from u', r.t, r.col) into n
+            using case r.col when 'tenant_id' then tb when 'outlet_id' then ob when 'customer_id' then cb when 'booking_id' then bb else eb end;
+        exception when others then n := 0;
+        end;
+        tot := tot + 1;
+        if n > 0 then
+          bocor := bocor + 1;
+          res := res || jsonb_build_object('identitas', idn.label, 'tabel', r.t, 'scope', r.col, 'uji','UPDATE','terlihat', n, 'hasil','BOCOR');
+        end if;
+      end loop;
+
+      -- INSERT booking ke outlet B
+      if bk_payload is not null then
+        begin
+          execute 'insert into public.bookings select * from jsonb_populate_record(null::public.bookings, $1)'
+            using bk_payload || jsonb_build_object('id', gen_random_uuid(), 'code', 'BK-RLSX-' || sfx || '-' || idn.label);
+          tot := tot + 1; bocor := bocor + 1;
+          res := res || jsonb_build_object('identitas', idn.label, 'tabel','bookings', 'scope','outlet B', 'uji','INSERT','terlihat', 1, 'hasil','BOCOR');
+        exception when others then
+          tot := tot + 1;   -- ditolak RLS/izin = aman
+        end;
+      end if;
+
+      reset role;
+      res := res || jsonb_build_object('identitas', idn.label, 'tabel', format('%s uji', tot), 'scope', '-', 'uji','RINGKASAN',
+        'terlihat', bocor, 'hasil', case when bocor = 0 then 'LOLOS' else 'BOCOR' end);
+    end loop;
+
+    raise exception 'UAT_ROLLBACK';
   exception when others then
-    insert into _rls_results values ('bookings', 'insert', 'INSERT', 0, 'LOLOS (ditolak)');
+    if sqlerrm <> 'UAT_ROLLBACK' then
+      res := res || jsonb_build_object('identitas','(harness)','tabel','berhenti tak terduga','scope', sqlerrm,'uji','ERR','terlihat',0,'hasil','GAGAL');
+    end if;
   end;
-end $$;
 
--- ------------------------------------------------------------
--- 4. Hasil — semua baris harus LOLOS
--- ------------------------------------------------------------
-select * from _rls_results order by verdict desc, scope, tabel, uji;
+  -- bukti tidak ada sisa
+  select count(*) into n from tenants where id = tb;
+  res := res || jsonb_build_object('identitas','(akhir)','tabel','fixture Tenant B tersisa','scope','-','uji','ROLLBACK','terlihat', n,
+    'hasil', case when n = 0 then 'LOLOS' else 'GAGAL' end);
 
-select count(*) filter (where verdict like 'BOCOR%') as jumlah_bocor,
-       count(*)                                      as total_uji
-from _rls_results;
+  return query
+    select x->>'identitas', x->>'tabel', x->>'scope', x->>'uji', (x->>'terlihat')::int, x->>'hasil'
+      from jsonb_array_elements(res) x
+     order by case x->>'hasil' when 'BOCOR' then 0 when 'GAGAL' then 0 when 'INFO' then 2 else 1 end, x->>'identitas';
+end
+$fn$;
 
-rollback;
--- ROLLBACK membatalkan fixture Tenant B dan semua percobaan tulis.
--- Catatan hasil temp table ikut hilang bersama rollback — SALIN hasil
--- SELECT di atas (yang tampil di layar) ke dokumen uji sebelum menutup.
---
--- Cakupan yang TIDAK diuji skrip ini (uji terpisah):
---   * Tabel anak tanpa tenant_id/outlet_id (transaction_items,
---     purchase_order_items, dst.) — terlindung lewat induknya; verifikasi
---     dengan membaca policy 0002 per tabel + spot-check aplikasi.
---   * Role anon (default-deny) — jalankan ulang bagian 2–3 dengan
---     `set local role anon` tanpa claims; semua harus 0/ditolak.
---   * Identitas customer (auth lewat customers.auth_user_id) — ulangi
---     dengan sub = auth_user_id customer Tenant A.
---   * Storage policies (bucket foto) — uji lewat API storage, bukan SQL.
---   * Jalur service-role (platform.ts §6.8) — by design melewati RLS;
---     yang diuji adalah validasi di depannya (sudah: C1–C4 UAT super-admin).
+select * from pg_temp.rls_crosstenant();

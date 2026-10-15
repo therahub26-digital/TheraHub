@@ -22,7 +22,7 @@ import type { TherapistPerformanceRow } from "@/lib/data/performance";
 // server-side (lib/data/performance.ts); yang client hanya urutannya.
 // ---------------------------------------------------------------------
 
-type SortKey = "name" | "guests" | "attendance" | "late" | "leave" | "customer" | "management";
+export type SortKey = "name" | "guests" | "attendance" | "late" | "leave" | "customer" | "management";
 
 /** Nilai pembanding per kriteria; null = belum ada data, selalu ditaruh paling bawah apa pun arahnya. */
 function sortValue(t: TherapistPerformanceRow, key: SortKey): number | string | null {
@@ -35,6 +35,28 @@ function sortValue(t: TherapistPerformanceRow, key: SortKey): number | string | 
     case "customer": return t.customerAvg;
     case "management": return t.management?.rating ?? null;
   }
+}
+
+/**
+ * Urutan baris untuk satu kriteria — fungsi murni (diekspor supaya bisa
+ * diuji tanpa browser, lihat UAT 2026-10-15). null = belum ada data,
+ * selalu paling bawah apa pun arahnya; seri dipecah dengan nama.
+ */
+export function sortPerformanceRows(rows: TherapistPerformanceRow[], sortKey: SortKey, asc: boolean): TherapistPerformanceRow[] {
+  const copy = [...rows];
+  copy.sort((a, b) => {
+    const va = sortValue(a, sortKey);
+    const vb = sortValue(b, sortKey);
+    if (va === null && vb === null) return a.name.localeCompare(b.name);
+    if (va === null) return 1;
+    if (vb === null) return -1;
+    if (typeof va === "string" && typeof vb === "string") {
+      return asc ? va.localeCompare(vb) : vb.localeCompare(va);
+    }
+    const diff = asc ? (va as number) - (vb as number) : (vb as number) - (va as number);
+    return diff !== 0 ? diff : a.name.localeCompare(b.name);
+  });
+  return copy;
 }
 
 function Stars({ value }: { value: number }) {
@@ -71,21 +93,7 @@ export default function TherapistPerformanceTable({
   const [sortKey, setSortKey] = useState<SortKey>("guests");
   const [asc, setAsc] = useState(false);
 
-  const sorted = useMemo(() => {
-    const copy = [...rows];
-    copy.sort((a, b) => {
-      const va = sortValue(a, sortKey);
-      const vb = sortValue(b, sortKey);
-      if (va === null && vb === null) return a.name.localeCompare(b.name);
-      if (va === null) return 1; // null selalu di bawah
-      if (vb === null) return -1;
-      if (typeof va === "string" && typeof vb === "string") {
-        return asc ? va.localeCompare(vb) : vb.localeCompare(va);
-      }
-      return asc ? (va as number) - (vb as number) : (vb as number) - (va as number);
-    });
-    return copy;
-  }, [rows, sortKey, asc]);
+  const sorted = useMemo(() => sortPerformanceRows(rows, sortKey, asc), [rows, sortKey, asc]);
 
   function clickHeader(key: SortKey) {
     if (key === sortKey) {

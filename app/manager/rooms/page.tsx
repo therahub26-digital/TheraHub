@@ -1,3 +1,4 @@
+import Link from "next/link";
 import Icon from "@/components/Icon";
 import { PageHead, Card, StatCard, Badge } from "@/components/ui";
 import { getCurrentOutlet } from "@/lib/data/outlets";
@@ -50,7 +51,16 @@ export default async function RoomsPage() {
       <PageHead
         title="Rooms"
         desc={`${outlet.name} · Konfigurasi ruangan, kapasitas, layanan pendukung, dan status maintenance.`}
-        actions={<NewRoomButton outletId={outlet.id} />}
+        actions={
+          <>
+            {/* QR per kamar untuk fitur pindah-kamar terapis (2026-10-15) —
+                dicetak lalu ditempel di pintu masing-masing kamar. */}
+            <Link href="/manager/rooms/qr" className="btn btn-ghost btn-sm">
+              <Icon name="qr-code" size={14} /> QR Kamar
+            </Link>
+            <NewRoomButton outletId={outlet.id} />
+          </>
+        }
       />
 
       <div className="grid grid-4" style={{ marginBottom: 20 }}>

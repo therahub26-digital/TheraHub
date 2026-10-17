@@ -11,7 +11,8 @@ import { todayIsoDate } from "@/lib/wallclock";
 // dropdown-panel pattern as components/InventoryEditor.tsx.
 // ---------------------------------------------------------------------
 
-const PAYMENT_METHODS: PaymentMethod[] = ["Cash", "QRIS", "Debit Card", "Credit Card", "Transfer", "E-Wallet", "Split", "Midtrans"];
+// Sama dengan enum database expense_method (lihat lib/actions/expenses.ts).
+const PAYMENT_METHODS: PaymentMethod[] = ["Cash", "Bank Transfer", "Petty Cash", "Card"];
 
 function ErrorNote({ error }: { error: string | null }) {
   if (!error) return null;

@@ -37,7 +37,12 @@ async function resolveIdentity(
  * jadi tidak perlu diekspor -- yang perlu diekspor cuma tipe turunannya,
  * dan itu aman karena type-only export dihapus saat kompilasi.
  */
-const PAYMENT_METHODS = ["Cash", "QRIS", "Debit Card", "Credit Card", "Transfer", "E-Wallet", "Split", "Midtrans"] as const;
+// HARUS sama persis dengan enum Postgres `expense_method` (Cash, Bank
+// Transfer, Petty Cash, Card). Daftar lama menyalin enum metode bayar
+// KASIR (QRIS, Transfer, E-Wallet, …) sehingga setiap pilihan selain
+// "Cash" ditolak database ("invalid input value for enum expense_method")
+// — ditemukan 18 Okt 2026 saat mengisi data contoh pengeluaran.
+const PAYMENT_METHODS = ["Cash", "Bank Transfer", "Petty Cash", "Card"] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
 export type CreateExpenseInput = {

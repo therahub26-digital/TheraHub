@@ -86,8 +86,14 @@ export const REVENUE_CATEGORY_LABEL: Record<RevenueCategoryKey, string> = {
   PRODUCT: "Produk retail",
 };
 
-export function revenueCategoryOf(itemType: string): RevenueCategoryKey {
+/**
+ * The cashier records every catalogue product as item_type PRODUCT —
+ * snacks and drinks included (UAT 18 Okt 2026) — so F&B is recognised by
+ * the product's catalogue category, with FOOD/BEVERAGE kept for safety.
+ */
+export function revenueCategoryOf(itemType: string, productCategory?: string | null): RevenueCategoryKey {
   if (itemType === "FOOD" || itemType === "BEVERAGE") return "FNB";
+  if (itemType === "PRODUCT" && productCategory === "Food & Beverage") return "FNB";
   if (itemType === "EXTENSION" || itemType === "ADD_ON" || itemType === "PRODUCT") return itemType;
   return "SERVICE";
 }
@@ -103,13 +109,14 @@ export type RevenueItemInput = { transactionId: string; itemType: string; name: 
 export function summarizeRevenueItems(
   items: RevenueItemInput[],
   paidTransactionCount: number,
-  costPriceByName: Map<string, number>
+  costPriceByName: Map<string, number>,
+  categoryByName: Map<string, string> = new Map()
 ) {
   const totals = new Map<RevenueCategoryKey, { quantity: number; amount: number }>();
   const fnbItems = new Map<string, { quantity: number; amount: number }>();
   const fnbTransactions = new Set<string>();
   for (const item of items) {
-    const key = revenueCategoryOf(item.itemType);
+    const key = revenueCategoryOf(item.itemType, categoryByName.get(item.name));
     const total = totals.get(key) ?? { quantity: 0, amount: 0 };
     total.quantity += item.quantity;
     total.amount += item.amount;

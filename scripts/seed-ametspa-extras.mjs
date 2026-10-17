@@ -74,8 +74,11 @@ const byName = new Map(products.map((p) => [p.name, p]));
 const tx = await getAll(`transactions?select=id,outlet_id,subtotal,discount,paid_at&status=eq.PAID&${inOutlets}&order=paid_at`);
 const txIds = new Set(tx.map((t) => t.id));
 const allItems = (await Promise.all(chunk([...txIds], 150).map((ids) =>
-  getAll(`transaction_items?select=id,transaction_id,item_type,qty,unit_price&transaction_id=in.(${ids.join(",")})`)))).flat();
-const fnbItems = allItems.filter((i) => i.item_type === "FOOD" || i.item_type === "BEVERAGE");
+  getAll(`transaction_items?select=id,transaction_id,item_type,name,qty,unit_price&transaction_id=in.(${ids.join(",")})`)))).flat();
+// Kasir mencatat produk katalog (termasuk F&B) sebagai item_type PRODUCT.
+const fnbNames = new Set(products.filter((p) => p.category === "Food & Beverage").map((p) => p.name));
+const isFnb = (i) => i.item_type === "FOOD" || i.item_type === "BEVERAGE" || (i.item_type === "PRODUCT" && fnbNames.has(i.name));
+const fnbItems = allItems.filter(isFnb);
 
 // ------------------------------------------------------------------ CLEAR
 if (CLEAR) {
@@ -86,7 +89,7 @@ if (CLEAR) {
   }
   for (const id of affected) {
     const t = tx.find((row) => row.id === id);
-    const rest = allItems.filter((i) => i.transaction_id === id && i.item_type !== "FOOD" && i.item_type !== "BEVERAGE");
+    const rest = allItems.filter((i) => i.transaction_id === id && !isFnb(i));
     const subtotal = rest.reduce((s, i) => s + Number(i.qty) * Number(i.unit_price), 0);
     await api("PATCH", `transactions?id=eq.${id}`, pricing(subtotal, Number(t.discount)), { Prefer: "return=minimal" });
   }
@@ -123,8 +126,8 @@ for (const t of tx) {
   if (rand() >= 0.4) continue;
   const lines = [];
   const pick = (list) => byName.get(list[Math.floor(rand() * list.length)]);
-  lines.push({ product: pick(DRINKS), type: "BEVERAGE", qty: rand() < 0.2 ? 2 : 1 });
-  if (rand() < 0.45) lines.push({ product: pick(FOODS), type: "FOOD", qty: 1 });
+  lines.push({ product: pick(DRINKS), type: "PRODUCT", qty: rand() < 0.2 ? 2 : 1 });
+  if (rand() < 0.45) lines.push({ product: pick(FOODS), type: "PRODUCT", qty: 1 });
   let added = 0;
   for (const line of lines) {
     if (!line.product) continue;
@@ -232,16 +235,32 @@ for (const [code, name, qty] of OPNAME) {
 for (const rows of chunk(moves, 200)) await insert("stock_movements", rows);
 log.push(`pergerakan stok: ${moves.length} (pembelian, pemakaian, opname) + ${saleMoves.length} penjualan`);
 
-// ------------------------------------------------- 6. saldo stok akhir
-const LOW = [["AMY-CKW", "Body Lotion / Pelembab", 3], ["AMY-MKW", "Handuk Kecil", 15]];
+// ------------------------------------------------- 6. saldo awal + saldo akhir
+// Saldo stok WAJIB sama dengan jumlah buku besar (stock_movements). Satu
+// baris ADJUSTMENT "saldo awal" per produk per cabang di hari pertama,
+// cukup supaya saldo berjalan tidak pernah minus, lalu product_stocks =
+// total buku besar. Dua item sengaja berakhir di bawah minimum.
+const LOW = new Set(["AMY-CKW|Body Lotion / Pelembab", "AMY-MKW|Handuk Kecil"]);
+const ledger = [...saleMoves, ...moves].sort((a, b) => a.posted_at.localeCompare(b.posted_at));
+const openingMoves = [];
 const stocks = [];
 for (const outlet of outlets) {
   for (const p of products) {
-    const low = LOW.find(([code, name]) => code === outlet.code && name === p.name);
-    stocks.push({ outlet_id: outlet.id, product_id: p.id, qty: low ? low[2] : Math.max(Number(p.min_stock) * 2, 6) });
+    let running = 0;
+    let lowest = 0;
+    for (const m of ledger) {
+      if (m.outlet_id !== outlet.id || m.product_id !== p.id) continue;
+      running += Number(m.qty);
+      lowest = Math.min(lowest, running);
+    }
+    const buffer = LOW.has(`${outlet.code}|${p.name}`) ? 1 : Math.max(Number(p.min_stock), 6);
+    const opening = -lowest + buffer;
+    openingMoves.push({ outlet_id: outlet.id, product_id: p.id, type: "ADJUSTMENT", qty: opening, unit_cost: Number(p.cost_price), ref_type: REF, ref_id: null, posted_at: ts(addDays(firstDay, -1), "23:00"), posted_by: null });
+    stocks.push({ outlet_id: outlet.id, product_id: p.id, qty: opening + running });
   }
 }
+await insert("stock_movements", openingMoves);
 await api("POST", "product_stocks?on_conflict=outlet_id,product_id", stocks, { Prefer: "resolution=merge-duplicates,return=minimal" });
-log.push(`saldo stok: ${stocks.length} baris (2 di bawah minimum)`);
+log.push(`saldo awal: ${openingMoves.length} baris; saldo akhir = total buku besar (${stocks.filter((r) => LOW.has(`${outlets.find((o) => o.id === r.outlet_id).code}|${byName.get([...byName.keys()].find((n) => byName.get(n).id === r.product_id)).name}`)).length} item sengaja menipis)`);
 
 console.log(log.map((line) => `- ${line}`).join("\n"));

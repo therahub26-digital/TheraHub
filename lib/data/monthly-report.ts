@@ -613,7 +613,8 @@ function buildReport(
     })),
     tx.length,
     new Map(data.products.filter((product) => product.cost_price !== null)
-      .map((product) => [product.name, n(product.cost_price as number | string)]))
+      .map((product) => [product.name, n(product.cost_price as number | string)])),
+    new Map(data.products.filter((product) => product.category).map((product) => [product.name, product.category as string]))
   );
 
   const operatingDays = window.period < effectivePeriod

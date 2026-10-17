@@ -172,6 +172,16 @@ test("M15", "Tamu vs biaya bahan per minggu dan biaya per tamu", () => {
   assert.equal(rows[4].costPerVisit, null);
 });
 
+test("M16", "Kasir mencatat F&B sebagai PRODUCT: digolongkan F&B lewat kategori katalog", () => {
+  const { byCategory, fnb } = summarizeRevenueItems([
+    { transactionId: "t1", itemType: "PRODUCT", name: "Kopi Hitam", quantity: 1, amount: 12_000 },
+    { transactionId: "t1", itemType: "PRODUCT", name: "Lulur Rempah 250g", quantity: 1, amount: 85_000 },
+  ], 1, new Map([["Kopi Hitam", 3_000]]), new Map([["Kopi Hitam", "Food & Beverage"], ["Lulur Rempah 250g", "Retail Product"]]));
+  assert.equal(byCategory.find((row) => row.key === "FNB")?.amount, 12_000);
+  assert.equal(byCategory.find((row) => row.key === "PRODUCT")?.amount, 85_000);
+  assert.equal(fnb.items[0].grossProfit, 9_000);
+});
+
 for (const result of results) {
   console.log(`${result.ok ? "L" : "G"}  ${result.id} ${result.name}${result.ok ? "" : `\n    → ${result.detail}`}`);
 }

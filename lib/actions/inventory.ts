@@ -227,6 +227,18 @@ export async function receivePurchaseOrder(poId: string): Promise<ActionResult> 
 
   const { appUserId } = await resolveIdentity(supabase, user.id);
   const postedAt = nowIso();
+
+  // UAT 18 Okt 2026: dua klik / dua tab bisa sama-sama lolos cek status di
+  // atas lalu menambah stok DUA kali. Klaim PO secara atomik dulu: hanya
+  // satu permintaan yang berhasil mengubah ORDERED -> RECEIVED.
+  const { data: claimed } = await supabase
+    .from("purchase_orders")
+    .update({ status: "RECEIVED", received_at: postedAt })
+    .eq("id", poId)
+    .in("status", ["DRAFT", "ORDERED", "PARTIAL"])
+    .select("id");
+  if (!claimed || claimed.length === 0) return { ok: false, error: "PO ini sudah diproses." };
+
   for (const item of items) {
     const qty = Number(item.qty_ordered);
     const { error: moveError } = await supabase.from("stock_movements").insert({
@@ -240,13 +252,14 @@ export async function receivePurchaseOrder(poId: string): Promise<ActionResult> 
       posted_at: postedAt,
       posted_by: appUserId,
     });
-    if (moveError) return { ok: false, error: "Gagal mencatat pergerakan stok — penerimaan dibatalkan." };
+    if (moveError) {
+      await supabase.from("purchase_orders").update({ status: po.status, received_at: null }).eq("id", poId);
+      return { ok: false, error: "Gagal mencatat pergerakan stok — hubungi admin sebelum mencoba lagi." };
+    }
     const stockOk = await adjustStock(supabase, po.outlet_id, item.product_id, qty);
     if (!stockOk) return { ok: false, error: "Gagal memperbarui saldo stok — hubungi admin." };
     await supabase.from("purchase_order_items").update({ qty_received: qty }).eq("id", item.id);
   }
-
-  await supabase.from("purchase_orders").update({ status: "RECEIVED", received_at: postedAt }).eq("id", poId);
 
   revalidatePath("/manager/inventory");
   return { ok: true };
@@ -283,6 +296,26 @@ export async function createAndCompleteStockTransfer(input: CreateStockTransferI
     .select("id")
     .in("id", [input.fromOutletId, input.toOutletId]);
   if ((outletsCheck ?? []).length !== 2) return { ok: false, error: "Outlet asal/tujuan tidak valid." };
+
+  // UAT 18 Okt 2026: transfer tidak pernah memeriksa stok asal, sehingga
+  // bisa membuat stok outlet asal minus; dan unit_cost ditulis 0 sehingga
+  // nilai transfer di laporan selalu Rp0. Cek stok & ambil harga pokok dulu.
+  const productIds = [...new Set(items.map((i) => i.productId))];
+  const [{ data: sourceStocks }, { data: productCosts }] = await Promise.all([
+    supabase.from("product_stocks").select("product_id, qty").eq("outlet_id", input.fromOutletId).in("product_id", productIds),
+    supabase.from("products").select("id, name, cost_price").in("id", productIds),
+  ]);
+  const onHand = new Map((sourceStocks ?? []).map((r) => [r.product_id as string, Number(r.qty)]));
+  const costOf = new Map((productCosts ?? []).map((r) => [r.id as string, Number(r.cost_price ?? 0)]));
+  const need = new Map<string, number>();
+  for (const i of items) need.set(i.productId, (need.get(i.productId) ?? 0) + i.qty);
+  for (const [productId, qty] of need) {
+    const have = onHand.get(productId) ?? 0;
+    if (qty > have) {
+      const name = (productCosts ?? []).find((r) => r.id === productId)?.name ?? "Produk";
+      return { ok: false, error: `Stok ${name} di outlet asal tidak cukup (tersedia ${have}, diminta ${qty}).` };
+    }
+  }
 
   const { appUserId, employeeId } = await resolveIdentity(supabase, user.id);
   const code = await nextCode(supabase, "stock_transfers", "tenant_id", input.tenantId, "TRF");
@@ -332,24 +365,33 @@ export async function createAndCompleteStockTransfer(input: CreateStockTransferI
   // by lib/actions/customerBookings.ts. Any failure here rolls back the
   // transfer + item rows instead of leaving stock half-moved.
   const admin = createAdminClient();
+  const applied: { productId: string; qty: number }[] = [];
   for (const item of items) {
     const { error: moveError } = await admin.from("stock_movements").insert([
       {
         outlet_id: input.fromOutletId, product_id: item.productId, type: "TRANSFER_OUT", qty: -item.qty,
-        unit_cost: 0, ref_type: "STOCK_TRANSFER", ref_id: transfer.id, posted_at: postedAt, posted_by: appUserId,
+        unit_cost: costOf.get(item.productId) ?? 0, ref_type: "STOCK_TRANSFER", ref_id: transfer.id, posted_at: postedAt, posted_by: appUserId,
       },
       {
         outlet_id: input.toOutletId, product_id: item.productId, type: "TRANSFER_IN", qty: item.qty,
-        unit_cost: 0, ref_type: "STOCK_TRANSFER", ref_id: transfer.id, posted_at: postedAt, posted_by: appUserId,
+        unit_cost: costOf.get(item.productId) ?? 0, ref_type: "STOCK_TRANSFER", ref_id: transfer.id, posted_at: postedAt, posted_by: appUserId,
       },
     ]);
     const outOk = !moveError && (await adjustStock(admin, input.fromOutletId, item.productId, -item.qty));
     const inOk = !moveError && (await adjustStock(admin, input.toOutletId, item.productId, item.qty));
     if (moveError || !outOk || !inOk) {
+      // Kembalikan item yang sudah terlanjur dipindah supaya tidak ada stok
+      // setengah jalan (sebelumnya hanya dokumen transfer yang dihapus).
+      for (const done of applied) {
+        await adjustStock(admin, input.fromOutletId, done.productId, done.qty);
+        await adjustStock(admin, input.toOutletId, done.productId, -done.qty);
+      }
+      await admin.from("stock_movements").delete().eq("ref_type", "STOCK_TRANSFER").eq("ref_id", transfer.id);
       await supabase.from("stock_transfer_items").delete().eq("stock_transfer_id", transfer.id);
       await supabase.from("stock_transfers").delete().eq("id", transfer.id);
       return { ok: false, error: "Gagal memindahkan stok antar outlet — transfer dibatalkan, tidak ada perubahan tersimpan." };
     }
+    applied.push({ productId: item.productId, qty: item.qty });
   }
 
   revalidatePath("/manager/inventory");
@@ -384,6 +426,17 @@ export async function createStockOpnameAndPost(input: CreateStockOpnameInput): P
   if (!input.scope.trim()) return { ok: false, error: "Cakupan opname wajib diisi." };
   const items = input.items.filter((i) => i.productId);
   if (items.length === 0) return { ok: false, error: "Tambahkan minimal 1 produk untuk dihitung." };
+
+  // UAT 18 Okt 2026: "stok sistem" dulu diambil dari angka di layar saat
+  // halaman dibuka. Bila kasir menjual/menerima barang sebelum opname
+  // diposting, selisih yang dicatat salah. Ambil saldo terkini dari server.
+  const { data: liveStocks } = await supabase
+    .from("product_stocks")
+    .select("product_id, qty")
+    .eq("outlet_id", input.outletId)
+    .in("product_id", items.map((i) => i.productId));
+  const liveQty = new Map((liveStocks ?? []).map((r) => [r.product_id as string, Number(r.qty)]));
+  for (const item of items) item.systemQty = liveQty.get(item.productId) ?? 0;
 
   const { appUserId, employeeId } = await resolveIdentity(supabase, user.id);
   const code = await nextCode(supabase, "stock_opnames", "outlet_id", input.outletId, "OPN");

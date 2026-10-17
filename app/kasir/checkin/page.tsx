@@ -142,7 +142,15 @@ export default async function CheckinPage() {
                     {r.session.therapistName} · sisa {r.session.minutesRemaining}m
                   </div>
                 ) : (
-                  <div className="tiny dim">Siap untuk tamu berikutnya</div>
+                  // UAT 26 Sep (U3), ditemukan lagi 18 Okt: room Maintenance/Nonaktif
+                  // dulu ikut bertuliskan "Siap untuk tamu berikutnya".
+                  <div className="tiny dim">
+                    {r.maintenance
+                      ? "Sedang maintenance — tidak bisa dipakai"
+                      : r.inactive
+                        ? "Nonaktif — tidak muncul di pilihan check-in"
+                        : "Siap untuk tamu berikutnya"}
+                  </div>
                 )}
               </Card>
             );

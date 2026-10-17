@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { EXPENSES as MOCK_EXPENSES, PETTY_CASH as MOCK_PETTY_CASH } from "@/lib/mock/finance";
 import type { ExpenseRec } from "@/lib/types";
+import { getAuthUser } from "@/lib/supabase/authUser";
 // EXPENSE_CATEGORIES moved to lib/constants/expenseCategories.ts (2026-08-23)
 // — see that file's header for why. Re-exported here so existing server-side
 // importers of this module (app/manager/expenses/page.tsx) don't need to
@@ -59,10 +60,9 @@ export type PettyCash = {
 };
 
 async function isSignedIn(): Promise<boolean> {
-  const supabase = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getAuthUser();
   return !!user;
 }
 

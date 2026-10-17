@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/authUser";
 
 // ---------------------------------------------------------------------
 // Identitas orang yang sedang login — khusus untuk ditampilkan di UI.
@@ -47,7 +48,7 @@ export const getSignedInName = cache(async (): Promise<string | null> => {
   const supabase = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getAuthUser();
   if (!user) return null;
 
   const { data, error } = await supabase

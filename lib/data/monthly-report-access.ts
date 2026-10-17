@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { ROLE_HOME } from "@/lib/route-guard";
 import { createClient } from "@/lib/supabase/server";
 import { monthLabel } from "@/lib/format";
+import { getAuthUser } from "@/lib/supabase/authUser";
 
 type AppUserRow = { role: string; outlet_id: string | null };
 
@@ -13,7 +14,7 @@ export async function requireMonthlyReportRole(
   const {
     data: { user },
     error: authError,
-  } = await supabase.auth.getUser();
+  } = await getAuthUser();
   if (authError) throw new Error(`Sesi laporan bulanan gagal diperiksa: ${authError.message}`);
   if (!user) redirect(`/login?next=${encodeURIComponent(pathname)}`);
 

@@ -5,6 +5,7 @@ import { fetchAllRows } from "@/lib/supabase/paginate";
 import { COMMISSIONS as MOCK_COMMISSIONS } from "@/lib/mock/finance";
 import { todayIsoDate } from "@/lib/wallclock";
 import type { CommissionEntry } from "@/lib/types";
+import { getAuthUser } from "@/lib/supabase/authUser";
 
 // ---------------------------------------------------------------------
 // Dual-mode read layer for "commission_entries" — the sixth module in
@@ -108,10 +109,9 @@ async function hydrate(
  * pulling a whole table to find out.
  */
 export async function isLiveCommissionsData(): Promise<boolean> {
-  const supabase = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getAuthUser();
   return user !== null;
 }
 
@@ -145,7 +145,7 @@ export async function getCommissionsForTherapist(therapistId: string): Promise<C
 
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getAuthUser();
   if (!user) {
     return MOCK_COMMISSIONS.filter((c) => c.therapistId === therapistId).sort((a, b) => (a.date < b.date ? 1 : -1));
   }
@@ -180,7 +180,7 @@ export async function getCommissionsForOutlet(outletId: string, period?: string)
 
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getAuthUser();
   if (!user) {
     return MOCK_COMMISSIONS
       .filter((c) => c.outletId === outletId && (!period || c.date.startsWith(period)))
@@ -230,7 +230,7 @@ export const getSignedInTherapist = cache(
 
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await getAuthUser();
     if (!user) return null;
 
     // photo_url ikut diambil sejak 2026-08-25 — tanpa ini MobileShell

@@ -2,6 +2,7 @@ import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import type { Customer, Booking } from "@/lib/types";
 import { getBookingsForOutlet, getBookingsForCustomer } from "@/lib/data/bookings";
+import { getAuthUser } from "@/lib/supabase/authUser";
 
 // ---------------------------------------------------------------------
 // Dual-mode data-access layer for "customers" — same pattern as the
@@ -75,7 +76,7 @@ async function fetchLiveCustomers(): Promise<LiveCustomer[] | null> {
   // session explicitly rather than inferring it from row count.
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getAuthUser();
   if (!user) return null;
 
   const { data, error } = await supabase.from("customers").select("*").order("name");
@@ -230,7 +231,7 @@ export async function getCurrentCustomer(): Promise<Customer | null> {
   const supabase = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getAuthUser();
   if (!user) return null;
 
   const { data, error } = await supabase.from("customers").select("*").eq("auth_user_id", user.id).maybeSingle();

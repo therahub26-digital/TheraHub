@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/authUser";
 
 // ---------------------------------------------------------------------
 // Tabungan karyawan — saldo yang nyata, bukan angka hiasan.
@@ -71,7 +72,7 @@ export async function getSavingsForEmployee(employeeId: string): Promise<Savings
 
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getAuthUser();
   if (!user) return [];
 
   const { data, error } = await supabase
@@ -97,7 +98,7 @@ export async function getSavingsBalancesForOutlet(
 
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getAuthUser();
   if (!user) return new Map();
 
   // Lewat employees supaya baris lama yang belum punya outlet_id (kolom

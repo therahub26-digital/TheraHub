@@ -2,6 +2,7 @@ import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { PROMOTIONS as MOCK_PROMOTIONS } from "@/lib/mock/catalog";
 import type { Promotion } from "@/lib/types";
+import { getAuthUser } from "@/lib/supabase/authUser";
 
 // ---------------------------------------------------------------------
 // Dual-mode data-access layer for "promotions" — same pattern as every
@@ -55,7 +56,7 @@ async function fetchLivePromotions(): Promise<Promotion[] | null> {
   const supabase = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getAuthUser();
   if (!user) return null; // demo/"Ganti Role" viewer -> mock. See header.
 
   const { data, error } = await supabase.from("promotions").select("*").order("name");

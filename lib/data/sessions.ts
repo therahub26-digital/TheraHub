@@ -4,6 +4,7 @@ import { SESSIONS as MOCK_SESSIONS, EXTENSION_REQUESTS as MOCK_EXTENSION_REQUEST
 import { toHHMM, nowIso, minutesBetween } from "@/lib/wallclock";
 import type { SessionRec, ExtensionRequest } from "@/lib/types";
 import { sweepOverdueSessions } from "@/lib/data/sessionOverrunSweep";
+import { getAuthUser } from "@/lib/supabase/authUser";
 
 // ---------------------------------------------------------------------
 // Dual-mode data-access layer for "sessions" — the module after bookings
@@ -123,7 +124,7 @@ async function fetchLiveSessions(): Promise<SessionRec[] | null> {
 
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getAuthUser();
   if (!user) return null; // demo/"Ganti Role" viewer -> mock. See header.
 
   // Session overrun sweep (2026-08-23) — see lib/data/sessionOverrunSweep.ts
@@ -223,7 +224,7 @@ async function fetchLiveExtensionRequests(sessions: SessionRec[]): Promise<Exten
 
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getAuthUser();
   if (!user) return null;
 
   const { data: rows, error } = await supabase.from("extension_requests").select("*").order("requested_at");

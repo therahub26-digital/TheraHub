@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/supabase/authUser";
 
 // ---------------------------------------------------------------------
 // Read side of room_alerts (0014_room_alerts.sql) — OPEN "call for
@@ -26,7 +27,7 @@ export async function getOpenRoomAlerts(outletId: string): Promise<OpenRoomAlert
   const supabase = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getAuthUser();
   if (!user) return [];
 
   const { data: alerts, error } = await supabase

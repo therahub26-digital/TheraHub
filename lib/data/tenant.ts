@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { ACTIVE_TENANT } from "@/lib/mock";
+import { getAuthUser } from "@/lib/supabase/authUser";
 
 // ---------------------------------------------------------------------
 // Read layer for the current signed-in staff member's tenant row. Backs
@@ -78,7 +79,7 @@ export async function getCurrentTenant(): Promise<TenantProfile | null> {
   const supabase = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getAuthUser();
   if (!user) return null;
 
   const { data, error } = await supabase

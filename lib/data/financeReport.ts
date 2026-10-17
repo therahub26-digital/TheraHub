@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { fetchAllRows } from "@/lib/supabase/paginate";
 import type { FinanceRows } from "@/lib/finance/aggregate";
+import { getAuthUser } from "@/lib/supabase/authUser";
 
 // ---------------------------------------------------------------------
 // Baris mentah laporan keuangan untuk SATU ATAU BANYAK outlet dalam satu
@@ -31,7 +32,7 @@ export async function getFinanceRows(outletIds: string[], start: string, endExcl
   const supabase = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getAuthUser();
   if (!user) return null;
   if (outletIds.length === 0) return { tx: [], commissions: [], expenses: [] };
 

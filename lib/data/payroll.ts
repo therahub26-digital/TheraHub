@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { PAYROLL as MOCK_PAYROLL } from "@/lib/mock/finance";
 import type { PayrollAdjustment, PayrollComponent } from "@/lib/payroll";
 import type { PayrollItem, JobRole } from "@/lib/types";
+import { getAuthUser } from "@/lib/supabase/authUser";
 
 // ---------------------------------------------------------------------
 // Dual-mode read layer for payroll — the last module in the Fase 5 order.
@@ -45,7 +46,7 @@ async function fetchLivePayroll(): Promise<PayrollItem[] | null> {
 
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getAuthUser();
   if (!user) return null;
 
   const { data: rows, error } = await supabase
@@ -121,7 +122,7 @@ export async function getPayrollSettings(outletId: string): Promise<PayrollSetti
 
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getAuthUser();
   if (!user) {
     // Demo/"Ganti Role" viewer: the mock payslips were authored around a
     // conventional full payroll, so describe that rather than pretending
@@ -168,7 +169,7 @@ export async function getAdjustmentsForOutlet(
 
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getAuthUser();
   if (!user) return [];
 
   const { data, error } = await supabase
@@ -201,7 +202,7 @@ export async function getAdjustmentsForEmployee(
 
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getAuthUser();
   if (!user) return [];
 
   const { data, error } = await supabase

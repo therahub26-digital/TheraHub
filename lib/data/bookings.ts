@@ -5,6 +5,7 @@ import { sweepNoShowBookings } from "@/lib/data/noShowSweep";
 import { TODAY as MOCK_TODAY, NOW_HHMM as MOCK_NOW_HHMM } from "@/lib/mock/rng";
 import { todayIsoDate, nowHHMM } from "@/lib/wallclock";
 import type { Booking } from "@/lib/types";
+import { getAuthUser } from "@/lib/supabase/authUser";
 
 // ---------------------------------------------------------------------
 // Dual-mode data-access layer for "bookings" — same pattern as the other
@@ -116,7 +117,7 @@ async function fetchLiveBookings(): Promise<Booking[] | null> {
   // trigger is "no authenticated session" specifically, not "no rows".
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getAuthUser();
   if (!user) return null;
 
   // Rule 3 (2026-08-23): close out bookings that never checked in before

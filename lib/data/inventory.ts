@@ -9,6 +9,7 @@ import {
 } from "@/lib/mock/commerce";
 import type { Product, StockMovement } from "@/lib/types";
 import { todayIsoDate } from "@/lib/wallclock";
+import { getAuthUser } from "@/lib/supabase/authUser";
 
 // ---------------------------------------------------------------------
 // UPDATE 2026-08-23 — /manager/inventory was 100% mock (PRODUCTS,
@@ -125,10 +126,9 @@ function mapProduct(row: ProductRow, stocksByProduct: Map<string, Record<string,
 }
 
 async function isSignedIn(): Promise<boolean> {
-  const supabase = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getAuthUser();
   return !!user;
 }
 

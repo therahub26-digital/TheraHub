@@ -4,6 +4,7 @@ import type { NotificationRec } from "@/lib/types";
 import { getSessionForTherapist } from "@/lib/data/sessions";
 import { getBookingsForOutlet, getEffectiveToday, getEffectiveNow } from "@/lib/data/bookings";
 import { wallClockIso, minutesBetween } from "@/lib/wallclock";
+import { getAuthUser } from "@/lib/supabase/authUser";
 
 // ---------------------------------------------------------------------
 // Therapist notifications (2026-08-21): "alert sebelum bertugas dan sesi
@@ -37,7 +38,7 @@ async function getSignedInAppUserId(): Promise<string | null> {
   const supabase = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getAuthUser();
   if (!user) return null;
   const { data } = await supabase.from("app_users").select("id").eq("auth_user_id", user.id).maybeSingle();
   return data?.id ?? null;

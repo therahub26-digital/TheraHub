@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getSessionsForOutlet } from "@/lib/data/sessions";
 import { getEffectiveToday } from "@/lib/data/bookings";
 import type { PayableSession, PayableExtension } from "@/lib/types";
+import { getAuthUser } from "@/lib/supabase/authUser";
 
 // ---------------------------------------------------------------------
 // Read layer for /kasir/pos (POS Cart) — new 2026-08-23.
@@ -36,7 +37,7 @@ async function fetchPayableSessions(outletId: string): Promise<PayableSession[] 
   const supabase = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getAuthUser();
   if (!user) return null; // demo viewer — see header note.
 
   const today = await getEffectiveToday();

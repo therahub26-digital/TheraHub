@@ -2,6 +2,7 @@ import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { ROOMS as MOCK_ROOMS } from "@/lib/mock/org";
 import type { Room } from "@/lib/types";
+import { getAuthUser } from "@/lib/supabase/authUser";
 
 // ---------------------------------------------------------------------
 // Dual-mode data-access layer for "rooms" — same pattern as
@@ -83,7 +84,7 @@ export async function getAvailableRoomsForOutlet(outletId: string): Promise<Room
   const supabase = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getAuthUser();
   if (!user) return rooms; // demo/mock viewer — nothing to hold a room, so all "ACTIVE" rooms count as free
 
   const { data: heldRows } = await supabase

@@ -2,6 +2,7 @@ import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { OUTLETS as MOCK_OUTLETS, ROOMS as MOCK_ROOMS } from "@/lib/mock/org";
 import type { DepositPolicy, Outlet, Room } from "@/lib/types";
+import { getAuthUser } from "@/lib/supabase/authUser";
 
 // ---------------------------------------------------------------------
 // Outlets data-access layer — Phase 5 (migrasi mock -> database sungguhan),
@@ -242,7 +243,7 @@ const loadCurrentOutletId = cache(async (): Promise<string | null> => {
   const supabase = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getAuthUser();
   if (!user) return null; // demo/"Ganti Role" viewer — no session to scope by, see file header
 
   const { data: appUser } = await supabase

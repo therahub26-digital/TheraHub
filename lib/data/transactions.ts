@@ -2,6 +2,7 @@ import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { TRANSACTIONS as MOCK_TRANSACTIONS } from "@/lib/mock/commerce";
 import type { Transaction, TransactionItem } from "@/lib/types";
+import { getAuthUser } from "@/lib/supabase/authUser";
 
 // ---------------------------------------------------------------------
 // Dual-mode read layer for "transactions" — the POS/billing module,
@@ -47,7 +48,7 @@ async function fetchLiveTransactions(): Promise<Transaction[] | null> {
 
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getAuthUser();
   if (!user) return null; // demo/"Ganti Role" viewer -> mock, same as bookings/sessions.
 
   const { data: rows, error } = await supabase.from("transactions").select("*").order("paid_at", { ascending: false });

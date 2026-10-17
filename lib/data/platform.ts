@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getAuthUser } from "@/lib/supabase/authUser";
 
 // ---------------------------------------------------------------------
 // Read layer portal Super Admin — SATU-SATUNYA tempat di aplikasi ini yang
@@ -98,7 +99,7 @@ export const getPlatformAccess = cache(async () => {
   const supabase = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await getAuthUser();
   if (!user) return null;
 
   // Dibaca lewat client SESI, bukan service-role — inilah bagian

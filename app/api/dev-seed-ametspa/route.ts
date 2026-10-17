@@ -354,7 +354,7 @@ export async function GET(request: Request) {
   // --- kasir (untuk transactions.cashier_id) ----------------------------
   const { data: kasir, error: kasirErr } = await admin
     .from("app_users")
-    .select("id")
+    .select("id, employee_id")
     .eq("tenant_id", tenantId)
     .eq("role", "kasir")
     .limit(1)
@@ -362,7 +362,7 @@ export async function GET(request: Request) {
   if (kasirErr || !kasir) {
     return NextResponse.json({ error: `akun kasir tidak ditemukan: ${kasirErr?.message ?? "no row"}`, log }, { status: 500 });
   }
-  const cashierId = kasir.id as string;
+  const cashierId = kasir.employee_id as string;
 
   // --- 4. riwayat demo 45 hari + 5. kondisi hari ini --------------------
   const today = todayIsoDate();

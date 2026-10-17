@@ -47,3 +47,4 @@ _scratch_scripts/
 
 # Folder penampung file .lock git yang nyangkut (device_bash tidak bisa rm)
 _git_lock_cleanup/
+*.dump

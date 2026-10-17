@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Icon from "@/components/Icon";
-import { PageHead, Card, CardHead, StatCard, PersonCell } from "@/components/ui";
+import { PageHead, Card, CardHead, StatCard, PersonCell, Badge, EmptyState } from "@/components/ui";
+import PayrollPeriodPicker from "@/components/PayrollPeriodPicker";
 import {
   AddAdjustmentForm,
   EditAdjustmentButton,
@@ -63,9 +64,23 @@ function componentValue(
   return lines.filter((l) => l.component === spec.key).reduce((s, l) => s + l.amount, 0);
 }
 
-export default async function ManagerPayrollPage() {
-  const outlet = await getCurrentOutlet();
-  const period = await getEffectivePeriod();
+export default async function ManagerPayrollPage({ searchParams }: { searchParams: Promise<{ period?: string }> }) {
+  const [params, outlet, effectivePeriod] = await Promise.all([
+    searchParams,
+    getCurrentOutlet(),
+    getEffectivePeriod(),
+  ]);
+  const requestedPeriod = params.period ?? "";
+  const period = /^\d{4}-(0[1-9]|1[0-2])$/.test(requestedPeriod) ? requestedPeriod : effectivePeriod;
+  const isArchive = period < effectivePeriod;
+  const now = new Date();
+  const periodOptions = Array.from({ length: 12 }, (_, index) => {
+    const date = new Date(Date.UTC(now.getFullYear(), now.getMonth() - index, 1));
+    return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+  });
+  if (!periodOptions.includes(effectivePeriod)) periodOptions.push(effectivePeriod);
+  if (!periodOptions.includes(period)) periodOptions.push(period);
+  periodOptions.sort((a, b) => b.localeCompare(a));
 
   const [settings, employees, items, adjustments, commissions, savingsBalances] = await Promise.all([
     getPayrollSettings(outlet.id),
@@ -76,10 +91,40 @@ export default async function ManagerPayrollPage() {
     getSavingsBalancesForOutlet(outlet.id),
   ]);
 
+  const pageHead = (
+    <PageHead
+      title="Payroll"
+      desc={`${outlet.name} · ${monthLabel(period)} · Review estimasi sebelum dihitung final.`}
+      actions={
+        <>
+          <PayrollPeriodPicker
+            period={period}
+            periods={periodOptions.map((value) => ({ value, label: monthLabel(value) }))}
+          />
+          {isArchive && <Badge tone="neutral">Arsip — baca saja</Badge>}
+          {!isArchive && <RunPayrollButton outletId={outlet.id} period={period} />}
+        </>
+      }
+    />
+  );
+
+  if (isArchive && items.length === 0) {
+    return (
+      <>
+        {pageHead}
+        <Card>
+          <div className="card-body">
+            <EmptyState title="Belum ada payroll tersimpan untuk periode ini" />
+          </div>
+        </Card>
+      </>
+    );
+  }
+
   if (!settings) {
     return (
       <>
-        <PageHead title="Payroll" desc={`${outlet.name} · ${monthLabel(period)}`} />
+        {pageHead}
         <Card>
           <CardHead title="Struktur payroll belum diatur" />
           <div className="card-body stack g3">
@@ -206,11 +251,7 @@ export default async function ManagerPayrollPage() {
 
   return (
     <>
-      <PageHead
-        title="Payroll"
-        desc={`${outlet.name} · ${monthLabel(period)} · Review estimasi sebelum dihitung final.`}
-        actions={<RunPayrollButton outletId={outlet.id} period={period} />}
-      />
+      {pageHead}
 
       <div className="grid grid-4" style={{ marginBottom: 20 }}>
         <StatCard label="Estimasi Total" value={rp(totalLive, { short: true })} icon="wallet" toneKey="gold" deltaLabel={`${rows.length} karyawan aktif`} />
@@ -234,13 +275,14 @@ export default async function ManagerPayrollPage() {
         <Card style={{ marginBottom: 16, borderColor: "var(--warning)" }}>
           <div className="card-body small" style={{ color: "var(--warning)" }}>
             <Icon name="alert-triangle" size={13} style={{ verticalAlign: "-2px", marginRight: 6 }} />
-            Ada baris yang berubah setelah payroll terakhir dihitung. Tekan <strong>Hitung Payroll</strong> supaya
-            slip yang tersimpan ikut diperbarui.
+            {isArchive
+              ? "Ada baris yang berubah setelah payroll terakhir dihitung; angka slip tersimpan ditampilkan sebagai pembanding."
+              : <>Ada baris yang berubah setelah payroll terakhir dihitung. Tekan <strong>Hitung Payroll</strong> supaya slip yang tersimpan ikut diperbarui.</>}
           </div>
         </Card>
       )}
 
-      <Card style={{ marginBottom: 16 }}>
+      {!isArchive && <Card style={{ marginBottom: 16 }}>
         <CardHead
           title="Potongan / Tambahan Massal"
           sub="Sekali input untuk semua orang — mis. seragam baru, iuran, atau bonus bersama."
@@ -273,7 +315,7 @@ export default async function ManagerPayrollPage() {
             </div>
           )}
         </div>
-      </Card>
+      </Card>}
 
       {([
         { key: "therapist", title: "Estimasi Terapis", group: therapistRows, emptyLabel: "Tidak ada terapis aktif di outlet ini." },
@@ -296,7 +338,7 @@ export default async function ManagerPayrollPage() {
                     {deductions.map((c) => <th key={c.key}>{c.label}</th>)}
                     {usesSavings && <th>Saldo Tabungan</th>}
                     <th>Take-Home</th>
-                    <th style={{ minWidth: 120 }}>Aksi</th>
+                    {!isArchive && <th style={{ minWidth: 120 }}>Aksi</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -304,7 +346,7 @@ export default async function ManagerPayrollPage() {
                     <tr key={r.employee.id}>
                       <td>
                         <PersonCell name={r.employee.name} sub={r.employee.jobRole} toneKey="teal" size={28} />
-                        {usesEmployeeFixedPay && (
+                        {usesEmployeeFixedPay && !isArchive && (
                           <div style={{ marginTop: 6 }}>
                             <EmployeeSalaryEditor
                               employeeId={r.employee.id}
@@ -324,13 +366,17 @@ export default async function ManagerPayrollPage() {
                                   <span className="dim" style={{ flex: 1, minWidth: 0 }}>
                                     {l.kind === "EARNING" ? "+" : "−"}{rp(l.amount)} · {l.label}
                                   </span>
-                                  <EditAdjustmentButton
-                                    id={l.id}
-                                    initialLabel={l.label}
-                                    initialAmount={l.amount}
-                                    initialComponent={l.component}
-                                  />
-                                  <DeleteAdjustmentButton id={l.id} />
+                                  {!isArchive && (
+                                    <>
+                                      <EditAdjustmentButton
+                                        id={l.id}
+                                        initialLabel={l.label}
+                                        initialAmount={l.amount}
+                                        initialComponent={l.component}
+                                      />
+                                      <DeleteAdjustmentButton id={l.id} />
+                                    </>
+                                  )}
                                 </div>
                               </div>
                             ))}
@@ -370,14 +416,14 @@ export default async function ManagerPayrollPage() {
                             style={savingsBalances.get(r.employee.id) ? { color: "var(--text-1)" } : undefined}>
                             {rp(savingsBalances.get(r.employee.id) ?? 0)}
                           </span>
-                          <div style={{ marginTop: 4 }}>
+                          {!isArchive && <div style={{ marginTop: 4 }}>
                             <WithdrawSavingsButton
                               employeeId={r.employee.id}
                               outletId={outlet.id}
                               period={period}
                               balance={savingsBalances.get(r.employee.id) ?? 0}
                             />
-                          </div>
+                          </div>}
                         </td>
                       )}
 
@@ -390,15 +436,17 @@ export default async function ManagerPayrollPage() {
                         )}
                       </td>
 
-                      <td>
-                        <AddAdjustmentForm employeeId={r.employee.id} outletId={outlet.id} period={period} />
-                      </td>
+                      {!isArchive && (
+                        <td>
+                          <AddAdjustmentForm employeeId={r.employee.id} outletId={outlet.id} period={period} />
+                        </td>
+                      )}
                     </tr>
                   ))}
 
                   {group.length === 0 && (
                     <tr>
-                      <td colSpan={3 + components.length + (usesSavings ? 1 : 0)} className="dim small" style={{ textAlign: "center", padding: "20px 0" }}>
+                      <td colSpan={2 + components.length + (usesSavings ? 1 : 0) + (isArchive ? 0 : 1)} className="dim small" style={{ textAlign: "center", padding: "20px 0" }}>
                         {emptyLabel}
                       </td>
                     </tr>
@@ -423,7 +471,7 @@ export default async function ManagerPayrollPage() {
                         </td>
                       )}
                       <td className="num strong" style={{ color: "var(--accent)", fontSize: 15 }}>{rp(groupTotalLive)}</td>
-                      <td />
+                      {!isArchive && <td />}
                     </tr>
                   </tfoot>
                 )}

@@ -90,7 +90,10 @@ export default async function PromotionsPage() {
                       <span className="muted small">{p.value}</span>
                     )}
                   </td>
-                  <td className="muted small nowrap">{fmtDateShort(p.validFrom)} – {fmtDateShort(p.validTo)}</td>
+                  {/* UAT 18 Okt 2026: "22 Agu – 22 Agu" padahal 2026 → 2027 — tahun ikut ditulis. */}
+                  <td className="muted small nowrap">
+                    {fmtDateShort(p.validFrom)} {p.validFrom.slice(0, 4)} – {fmtDateShort(p.validTo)} {p.validTo.slice(0, 4)}
+                  </td>
                   <td className="num small">
                     {p.usageCount}{p.maxUsage ? ` / ${p.maxUsage}` : ""}
                   </td>

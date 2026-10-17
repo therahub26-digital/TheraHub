@@ -136,7 +136,7 @@ export function CloseShiftForm({ shiftId, expected }: { shiftId: string; expecte
       {needNote && (
         <Field label="Alasan Selisih (wajib)" hint="Setiap selisih, kurang maupun lebih, harus dijelaskan — akan direview manager">
           <textarea
-            className="input"
+            className="textarea"
             rows={3}
             value={note}
             disabled={pending}

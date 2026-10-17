@@ -489,6 +489,25 @@ table.tbl .strong { color: var(--text-1); font-weight: 600; }
 
 .input::placeholder, .textarea::placeholder { color: var(--text-4); }
 
+/* UAT 18 Okt 2026: <input readOnly> tanpa className di dalam <Field> tampil
+   sebagai kotak putih bawaan browser dengan teks nyaris tak terbaca (14 tempat,
+   mis. Tutup Kasir & Pengaturan Outlet). Diberi gaya yang sama dengan .input. */
+.field > input:not([class]):not([type="checkbox"]):not([type="radio"]),
+.field > select:not([class]),
+.field > textarea:not([class]) {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px;
+  background: var(--bg-deep);
+  border: 1px solid var(--border-2);
+  border-radius: var(--r-sm);
+  color: var(--text-1);
+  font-size: 13.5px;
+}
+.field > textarea:not([class]) { height: auto; min-height: 84px; padding: 10px 12px; }
+.field > input[readonly]:not([class]) { color: var(--text-2); cursor: default; }
+.field > input[readonly]:not([class]):focus { outline: none; }
+
 .input:hover, .select:hover, .textarea:hover { border-color: var(--border-3); }
 
 .input:focus, .select:focus, .textarea:focus {

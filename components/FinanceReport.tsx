@@ -173,7 +173,7 @@ export default function FinanceReport({
       </Card>
 
       {/* ------------------------------------------------ angka periode */}
-      <div className="grid grid-4" style={{ marginBottom: 20 }}>
+      <div className="grid grid-4 finance-report-kpis" style={{ marginBottom: 20 }}>
         <StatCard
           label={`Pendapatan · ${GRANULARITY_LABEL[gran]}`}
           value={rp(cur.revenue, { short: true })}
@@ -213,22 +213,24 @@ export default function FinanceReport({
           />
           <div className="card-body">
             {trendHasData ? (
-              <MultiLine
-                data={series.map((s) => ({
-                  label: s.b.short,
-                  Pendapatan: s.t.revenue,
-                  Beban: s.t.commission + s.t.expense,
-                  "Sisa Kas": s.t.net,
-                }))}
-                xKey="label"
-                series={[
-                  { key: "Pendapatan", label: "Pendapatan" },
-                  { key: "Beban", label: "Komisi + Pengeluaran" },
-                  { key: "Sisa Kas", label: "Sisa Kas" },
-                ]}
-                money
-                height={260}
-              />
+              <div className="finance-trend-chart">
+                <MultiLine
+                  data={series.map((s) => ({
+                    label: s.b.short,
+                    Pendapatan: s.t.revenue,
+                    Beban: s.t.commission + s.t.expense,
+                    "Sisa Kas": s.t.net,
+                  }))}
+                  xKey="label"
+                  series={[
+                    { key: "Pendapatan", label: "Pendapatan" },
+                    { key: "Beban", label: "Komisi + Pengeluaran" },
+                    { key: "Sisa Kas", label: "Sisa Kas" },
+                  ]}
+                  money
+                  height={260}
+                />
+              </div>
             ) : (
               <EmptyState
                 icon="trending-up"

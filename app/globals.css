@@ -451,9 +451,10 @@ table { border-collapse: collapse; width: 100%; }
     color: #000 !important;
   }
 
-  .page-head,
-  .page-head h1,
-  .page-head p,
+  .page-head {
+    display: none !important;
+  }
+
   .card,
   .card-head,
   .card-body,
@@ -461,8 +462,8 @@ table { border-collapse: collapse; width: 100%; }
   .tbl th,
   .tbl td,
   .tbl a,
-  .stat-card,
-  .stat-card * {
+  .stat,
+  .stat * {
     background: #fff !important;
     color: #000 !important;
     box-shadow: none !important;
@@ -471,15 +472,85 @@ table { border-collapse: collapse; width: 100%; }
     backdrop-filter: none !important;
   }
 
-  .page-head {
+  .finance-report-kpis {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 3mm !important;
     margin-bottom: 5mm !important;
-    padding: 0 !important;
-    border: 0 !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .finance-report-kpis .stat {
+    min-width: 0 !important;
+    padding: 2.5mm !important;
+    border: 1px solid #bbb !important;
+    border-radius: 2mm !important;
+    overflow: visible !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .finance-report-kpis .stat::before,
+  .finance-report-kpis .stat-icon {
+    display: none !important;
+  }
+
+  .finance-report-kpis .stat-top {
+    display: block !important;
+  }
+
+  .finance-report-kpis .stat-label {
+    font-size: 8pt !important;
+    letter-spacing: 0 !important;
+  }
+
+  .finance-report-kpis .stat-value {
+    margin-top: 1mm !important;
+    font-size: 13pt !important;
+  }
+
+  .finance-report-kpis .stat-foot {
+    margin-top: 1mm !important;
+    font-size: 7pt !important;
+  }
+
+  .finance-trend-chart {
+    width: 100% !important;
+    height: 260px !important;
+    min-height: 260px !important;
+  }
+
+  .finance-trend-chart > div {
+    width: 100% !important;
+    height: 260px !important;
+    min-height: 260px !important;
+  }
+
+  .finance-trend-chart .recharts-cartesian-grid line {
+    stroke: #cbd5e1 !important;
+  }
+
+  .finance-trend-chart .recharts-cartesian-axis line,
+  .finance-trend-chart .recharts-cartesian-axis-tick-line {
+    stroke: #64748b !important;
+  }
+
+  .finance-trend-chart .recharts-cartesian-axis-tick-value,
+  .finance-trend-chart .recharts-legend-item-text {
+    fill: #111827 !important;
+    color: #111827 !important;
+  }
+
+  .finance-trend-chart .recharts-tooltip-wrapper {
+    display: none !important;
   }
 
   .card {
     margin: 0 0 5mm !important;
     border: 1px solid #bbb !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 
   .table-wrap {
@@ -504,5 +575,11 @@ table { border-collapse: collapse; width: 100%; }
   .tbl td {
     break-inside: avoid;
     page-break-inside: avoid;
+  }
+}
+
+@media print and (max-width: 700px) {
+  .finance-report-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
 }

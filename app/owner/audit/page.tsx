@@ -27,7 +27,9 @@ export default function OwnerAuditPage() {
       <MockDataNotice title="Data contoh — ekspor laporan belum dibangun">
         Audit log di halaman ini contoh tampilan. Seluruh tombol <strong>PDF</strong>,
         <strong>Excel</strong>, dan <strong>Export CSV</strong> di sini belum berfungsi — tidak ada
-        file yang akan terunduh. Belum ada fitur ekspor di mana pun di aplikasi ini.
+        file yang akan terunduh. Ekspor yang <strong>sudah berfungsi</strong>: Laporan Keuangan
+        (Export CSV &amp; Cetak/Simpan PDF), Laporan Bulanan (Cetak/Simpan PDF), serta CSV di
+        Manager → Reports dan Expenses.
       </MockDataNotice>
 
       <Card style={{ marginBottom: 20 }}>

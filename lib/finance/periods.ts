@@ -140,3 +140,25 @@ export function parseFinanceParams(
   const raw = isIsoDate(sp.d) ? sp.d : today;
   return { gran, date: raw > today ? today : raw };
 }
+
+/**
+ * Akhir (eksklusif) rentang pembanding yang adil untuk periode berjalan.
+ *
+ * UAT 18 Okt 2026: dashboard Owner menulis "Pendapatan ▼52,4% vs bulan
+ * sebelumnya" pada 18 Oktober — 18 hari Oktober dibanding 30 hari September.
+ * Bila periode terpilih masih berjalan (hari ini di dalamnya), periode
+ * sebelumnya dipotong ke jumlah hari yang sama (1–18 Sep). Periode yang
+ * sudah lewat dibanding penuh seperti biasa.
+ */
+export function comparablePreviousEnd(
+  previous: { start: string; endExcl: string },
+  selected: { start: string; endExcl: string },
+  today: string
+): { endExcl: string; partial: boolean } {
+  const isCurrent = selected.start <= today && today < selected.endExcl;
+  if (!isCurrent) return { endExcl: previous.endExcl, partial: false };
+  const day = 86_400_000;
+  const elapsed = Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${selected.start}T00:00:00Z`)) / day) + 1;
+  const cut = new Date(Date.parse(`${previous.start}T00:00:00Z`) + elapsed * day).toISOString().slice(0, 10);
+  return cut < previous.endExcl ? { endExcl: cut, partial: true } : { endExcl: previous.endExcl, partial: false };
+}

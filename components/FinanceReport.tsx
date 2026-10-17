@@ -3,13 +3,15 @@ import Icon from "@/components/Icon";
 import { Card, CardHead, StatCard, EmptyState, InfoNote } from "@/components/ui";
 import { MultiLine, GroupedBars, DonutChart, LegendList } from "@/components/Charts";
 import ExportCsvButton from "@/components/ExportCsvButton";
-import { rp, num } from "@/lib/format";
+import { rp, num, fmtDateLong } from "@/lib/format";
+import { todayIsoDate } from "@/lib/wallclock";
 import { toCsv, csvFilename } from "@/lib/csv";
 import {
   GRANULARITY_LABEL,
   makeBucket,
   shiftBucket,
   trendBuckets,
+  comparablePreviousEnd,
   type FinanceGranularity,
 } from "@/lib/finance/periods";
 import { totalsFor, revenueByMethod, deltaPct, hasAnyData, type FinanceRows, type FinanceTotals } from "@/lib/finance/aggregate";
@@ -87,7 +89,9 @@ export default function FinanceReport({
   const previous = buckets[buckets.length - 2] ?? makeBucket(gran, shiftBucket(gran, selected.start, -1));
 
   const cur = totalsFor(rows, selected.start, selected.endExcl);
-  const prev = totalsFor(rows, previous.start, previous.endExcl);
+  // Periode berjalan dibanding jumlah hari yang sama di periode sebelumnya.
+  const prevWindow = comparablePreviousEnd(previous, selected, today);
+  const prev = totalsFor(rows, previous.start, prevWindow.endExcl);
   const series = buckets.map((b) => ({ b, t: totalsFor(rows, b.start, b.endExcl) }));
   const trendHasData = series.some((s) => hasAnyData(s.t));
   const methods = revenueByMethod(rows, selected.start, selected.endExcl);
@@ -106,7 +110,7 @@ export default function FinanceReport({
   const canNext = nextStart <= today;
   const isCurrent = selected.start <= today && today < selected.endExcl;
   const unitWord = gran === "day" ? "hari" : gran === "week" ? "minggu" : "bulan";
-  const prevLabel = `${unitWord} sebelumnya`;
+  const prevLabel = prevWindow.partial ? `tanggal yang sama ${unitWord} sebelumnya` : `${unitWord} sebelumnya`;
 
   const totalTrend = totalsFor(rows, buckets[0].start, selected.endExcl);
 
@@ -127,7 +131,9 @@ export default function FinanceReport({
         <div>{printOutletName}</div>
         <h2>Laporan Keuangan</h2>
         <div>Periode: {selected.long}</div>
-        <div>Tanggal cetak: {new Intl.DateTimeFormat("id-ID", { dateStyle: "long" }).format(new Date())}</div>
+        {/* UAT 18 Okt 2026: dulu new Date() di server Vercel (UTC) → antara 00:00–06:59 WIB
+            tercetak tanggal KEMARIN. Pakai tanggal WIB yang sama dengan seluruh aplikasi. */}
+        <div>Tanggal cetak: {fmtDateLong(todayIsoDate())}</div>
       </section>
       {/* ------------------------------------------------ toolbar periode */}
       <Card className="card-pad no-print" style={{ marginBottom: 16 }}>

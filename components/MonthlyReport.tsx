@@ -185,6 +185,33 @@ function Payments({ rows }: { rows: MonthlyReport["revenue"]["current"]["byPayme
   );
 }
 
+const EXTRA_TYPE_LABEL: Record<string, string> = {
+  EXTENSION: "Perpanjangan",
+  ADD_ON: "Add-on",
+  PRODUCT: "Produk",
+  FOOD: "Makanan",
+  BEVERAGE: "Minuman",
+};
+
+function RevenueByCategory({ rows }: { rows: MonthlyReport["revenue"]["current"]["byCategory"] }) {
+  const total = rows.reduce((sum, row) => sum + row.amount, 0);
+  if (!total) return <p className="monthly-empty-inline">Belum ada data penjualan.</p>;
+  const maximum = Math.max(...rows.map((row) => row.amount), 1);
+  return (
+    <div className="monthly-payment-list">
+      {rows.map((row) => (
+        <div className="monthly-payment-row" key={row.key}>
+          <div className="between g2">
+            <strong>{row.label}</strong>
+            <span>{row.amount ? rp(row.amount) : "—"} <small className="muted">· {pct(row.sharePct)} · {num(row.quantity)} item</small></span>
+          </div>
+          <div className="monthly-payment-track"><i style={{ width: `${row.amount ? Math.max(1, row.amount / maximum * 100) : 0}%` }} /></div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function VisitHeatmap({ values }: { values: MonthlyReport["customers"]["current"]["visitHoursByWeekday"] }) {
   if (!values.length) return <p className="monthly-empty-inline">Belum ada data kunjungan per jam.</p>;
   const hours = [...new Set(values.map((item) => item.hour))].sort((a, b) => a - b);
@@ -404,7 +431,36 @@ export default function MonthlyReport({
         </Card>
         <div className="monthly-two-column">
           <Card className="monthly-card">
-            <CardHead title="Layanan terlaris" />
+            <CardHead title="Pendapatan per jenis" sub="Layanan, perpanjangan, add-on, makanan & minuman, produk retail" />
+            <div className="card-body"><RevenueByCategory rows={data.revenue.current.byCategory} /></div>
+          </Card>
+          <Card className="monthly-card">
+            <CardHead title="Makanan & minuman" sub="Penjualan F&B dan laba kotornya" />
+            {data.revenue.current.fnb.items.length ? (
+              <>
+                <div className="card-body">
+                  <div className="monthly-fnb-stats">
+                    <span><small className="muted">Transaksi dengan F&B</small><strong>{data.revenue.current.fnb.attachPct === null ? "—" : pct(data.revenue.current.fnb.attachPct)}</strong></span>
+                    <span><small className="muted">Rata-rata F&B per transaksi</small><strong>{data.revenue.current.fnb.averagePerTransaction === null ? "—" : rp(data.revenue.current.fnb.averagePerTransaction)}</strong></span>
+                  </div>
+                </div>
+                <div className="table-wrap">
+                  <table className="tbl">
+                    <thead><tr><th>Item</th><th className="num">Terjual</th><th className="num">Penjualan</th><th className="num">Laba kotor</th></tr></thead>
+                    <tbody>
+                      {data.revenue.current.fnb.items.map((row) => (
+                        <tr key={row.name}><td>{row.name}</td><td className="num">{num(row.quantity)}</td><td className="num">{rp(row.amount)}</td><td className="num">{row.grossProfit === null ? "—" : rp(row.grossProfit)}</td></tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            ) : <div className="card-body"><p className="monthly-empty-inline">Belum ada penjualan makanan & minuman pada periode ini.</p></div>}
+          </Card>
+        </div>
+        <div className="monthly-two-column">
+          <Card className="monthly-card">
+            <CardHead title="Layanan & item terlaris" />
             {serviceRows.length || extras.length ? (
               <div className="table-wrap">
                 <table className="tbl">
@@ -414,7 +470,7 @@ export default function MonthlyReport({
                       <tr key={`service-${row.name}`}><td>{row.name}</td><td className="num">{num(row.quantity)}</td><td className="num">{rp(row.amount)}</td><td className="num">{pct(row.sharePct)}</td></tr>
                     ))}
                     {extras.map((row) => (
-                      <tr key={`${row.type}-${row.name}`}><td>{row.type === "PRODUCT" ? "Produk" : "Add-on"} · {row.name}</td><td className="num">{num(row.quantity)}</td><td className="num">{rp(row.amount)}</td><td className="num">—</td></tr>
+                      <tr key={`${row.type}-${row.name}`}><td>{EXTRA_TYPE_LABEL[row.type] ?? row.type} · {row.name}</td><td className="num">{num(row.quantity)}</td><td className="num">{rp(row.amount)}</td><td className="num">—</td></tr>
                     ))}
                     <tr className="strong"><td colSpan={2}>Total transaksi PAID</td><td className="num">{hasPaidSales ? rp(current.revenue) : "Belum ada data"}</td><td className="num">100%</td></tr>
                   </tbody>
@@ -554,7 +610,7 @@ export default function MonthlyReport({
             {data.profit.perOutlet.current.length ? (
               <div className="table-wrap">
                 <table className="tbl">
-                  <thead><tr><th>Cabang</th><th className="num">Pendapatan</th><th className="num">Komisi</th><th className="num">Gaji & tunjangan</th><th className="num">Pengeluaran</th><th className="num">Bahan</th><th className="num">Estimasi laba</th><th className="num">% pendapatan</th></tr></thead>
+                  <thead><tr><th>Cabang</th><th className="num">Pendapatan</th><th className="num">Komisi</th><th className="num">Gaji & tunjangan</th><th className="num">Pengeluaran</th><th className="num">Bahan treatment</th><th className="num">HPP produk terjual</th><th className="num">Estimasi laba</th><th className="num">% pendapatan</th></tr></thead>
                   <tbody>
                     {data.profit.perOutlet.current.map((row) => (
                       <tr key={row.outletId}>
@@ -562,6 +618,7 @@ export default function MonthlyReport({
                         <td className="num">{row.payrollCost === null ? "Belum dihitung" : rp(row.payrollCost)}</td>
                         <td className="num">{row.expenses === null ? "Belum ada data" : rp(row.expenses)}</td>
                         <td className="num">{row.materials === null ? "Belum ada data" : rp(row.materials)}</td>
+                        <td className="num">{row.costOfGoodsSold === null ? "Belum ada data" : rp(row.costOfGoodsSold)}</td>
                         <td className="num strong">
                           {row.profit === null
                             ? "Belum dihitung"
@@ -578,6 +635,7 @@ export default function MonthlyReport({
                       <td className="num">{data.profit.current.payrollCost === null ? "Belum dihitung" : rp(data.profit.current.payrollCost)}</td>
                       <td className="num">{data.profit.current.expenses === null ? "Belum ada data" : rp(data.profit.current.expenses)}</td>
                       <td className="num">{data.profit.current.materials === null ? "Belum ada data" : rp(data.profit.current.materials)}</td>
+                      <td className="num">{data.profit.current.costOfGoodsSold === null ? "Belum ada data" : rp(data.profit.current.costOfGoodsSold)}</td>
                       <td className="num">{data.profit.current.total === null
                         ? "Belum dihitung"
                         : hasProfitInputs ? rp(data.profit.current.total) : "Belum ada data"}</td>

@@ -8,6 +8,7 @@ import {
   getCommissionTotalForPeriod,
   percentagePointChange,
   percentageChange,
+  summarizeRevenueItems,
   withOptionalProfit,
 } from "@/lib/data/monthly-report-math";
 
@@ -100,6 +101,36 @@ test("M8", "Komisi Oktober tidak memuat entri September dan payroll tersimpan me
 
 test("M9", "Perubahan rasio dihitung sebagai poin persentase, bukan persen relatif", () => {
   assert.equal(percentagePointChange(78.7, 15.5), 63.2);
+});
+
+test("M10", "Pendapatan dipecah per jenis; makanan & minuman jadi satu pos F&B", () => {
+  const { byCategory } = summarizeRevenueItems([
+    { transactionId: "t1", itemType: "SERVICE", name: "Massage 90'", quantity: 1, amount: 180_000 },
+    { transactionId: "t1", itemType: "BEVERAGE", name: "Kopi Hitam", quantity: 2, amount: 24_000 },
+    { transactionId: "t2", itemType: "SERVICE", name: "Massage 90'", quantity: 1, amount: 180_000 },
+    { transactionId: "t2", itemType: "FOOD", name: "Kurma 5 Butir", quantity: 1, amount: 12_000 },
+    { transactionId: "t2", itemType: "ADD_ON", name: "Hot Stone", quantity: 1, amount: 50_000 },
+  ], 2, new Map());
+  const amountOf = (key: string) => byCategory.find((row) => row.key === key)?.amount;
+  assert.equal(amountOf("SERVICE"), 360_000);
+  assert.equal(amountOf("FNB"), 36_000);
+  assert.equal(amountOf("ADD_ON"), 50_000);
+  assert.equal(amountOf("PRODUCT"), 0);
+});
+
+test("M11", "F&B: tingkat pembelian per transaksi dan laba kotor memakai harga pokok; tanpa harga pokok = kosong, bukan nol", () => {
+  const { fnb } = summarizeRevenueItems([
+    { transactionId: "t1", itemType: "BEVERAGE", name: "Kopi Hitam", quantity: 2, amount: 24_000 },
+    { transactionId: "t3", itemType: "BEVERAGE", name: "Jamu Racik", quantity: 1, amount: 15_000 },
+  ], 4, new Map([["Kopi Hitam", 3_000]]));
+  assert.equal(fnb.attachPct, 50);
+  assert.equal(fnb.averagePerTransaction, 9_750);
+  assert.equal(fnb.items.find((row) => row.name === "Kopi Hitam")?.grossProfit, 18_000);
+  assert.equal(fnb.items.find((row) => row.name === "Jamu Racik")?.grossProfit, null);
+});
+
+test("M12", "Estimasi laba mengurangi HPP produk terjual", () => {
+  assert.equal(calculateOperatingProfit(20_000_000, 1_250_000, 5_250_000, 2_000_000, 500_000, 300_000), 10_700_000);
 });
 
 for (const result of results) {

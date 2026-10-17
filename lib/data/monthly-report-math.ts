@@ -70,9 +70,79 @@ export function calculateOperatingProfit(
   commission: number,
   salaryAndAllowances: number,
   expenses: number,
-  materials: number
+  materials: number,
+  costOfGoodsSold = 0
 ): number {
-  return revenue - commission - salaryAndAllowances - expenses - materials;
+  return revenue - commission - salaryAndAllowances - expenses - materials - costOfGoodsSold;
+}
+
+export type RevenueCategoryKey = "SERVICE" | "EXTENSION" | "ADD_ON" | "FNB" | "PRODUCT";
+
+export const REVENUE_CATEGORY_LABEL: Record<RevenueCategoryKey, string> = {
+  SERVICE: "Layanan",
+  EXTENSION: "Perpanjangan",
+  ADD_ON: "Add-on",
+  FNB: "Makanan & minuman",
+  PRODUCT: "Produk retail",
+};
+
+export function revenueCategoryOf(itemType: string): RevenueCategoryKey {
+  if (itemType === "FOOD" || itemType === "BEVERAGE") return "FNB";
+  if (itemType === "EXTENSION" || itemType === "ADD_ON" || itemType === "PRODUCT") return itemType;
+  return "SERVICE";
+}
+
+export type RevenueItemInput = { transactionId: string; itemType: string; name: string; quantity: number; amount: number };
+
+/**
+ * Splits sold items into revenue categories and summarizes food & beverage:
+ * how many paid transactions included F&B (attach rate), average F&B spend
+ * per transaction, and gross profit per F&B item using the product's cost
+ * price when it is known (null when not — never guessed).
+ */
+export function summarizeRevenueItems(
+  items: RevenueItemInput[],
+  paidTransactionCount: number,
+  costPriceByName: Map<string, number>
+) {
+  const totals = new Map<RevenueCategoryKey, { quantity: number; amount: number }>();
+  const fnbItems = new Map<string, { quantity: number; amount: number }>();
+  const fnbTransactions = new Set<string>();
+  for (const item of items) {
+    const key = revenueCategoryOf(item.itemType);
+    const total = totals.get(key) ?? { quantity: 0, amount: 0 };
+    total.quantity += item.quantity;
+    total.amount += item.amount;
+    totals.set(key, total);
+    if (key === "FNB") {
+      fnbTransactions.add(item.transactionId);
+      const row = fnbItems.get(item.name) ?? { quantity: 0, amount: 0 };
+      row.quantity += item.quantity;
+      row.amount += item.amount;
+      fnbItems.set(item.name, row);
+    }
+  }
+  const itemTotal = [...totals.values()].reduce((sum, row) => sum + row.amount, 0);
+  const order: RevenueCategoryKey[] = ["SERVICE", "EXTENSION", "ADD_ON", "FNB", "PRODUCT"];
+  const byCategory = order.map((key) => ({
+    key,
+    label: REVENUE_CATEGORY_LABEL[key],
+    quantity: totals.get(key)?.quantity ?? 0,
+    amount: totals.get(key)?.amount ?? 0,
+    sharePct: itemTotal ? (totals.get(key)?.amount ?? 0) / itemTotal * 100 : 0,
+  }));
+  const fnbAmount = totals.get("FNB")?.amount ?? 0;
+  const fnb = {
+    amount: fnbAmount,
+    transactionsWithFnb: fnbTransactions.size,
+    attachPct: paidTransactionCount ? fnbTransactions.size / paidTransactionCount * 100 : null,
+    averagePerTransaction: paidTransactionCount ? fnbAmount / paidTransactionCount : null,
+    items: [...fnbItems.entries()].map(([name, row]) => {
+      const cost = costPriceByName.has(name) ? costPriceByName.get(name)! * row.quantity : null;
+      return { name, ...row, cost, grossProfit: cost === null ? null : row.amount - cost };
+    }).sort((a, b) => b.amount - a.amount),
+  };
+  return { byCategory, fnb };
 }
 
 export function getCommissionTotalForPeriod(

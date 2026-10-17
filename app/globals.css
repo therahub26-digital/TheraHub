@@ -950,3 +950,20 @@ table { border-collapse: collapse; width: 100%; }
     overflow-wrap: normal;
   }
 }
+
+.monthly-fnb-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.monthly-fnb-stats span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.monthly-fnb-stats strong {
+  font-size: 1.1rem;
+  font-variant-numeric: tabular-nums;
+}

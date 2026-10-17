@@ -7,6 +7,8 @@ import {
   calculateRoomUtilization,
   calculateSalaryAllowanceCost,
   getCommissionTotalForPeriod,
+  summarizeRevenueItems,
+  type RevenueCategoryKey,
   withOptionalProfit,
 } from "@/lib/data/monthly-report-math";
 import { minutesBetween, nowIso, todayIsoDate } from "@/lib/wallclock";
@@ -28,6 +30,14 @@ export type RevenueReport = {
   byDay: { date: string; amount: number }[];
   byService: { name: string; quantity: number; amount: number; sharePct: number }[];
   addOnsAndProducts: { name: string; type: string; quantity: number; amount: number }[];
+  byCategory: { key: RevenueCategoryKey; label: string; quantity: number; amount: number; sharePct: number }[];
+  fnb: {
+    amount: number;
+    transactionsWithFnb: number;
+    attachPct: number | null;
+    averagePerTransaction: number | null;
+    items: { name: string; quantity: number; amount: number; cost: number | null; grossProfit: number | null }[];
+  };
   byPaymentMethod: { method: string; amount: number; transactions: number }[];
   promoDiscount: number;
   promoTransactions: number;
@@ -114,6 +124,7 @@ export type ProfitReport = {
   payrollCost: number | null;
   expenses: number | null;
   materials: number | null;
+  costOfGoodsSold: number | null;
   total: number | null;
 };
 
@@ -122,6 +133,7 @@ export type OutletProfitReport = OutletReport & {
   payrollCost: number | null;
   expenses: number | null;
   materials: number | null;
+  costOfGoodsSold: number | null;
   profit: number | null;
 };
 
@@ -180,8 +192,8 @@ type AdjustmentRow = {
   employee_id: string; outlet_id: string; period: string; label: string; kind: string; amount: number | string;
 };
 type RoomAlertRow = { outlet_id: string; created_at: string };
-type StockMovementRow = { outlet_id: string; product_id: string; qty: number | string; unit_cost: number | string; posted_at: string };
-type ProductRow = { id: string; name: string; min_stock: number | string; track_stock: boolean };
+type StockMovementRow = { outlet_id: string; product_id: string; type: string; qty: number | string; unit_cost: number | string; posted_at: string };
+type ProductRow = { id: string; name: string; min_stock: number | string; track_stock: boolean; cost_price: number | string | null };
 type ProductStockRow = { product_id: string; outlet_id: string; qty: number | string };
 type PettyCashRow = { outlet_id: string; balance: number | string };
 type PettyCashMovementRow = { outlet_id: string; amount: number | string; at: string };
@@ -293,11 +305,11 @@ async function fetchData(outletIds: string[], windows: [Window, Window]): Promis
       .select("outlet_id, created_at").in("outlet_id", outletIds).gte("created_at", timestampStart).lt("created_at", timestampEnd)
       .order("created_at").order("id").range(from, to)),
     paged<StockMovementRow>((from, to) => supabase.from("stock_movements")
-      .select("outlet_id, product_id, qty, unit_cost, posted_at").in("outlet_id", outletIds).eq("type", "TREATMENT_USAGE")
+      .select("outlet_id, product_id, type, qty, unit_cost, posted_at").in("outlet_id", outletIds).in("type", ["TREATMENT_USAGE", "SALE"])
       .lt("qty", 0).gte("posted_at", timestampStart).lt("posted_at", timestampEnd)
       .order("posted_at").order("id").range(from, to)),
     paged<ProductRow>((from, to) => supabase.from("products")
-      .select("id, name, min_stock, track_stock").eq("track_stock", true).order("id").range(from, to)),
+      .select("id, name, min_stock, track_stock, cost_price").order("id").range(from, to)),
     paged<ProductStockRow>((from, to) => supabase.from("product_stocks")
       .select("product_id, outlet_id, qty").in("outlet_id", outletIds).order("outlet_id").order("product_id").range(from, to)),
     paged<PettyCashRow>((from, to) => supabase.from("petty_cash")
@@ -539,8 +551,25 @@ function buildReport(
   for (const expense of expenseRows) {
     expensesByCategory.set(expense.category, (expensesByCategory.get(expense.category) ?? 0) + n(expense.amount));
   }
-  const movements = data.movements.filter((movement) => inWindow(movement.posted_at.slice(0, 10), window));
+  const periodMovements = data.movements.filter((movement) => inWindow(movement.posted_at.slice(0, 10), window));
+  // Treatment consumables used on guests vs. products sold over the counter:
+  // the first is an operating cost, the second is cost of goods sold.
+  const movements = periodMovements.filter((movement) => movement.type === "TREATMENT_USAGE");
+  const saleMovements = periodMovements.filter((movement) => movement.type === "SALE");
   const materialCost = movements.reduce((sum, movement) => sum + Math.abs(n(movement.qty)) * n(movement.unit_cost), 0);
+  const costOfGoodsSold = saleMovements.reduce((sum, movement) => sum + Math.abs(n(movement.qty)) * n(movement.unit_cost), 0);
+  const revenueItems = summarizeRevenueItems(
+    items.map((item) => ({
+      transactionId: item.transaction_id,
+      itemType: item.item_type,
+      name: item.name,
+      quantity: n(item.qty),
+      amount: n(item.qty) * n(item.unit_price),
+    })),
+    tx.length,
+    new Map(data.products.filter((product) => product.cost_price !== null)
+      .map((product) => [product.name, n(product.cost_price as number | string)]))
+  );
 
   const operatingDays = window.period < effectivePeriod
     ? window.days
@@ -642,7 +671,7 @@ function buildReport(
 
   const lowStockItems = data.stocks.flatMap((stock) => {
     const product = data.products.find((item) => item.id === stock.product_id);
-    return product && n(stock.qty) < n(product.min_stock)
+    return product && product.track_stock && n(stock.qty) < n(product.min_stock)
       ? [{ productId: product.id, name: product.name, outletId: stock.outlet_id, quantity: n(stock.qty), minimum: n(product.min_stock) }]
       : [];
   });
@@ -690,6 +719,8 @@ function buildReport(
       })).sort((a, b) => b.amount - a.amount),
       addOnsAndProducts: [...extras.entries()].map(([key, detail]) => ({ name: key.split("\0")[1], ...detail }))
         .sort((a, b) => b.amount - a.amount),
+      byCategory: revenueItems.byCategory,
+      fnb: revenueItems.fnb,
       byPaymentMethod: [...byPayment.entries()].map(([method, detail]) => ({ method, ...detail }))
         .sort((a, b) => b.amount - a.amount),
       promoDiscount: promoTransactions.reduce((sum, row) => sum + n(row.discount), 0),
@@ -709,13 +740,14 @@ function buildReport(
     const totalExpenses = expenseRows.reduce((sum, row) => sum + n(row.amount), 0);
     const profitTotal = payrollCost === null
       ? null
-      : calculateOperatingProfit(revenue, commissionTotal, payrollCost, totalExpenses, materialCost);
+      : calculateOperatingProfit(revenue, commissionTotal, payrollCost, totalExpenses, materialCost, costOfGoodsSold);
     result.profit = {
       revenue,
       commission: commissionTotal,
       payrollCost,
       expenses: expenseRows.length ? totalExpenses : null,
       materials: movements.length ? materialCost : null,
+      costOfGoodsSold: saleMovements.length ? costOfGoodsSold : null,
       total: profitTotal,
     };
     result.outletProfit = outletReports.map((outlet) => {
@@ -731,15 +763,18 @@ function buildReport(
       const outletExpenses = outletExpenseRows.reduce((sum, row) => sum + n(row.amount), 0);
       const outletMovementRows = movements.filter((row) => row.outlet_id === outlet.outletId);
       const outletMaterials = outletMovementRows.reduce((sum, row) => sum + Math.abs(n(row.qty)) * n(row.unit_cost), 0);
+      const outletSaleRows = saleMovements.filter((row) => row.outlet_id === outlet.outletId);
+      const outletCostOfGoodsSold = outletSaleRows.reduce((sum, row) => sum + Math.abs(n(row.qty)) * n(row.unit_cost), 0);
       return {
         ...outlet,
         commission: outletCommission,
         payrollCost: outletPayrollCost,
         expenses: outletExpenseRows.length ? outletExpenses : null,
         materials: outletMovementRows.length ? outletMaterials : null,
+        costOfGoodsSold: outletSaleRows.length ? outletCostOfGoodsSold : null,
         profit: outletPayrollCost === null
           ? null
-          : calculateOperatingProfit(outlet.revenue, outletCommission, outletPayrollCost, outletExpenses, outletMaterials),
+          : calculateOperatingProfit(outlet.revenue, outletCommission, outletPayrollCost, outletExpenses, outletMaterials, outletCostOfGoodsSold),
       };
     });
   }

@@ -101,7 +101,7 @@ export default async function ManagerTodayPage() {
       <div className="grid grid-4" style={{ marginBottom: 20 }}>
         <StatCard label="Pendapatan Hari Ini" value={rp(kpi.revenue, { short: true })} icon="circle-dollar" toneKey="gold" deltaLabel={`${kpi.paid} transaksi paid`} />
         <StatCard label="Booking Hari Ini" value={kpi.total} icon="calendar-days" toneKey="teal" deltaLabel={`${kpi.sessions} sesi berjalan/selesai`} />
-        <StatCard label="Tamu Dilayani" value={kpi.guests} icon="users" toneKey="sky" deltaLabel={`Avg ticket ${rp(kpi.avgTicket, { short: true })}`} />
+        <StatCard label="Tamu Dilayani" value={kpi.guests} icon="users" toneKey="sky" deltaLabel={`Rata-rata harga paket ${rp(kpi.avgTicket, { short: true })}`} />
         <StatCard label="No-show" value={kpi.noShow} icon="user-check" toneKey="danger" deltaLabel={`${pct(kpi.noShowRate)} dari booking`} />
       </div>
 
@@ -142,7 +142,7 @@ export default async function ManagerTodayPage() {
               {activeTherapists.length === 0 && <div className="small dim">Tidak ada terapis aktif di outlet ini.</div>}
             </div>
             <div className="tiny dim" style={{ marginTop: 10 }}>
-              Kehadiran/cuti/istirahat belum ditampilkan — butuh modul absensi yang belum live.
+              Status di sini dari booking hari ini. Kehadiran (check-in GPS, cuti, ijin) ada di Kinerja Terapis dan profil masing-masing terapis.
             </div>
           </div>
         </Card>

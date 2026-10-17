@@ -574,7 +574,11 @@ export function DeleteBatchButton({ batchId, label, rowCount }: { batchId: strin
 
   return (
     <span className="row g2">
-      <span className="tiny" style={{ color: "var(--danger)" }}>Hapus {rowCount} baris &quot;{label}&quot;?</span>
+      {/* UAT 18 Okt 2026: rowCount = baris periode yang sedang dibuka saja, padahal
+          deleteAdjustmentBatch menghapus SELURUH batch di semua bulan. */}
+      <span className="tiny" style={{ color: "var(--danger)" }}>
+        Hapus seluruh batch &quot;{label}&quot; — {rowCount} baris bulan ini <strong>dan semua bulan berikutnya</strong>?
+      </span>
       <button
         className="btn btn-danger btn-sm"
         disabled={isPending}

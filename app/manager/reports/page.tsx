@@ -247,7 +247,7 @@ export default async function ReportsPage() {
 
       <div className="grid grid-4" style={{ marginBottom: 20 }}>
         <StatCard label="Tamu Hari Ini" value={kpi.guests} icon="user-check" toneKey="sky" deltaLabel={`${kpi.paid} booking lunas`} />
-        <StatCard label="Rata-rata Struk" value={rp(kpi.avgTicket, { short: true })} icon="circle-dollar" toneKey="teal" deltaLabel="Hari ini" />
+        <StatCard label="Rata-rata Harga Paket" value={rp(kpi.avgTicket, { short: true })} icon="circle-dollar" toneKey="teal" deltaLabel="Hari ini · tanpa F&B, pajak & service" />
         <StatCard
           label="No-show Hari Ini"
           value={kpi.total ? pct(kpi.noShowRate) : "—"}

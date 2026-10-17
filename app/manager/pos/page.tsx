@@ -8,10 +8,11 @@ import { getTransactionsForOutlet, isLiveTransactionsData } from "@/lib/data/tra
 import { getProducts, getLowStockForOutlet } from "@/lib/data/inventory";
 import { rp, fmtTime } from "@/lib/format";
 import { toCsv, csvFilename } from "@/lib/csv";
+import { revenueCategoryOf } from "@/lib/data/monthly-report-math";
 import ExportCsvButton from "@/components/ExportCsvButton";
 
 const ITEM_LABEL: Record<string, string> = {
-  SERVICE: "Layanan", EXTENSION: "Extension", ADD_ON: "Add-on", PRODUCT: "Produk", FOOD: "Makanan", BEVERAGE: "Minuman",
+  SERVICE: "Layanan", EXTENSION: "Extension", ADD_ON: "Add-on", PRODUCT: "Produk retail", FNB: "Makanan & minuman",
 };
 
 // ---------------------------------------------------------------------
@@ -71,9 +72,13 @@ export default async function PosPage() {
   const paid = transactions.filter((t) => t.status === "PAID");
   const byType: Record<string, number> = {};
   const byMethod: Record<string, number> = {};
+  // UAT 18 Okt 2026: kasir mencatat F&B sebagai item_type PRODUCT, jadi
+  // golongannya ditentukan kategori produk — sama dengan Laporan Bulanan.
+  const categoryByName = new Map(products.map((p) => [p.name, p.category as string]));
   for (const t of paid) {
     for (const it of t.items) {
-      byType[it.itemType] = (byType[it.itemType] ?? 0) + it.qty * it.unitPrice;
+      const key = revenueCategoryOf(it.itemType, categoryByName.get(it.name));
+      byType[key] = (byType[key] ?? 0) + it.qty * it.unitPrice;
     }
     byMethod[t.paymentMethod] = (byMethod[t.paymentMethod] ?? 0) + t.total;
   }

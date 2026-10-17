@@ -4,6 +4,8 @@ import { getCurrentOutlet } from "@/lib/data/outlets";
 import { getCategories, getServiceTypes, getPackagesForOutlet, getExtensionsForOutlet, getAddonsForOutlet } from "@/lib/data/catalog";
 import { rp, minutesToHm } from "@/lib/format";
 import { formatCommissionRule, commissionAmount } from "@/lib/commission";
+import { createClient } from "@/lib/supabase/server";
+import { todayIsoDate, plusDays } from "@/lib/wallclock";
 import { PackagePricingEditor, ExtensionPricingEditor, AddonEditor, NewAddonForm, NewPackageForm } from "@/components/CommissionEditor";
 
 export default async function CatalogPage() {
@@ -15,7 +17,29 @@ export default async function CatalogPage() {
     getExtensionsForOutlet(outlet.id),
     getAddonsForOutlet(outlet.id),
   ]);
-  const packages = [...rawPackages].sort((a, b) => b.popularity - a.popularity);
+  // UAT 18 Okt 2026: popularitas dulu angka tetap 100% untuk semua paket —
+  // paket baru tanpa satu booking pun tampil 100%. Sekarang = porsi booking
+  // 30 hari terakhir (tanpa batal/no-show) per paket di outlet ini.
+  const bookingCount = new Map<string, number>();
+  try {
+    const supabase = await createClient();
+    const { data } = await supabase
+      .from("bookings")
+      .select("package_id, status")
+      .eq("outlet_id", outlet.id)
+      .gte("date", plusDays(todayIsoDate(), -30))
+      .limit(5000);
+    for (const b of data ?? []) {
+      if (!b.package_id || b.status === "CANCELLED" || b.status === "NO_SHOW") continue;
+      bookingCount.set(b.package_id, (bookingCount.get(b.package_id) ?? 0) + 1);
+    }
+  } catch {
+    // mode demo tanpa sesi — biarkan nilai bawaan
+  }
+  const totalBookings = [...bookingCount.values()].reduce((a, n) => a + n, 0);
+  const packages = rawPackages
+    .map((p) => (totalBookings ? { ...p, popularity: Math.round(((bookingCount.get(p.id) ?? 0) / totalBookings) * 100) } : p))
+    .sort((a, b) => b.popularity - a.popularity);
   const active = packages.filter((p) => p.status === "ACTIVE");
 
   return (

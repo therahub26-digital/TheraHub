@@ -15,7 +15,12 @@ const TYPE_TONE: Record<string, "success" | "info" | "gold" | "purple" | "warnin
 
 export default async function PromotionsPage() {
   const outlet = await getCurrentOutlet();
-  const [promos, live, today] = await Promise.all([getPromotionsForOutlet(outlet.id), isLivePromotionsData(), getEffectiveToday()]);
+  const [rawPromos, live, today] = await Promise.all([getPromotionsForOutlet(outlet.id), isLivePromotionsData(), getEffectiveToday()]);
+  // UAT 18 Okt 2026: status promo = flag tersimpan, jadi promo yang masa
+  // berlakunya sudah lewat ("Membership Gold Test", 22 Agu) tetap tampil
+  // ACTIVE dan ikut dihitung "Promo Aktif". Kasir sudah menolaknya di server
+  // (transactions.ts), tampilan di sini menyusul: lewat periode = EXPIRED.
+  const promos = rawPromos.map((p) => (p.status === "ACTIVE" && p.validTo && p.validTo < today ? { ...p, status: "EXPIRED" as const } : p));
   const active = promos.filter((p) => p.status === "ACTIVE");
   const scheduled = promos.filter((p) => p.status === "SCHEDULED");
   const totalUsage = promos.reduce((s, p) => s + p.usageCount, 0);

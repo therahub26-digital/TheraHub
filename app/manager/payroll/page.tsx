@@ -72,7 +72,7 @@ export default async function ManagerPayrollPage({ searchParams }: { searchParam
   ]);
   const requestedPeriod = params.period ?? "";
   const period = /^\d{4}-(0[1-9]|1[0-2])$/.test(requestedPeriod) ? requestedPeriod : effectivePeriod;
-  const isArchive = period < effectivePeriod;
+  const isPastPeriod = period < effectivePeriod;
   const now = new Date();
   const periodOptions = Array.from({ length: 12 }, (_, index) => {
     const date = new Date(Date.UTC(now.getFullYear(), now.getMonth() - index, 1));
@@ -90,41 +90,66 @@ export default async function ManagerPayrollPage({ searchParams }: { searchParam
     getCommissionsForOutlet(outlet.id, period),
     getSavingsBalancesForOutlet(outlet.id),
   ]);
+  const isArchive = isPastPeriod && items.length > 0;
+  const isUncalculatedPastPeriod = isPastPeriod && items.length === 0;
+  const active = employees
+    .filter((e) => e.outletId === outlet.id && e.status === "ACTIVE")
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const pageHead = (
     <PageHead
       title="Payroll"
-      desc={`${outlet.name} · ${monthLabel(period)} · Review estimasi sebelum dihitung final.`}
+      desc={isArchive
+        ? `${outlet.name} · ${monthLabel(period)} · Arsip payroll — data tersimpan`
+        : `${outlet.name} · ${monthLabel(period)} · Review estimasi sebelum dihitung final.`}
       actions={
         <>
           <PayrollPeriodPicker
             period={period}
             periods={periodOptions.map((value) => ({ value, label: monthLabel(value) }))}
           />
-          {isArchive && <Badge tone="neutral">Arsip — baca saja</Badge>}
+          {isArchive && <Badge tone="neutral">Arsip payroll — data tersimpan</Badge>}
           {!isArchive && <RunPayrollButton outletId={outlet.id} period={period} />}
         </>
       }
     />
   );
 
-  if (isArchive && items.length === 0) {
-    return (
-      <>
-        {pageHead}
-        <Card>
-          <div className="card-body">
-            <EmptyState title="Belum ada payroll tersimpan untuk periode ini" />
-          </div>
-        </Card>
-      </>
-    );
-  }
-
   if (!settings) {
     return (
       <>
         {pageHead}
+        {isUncalculatedPastPeriod && (
+          <>
+            <Card style={{ marginBottom: 16 }}>
+              <div className="card-body">
+                <EmptyState title="Belum ada payroll tersimpan untuk periode ini" />
+              </div>
+            </Card>
+            <Card style={{ marginBottom: 16 }}>
+              <CardHead title="Potongan / Tambahan Massal" />
+              <div className="card-body">
+                <BulkAdjustmentForm
+                  outletId={outlet.id}
+                  period={period}
+                  therapistCount={active.filter((e) => e.isTherapist).length}
+                  staffCount={active.length}
+                />
+              </div>
+            </Card>
+            <Card style={{ marginBottom: 16 }}>
+              <CardHead title="Penyesuaian per karyawan" sub="Tambahkan potongan atau penghasilan sebelum menghitung payroll susulan." />
+              <div className="card-body stack g2">
+                {active.map((employee) => (
+                  <div key={employee.id} className="row g2 wrap" style={{ alignItems: "center", justifyContent: "space-between" }}>
+                    <PersonCell name={employee.name} sub={employee.jobRole} toneKey="teal" size={28} />
+                    <AddAdjustmentForm employeeId={employee.id} outletId={outlet.id} period={period} />
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </>
+        )}
         <Card>
           <CardHead title="Struktur payroll belum diatur" />
           <div className="card-body stack g3">
@@ -148,10 +173,6 @@ export default async function ManagerPayrollPage({ searchParams }: { searchParam
 
   // Payroll covers everyone at the outlet, not only therapists — a kasir
   // or manager on a salary needs a payslip too.
-  const active = employees
-    .filter((e) => e.outletId === outlet.id && e.status === "ACTIVE")
-    .sort((a, b) => a.name.localeCompare(b.name));
-
   const storedByEmployee = new Map(items.map((i) => [i.employeeId, i]));
   const commissionByEmployee = new Map<string, { total: number; count: number }>();
   for (const c of commissions) {
@@ -253,12 +274,20 @@ export default async function ManagerPayrollPage({ searchParams }: { searchParam
     <>
       {pageHead}
 
-      <div className="grid grid-4" style={{ marginBottom: 20 }}>
+      {isUncalculatedPastPeriod && (
+        <Card style={{ marginBottom: 16 }}>
+          <div className="card-body">
+            <EmptyState title="Belum ada payroll tersimpan untuk periode ini" />
+          </div>
+        </Card>
+      )}
+
+      {!isUncalculatedPastPeriod && <div className="grid grid-4" style={{ marginBottom: 20 }}>
         <StatCard label="Estimasi Total" value={rp(totalLive, { short: true })} icon="wallet" toneKey="gold" deltaLabel={`${rows.length} karyawan aktif`} />
         <StatCard label="Ada Penghasilan" value={withActivity} icon="user-check" toneKey="teal" deltaLabel={`${rows.length - withActivity} belum ada`} />
         <StatCard label="Baris Manual" value={adjustments.length} icon="clipboard-list" toneKey="sky" deltaLabel="Potongan & tambahan" />
         <StatCard label="Slip Tersimpan" value={items.length} icon="file-text" toneKey="violet" deltaLabel={items.length ? "Sudah dihitung" : "Belum dihitung"} />
-      </div>
+      </div>}
 
       {duplicates.length > 0 && (
         <Card style={{ marginBottom: 16, borderColor: "var(--danger)" }}>
@@ -317,7 +346,7 @@ export default async function ManagerPayrollPage({ searchParams }: { searchParam
         </div>
       </Card>}
 
-      {([
+      {!isUncalculatedPastPeriod && ([
         { key: "therapist", title: "Estimasi Terapis", group: therapistRows, emptyLabel: "Tidak ada terapis aktif di outlet ini." },
         { key: "staff", title: "Estimasi Karyawan (Non-Terapis)", group: staffRows, emptyLabel: "Tidak ada staff pendukung aktif di outlet ini." },
       ] as const).map(({ key, title, group, emptyLabel }) => {
@@ -480,6 +509,20 @@ export default async function ManagerPayrollPage({ searchParams }: { searchParam
           </Card>
         );
       })}
+
+      {isUncalculatedPastPeriod && (
+        <Card style={{ marginBottom: 16 }}>
+          <CardHead title="Penyesuaian per karyawan" sub="Tambahkan potongan atau penghasilan sebelum menghitung payroll susulan." />
+          <div className="card-body stack g2">
+            {active.map((employee) => (
+              <div key={employee.id} className="row g2 wrap" style={{ alignItems: "center", justifyContent: "space-between" }}>
+                <PersonCell name={employee.name} sub={employee.jobRole} toneKey="teal" size={28} />
+                <AddAdjustmentForm employeeId={employee.id} outletId={outlet.id} period={period} />
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {settings.note && (
         <Card style={{ marginTop: 16 }}>

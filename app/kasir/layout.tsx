@@ -1,6 +1,5 @@
 import KasirShell from "@/components/KasirShell";
 import RoomAlertBanner from "@/components/RoomAlertBanner";
-import { PRIMARY_OUTLET } from "@/lib/mock";
 import { getCurrentOutlet } from "@/lib/data/outlets";
 import { getOpenRoomAlerts } from "@/lib/data/alerts";
 import { getExtensionRequestsForOutlet } from "@/lib/data/sessions";
@@ -21,8 +20,10 @@ export default async function KasirLayout({ children }: { children: React.ReactN
   // no way to know one was waiting without clicking into Session Monitor.
   const pendingExtensions = extensionRequests.filter((r) => r.status === "PENDING").length;
 
+  // UAT 18 Okt 2026: kepala halaman kasir masih memakai PRIMARY_OUTLET dari
+  // lib/mock ("Amethyst — Cikawao") — bukan outlet yang sedang login.
   return (
-    <KasirShell scopeLabel={PRIMARY_OUTLET.name} scopeSub={PRIMARY_OUTLET.city} brandKey={theme.brandKey} bgKey={theme.bgKey} notificationCount={pendingExtensions}>
+    <KasirShell scopeLabel={outlet.name} scopeSub={outlet.city} brandKey={theme.brandKey} bgKey={theme.bgKey} notificationCount={pendingExtensions}>
       <RoomAlertBanner outletId={outlet.id} alerts={alerts} />
       {children}
     </KasirShell>

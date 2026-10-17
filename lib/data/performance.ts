@@ -5,6 +5,7 @@ import { getAttendanceForOutletInRange } from "@/lib/data/attendance";
 import { getScheduleExceptionsInRange } from "@/lib/data/scheduleExceptions";
 import { getLeaveRequestsForOutlet } from "@/lib/data/leaveRequests";
 import { getCustomerReviewsForOutletInRange, getManagementReviewsForOutlet } from "@/lib/data/reviews";
+import { calculatePerformanceScore } from "@/lib/data/monthly-report-math";
 
 // ---------------------------------------------------------------------
 // Rekap kinerja terapis per bulan — halaman "Kinerja Terapis" untuk
@@ -50,6 +51,8 @@ export type TherapistPerformanceRow = {
    * bukan "0/15 hari (0%)" (prinsip §6.3: belum ada data ≠ nol).
    */
   attendanceTracked: boolean;
+  /** Shared weighted score: customers 40%, customer rating 25%, attendance 25%, punctuality 10%. */
+  performanceScore?: number | null;
   /** Keterangan tercatat bulan itu (status bukan REJECTED), per jenis. */
   leaveSick: number;
   leaveOff: number;
@@ -108,7 +111,7 @@ export async function getTherapistPerformance(outletId: string, period: string, 
   const managementByTherapist = new Map(managementReviews.map((r) => [r.employeeId, r]));
   const attendanceTracked = attendance.some((a) => a.checkInAt);
 
-  return therapists.map((t) => {
+  const rows = therapists.map((t) => {
     const att = attendance.filter((a) => a.employeeId === t.id && a.checkInAt);
     // Satu baris per hari per orang (desain attendance_events), tapi
     // dihitung lewat Set supaya data ganjil tidak menggandakan hadir.
@@ -141,6 +144,7 @@ export async function getTherapistPerformance(outletId: string, period: string, 
       expectedDays,
       attendancePct: attendanceTracked && expectedDays > 0 ? (presentDays / expectedDays) * 100 : null,
       attendanceTracked,
+      performanceScore: null,
       leaveSick: myLeave.filter((r) => r.type === "LEAVE").length,
       leaveOff: myLeave.filter((r) => r.type === "OFF").length,
       leaveLate: myLeave.filter((r) => r.type === "LATE").length,
@@ -149,4 +153,16 @@ export async function getTherapistPerformance(outletId: string, period: string, 
       management: mgmt ? { rating: mgmt.rating, note: mgmt.note } : null,
     };
   });
+  const maxGuests = Math.max(0, ...rows.map((row) => row.guests));
+  return rows.map((row) => ({
+    ...row,
+    performanceScore: calculatePerformanceScore({
+      customerCount: row.guests,
+      maximumCustomerCount: maxGuests,
+      customerRating: row.customerAvg,
+      attendancePct: row.attendancePct,
+      lateCount: row.lateCount,
+      expectedDays: row.expectedDays,
+    }),
+  }));
 }

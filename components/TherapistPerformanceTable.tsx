@@ -22,13 +22,14 @@ import type { TherapistPerformanceRow } from "@/lib/data/performance";
 // server-side (lib/data/performance.ts); yang client hanya urutannya.
 // ---------------------------------------------------------------------
 
-export type SortKey = "name" | "guests" | "attendance" | "late" | "leave" | "customer" | "management";
+export type SortKey = "name" | "guests" | "score" | "attendance" | "late" | "leave" | "customer" | "management";
 
 /** Nilai pembanding per kriteria; null = belum ada data, selalu ditaruh paling bawah apa pun arahnya. */
 function sortValue(t: TherapistPerformanceRow, key: SortKey): number | string | null {
   switch (key) {
     case "name": return t.name.toLowerCase();
     case "guests": return t.guests;
+    case "score": return t.performanceScore ?? null;
     case "attendance": return t.attendancePct;
     case "late": return t.lateMinutesTotal > 0 ? t.lateMinutesTotal : t.lateCount > 0 ? t.lateCount : 0;
     case "leave": return t.leaveSick + t.leaveOff + t.leaveLate;
@@ -72,6 +73,7 @@ function Stars({ value }: { value: number }) {
 const HEADERS: { key: SortKey; label: string; numeric?: boolean; title: string }[] = [
   { key: "name", label: "Terapis", title: "Urutkan berdasarkan nama" },
   { key: "guests", label: "Tamu", numeric: true, title: "Urutkan berdasarkan jumlah tamu" },
+  { key: "score", label: "Skor Kinerja", numeric: true, title: "Skor berbobot: jumlah tamu 40%, rating customer 25%, kehadiran 25%, ketepatan waktu 10%" },
   { key: "attendance", label: "Kehadiran", title: "Urutkan berdasarkan tingkat kehadiran" },
   { key: "late", label: "Terlambat", title: "Urutkan berdasarkan keterlambatan" },
   { key: "leave", label: "Ijin", title: "Urutkan berdasarkan jumlah ijin" },
@@ -146,6 +148,7 @@ export default function TherapistPerformanceTable({
                 <PersonCell name={t.name} sub={t.code} toneKey={t.avatarTone} photoUrl={t.photoUrl ?? undefined} size={30} />
               </td>
               <td className="num strong">{t.guests}</td>
+              <td className="num strong">{t.performanceScore == null ? "—" : t.performanceScore}</td>
               <td>
                 {!t.attendanceTracked && t.expectedDays > 0 ? (
                   <span className="tiny dim" title="Tidak ada satu pun check-in di outlet ini pada bulan tersebut — absensi GPS belum dipakai, bukan berarti terapis tidak hadir.">

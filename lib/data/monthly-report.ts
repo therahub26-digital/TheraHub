@@ -19,7 +19,11 @@ import {
 } from "@/lib/data/monthly-report-math";
 import { minutesBetween, nowIso, todayIsoDate } from "@/lib/wallclock";
 
-type Window = ReturnType<typeof monthWindow> & { period: string };
+type Window = ReturnType<typeof monthWindow> & {
+  period: string;
+  /** Set when only days 1..N of the month are compared (current month still running). */
+  partialDays?: number;
+};
 
 export type MonthlySummary = {
   revenue: number;
@@ -179,6 +183,10 @@ export type MonthlyReport = {
   period: string;
   previousPeriod: string;
   status: "FINAL" | "SEMENTARA";
+  /** What the comparison covers, e.g. "1–17 Sep 2026" while the month is running, else "Sep 2026". */
+  comparisonLabel: string;
+  /** Days 1..N compared when the current month is still running; null when whole months are compared. */
+  comparisonDays: number | null;
   summary: { current: MonthlySummary; previous: MonthlySummary };
   revenue: { current: RevenueReport; previous: RevenueReport };
   customers: { current: CustomerReport; previous: CustomerReport };
@@ -563,8 +571,11 @@ function buildReport(
   const payroll = payrollFor(data, window);
   const periodCommissionRows = data.commissions.filter((row) =>
     row.status !== "REVERSED" && inWindow(row.date, window));
+  // A partial window (same dates last month) cannot use the stored monthly
+  // payroll's commission column — that covers the whole month — so it
+  // falls back to commission entries dated inside the window.
   const payrollRowsForPeriod = data.payrollItems
-    .filter((row) => row.period === window.period)
+    .filter((row) => row.period === window.period && !window.partialDays)
     .map((row) => ({ outletId: row.outlet_id, period: row.period, variable: n(row.variable) }));
   const commissionTotalForOutlet = (outletId: string) => getCommissionTotalForPeriod(
     outletId,
@@ -618,7 +629,7 @@ function buildReport(
   );
 
   const operatingDays = window.period < effectivePeriod
-    ? window.days
+    ? (window.partialDays ?? window.days)
     : window.period > effectivePeriod
       ? 0
       : Math.min(window.days, Number(today.slice(8, 10)));
@@ -926,13 +937,27 @@ export async function getMonthlyReport({
   period: string;
   includeProfit: boolean;
 }): Promise<MonthlyReport> {
-  const [current, previous] = monthPair(period);
+  const [current, fullPrevious] = monthPair(period);
   const uniqueOutletIds = [...new Set(outletIds)];
   const [effectivePeriod, data] = await Promise.all([
     getEffectivePeriod(),
-    fetchData(uniqueOutletIds, [current, previous]),
+    fetchData(uniqueOutletIds, [current, fullPrevious]),
   ]);
   const today = todayIsoDate();
+  // Running month vs. a whole previous month reads as a collapse (-50%)
+  // that is only the calendar. Compare the same dates instead: 1–17 Okt vs 1–17 Sep.
+  const running = period >= effectivePeriod && today.slice(0, 7) === period;
+  const comparisonDays = running ? Math.min(Number(today.slice(8, 10)), fullPrevious.days) : null;
+  const previous: Window = comparisonDays === null ? fullPrevious : (() => {
+    const end = new Date(`${fullPrevious.start}T00:00:00Z`);
+    end.setUTCDate(end.getUTCDate() + comparisonDays);
+    return { ...fullPrevious, endExcl: end.toISOString().slice(0, 10), partialDays: comparisonDays };
+  })();
+  const monthShort = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+  const previousMonthName = `${monthShort[Number(fullPrevious.period.slice(5, 7)) - 1]} ${fullPrevious.period.slice(0, 4)}`;
+  const comparisonLabel = comparisonDays === null
+    ? previousMonthName
+    : `${comparisonDays === 1 ? "1" : `1–${comparisonDays}`} ${previousMonthName}`;
   const performance = await Promise.all([current, previous].flatMap((window) =>
     data.outlets.map(async (outlet) => ({
       period: window.period,
@@ -949,6 +974,8 @@ export async function getMonthlyReport({
     period,
     previousPeriod: previous.period,
     status: period < effectivePeriod ? "FINAL" : "SEMENTARA",
+    comparisonLabel,
+    comparisonDays,
     summary: { current: currentReport.summary, previous: previousReport.summary },
     revenue: { current: currentReport.revenue, previous: previousReport.revenue },
     customers: { current: currentReport.customers, previous: previousReport.customers },

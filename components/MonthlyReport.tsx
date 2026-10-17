@@ -37,10 +37,10 @@ function showValue(value: number | null, format: (value: number) => string, miss
 
 type Comparison = { label: string; tone: "good" | "bad" | "flat" };
 
-function changeLabel(
+function baseChangeLabel(
   current: number | null,
   previous: number | null,
-  options: { points?: boolean; lowerIsBetter?: boolean } = {}
+  options: { points?: boolean; lowerIsBetter?: boolean; vs?: string } = {}
 ): Comparison | null {
   if (current === null || previous === null) return null;
   const change = options.points
@@ -52,7 +52,7 @@ function changeLabel(
     ? "flat"
     : (change > 0) !== (options.lowerIsBetter ?? false) ? "good" : "bad";
   return {
-    label: `${arrow} ${change > 0 ? "+" : ""}${num(change, 1)}${options.points ? " poin" : "%"} vs bulan sebelumnya`,
+    label: `${arrow} ${change > 0 ? "+" : ""}${num(change, 1)}${options.points ? " poin" : "%"} vs ${options.vs ?? "bulan sebelumnya"}`,
     tone,
   };
 }
@@ -446,6 +446,11 @@ export default function MonthlyReport({
     || (data.profit?.current.commission ?? 0) !== 0
     || data.costs.current.expensesByCategory.length > 0
     || data.costs.current.materials.some((item) => item.quantity > 0);
+  const changeLabel = (
+    current: number | null,
+    previous: number | null,
+    options: { points?: boolean; lowerIsBetter?: boolean } = {}
+  ) => baseChangeLabel(current, previous, { ...options, vs: data.comparisonLabel });
   const metrics = [
     {
       label: "Pendapatan bersih",
@@ -540,12 +545,12 @@ export default function MonthlyReport({
       <div className="monthly-print-header">
         <h1>Laporan Bulanan</h1>
         <div><strong>{tenantName}</strong> · {outletLabel}</div>
-        <div>Periode: {monthLabel(data.period)} · Pembanding: {monthLabel(data.previousPeriod)}</div>
+        <div>Periode: {monthLabel(data.period)} · Pembanding: {data.comparisonDays === null ? monthLabel(data.previousPeriod) : data.comparisonLabel}</div>
         <div>Status: {data.status} · Dicetak: {fmtDateLong(printDate)}</div>
       </div>
       <PageHead
         title="Laporan Bulanan"
-        desc={`${outletLabel} · ${monthLabel(data.period)} dibanding ${monthLabel(data.previousPeriod)}`}
+        desc={`${outletLabel} · ${monthLabel(data.period)} dibanding ${data.comparisonDays === null ? monthLabel(data.previousPeriod) : `tanggal yang sama bulan lalu (${data.comparisonLabel})`}`}
         actions={
           <>
             <MonthlyReportFilters
@@ -800,7 +805,7 @@ export default function MonthlyReport({
           {data.costs.current.expensesByCategory.length ? (
             <div className="table-wrap">
               <table className="tbl">
-                <thead><tr><th>Kategori</th><th className="num">Bulan ini</th><th className="num">Bulan lalu</th><th className="num">% pendapatan</th></tr></thead>
+                <thead><tr><th>Kategori</th><th className="num">Bulan ini</th><th className="num">{data.comparisonLabel}</th><th className="num">% pendapatan</th></tr></thead>
                 <tbody>
                   {data.costs.current.expensesByCategory.map((row) => {
                     const previousRow = data.costs.previous.expensesByCategory.find((item) => item.category === row.category);
@@ -825,12 +830,17 @@ export default function MonthlyReport({
             title="Jumlah tamu vs biaya bahan per minggu"
             sub={data.inventory.current.materialCostPerVisit === null
               ? "Biaya bahan = unit yang dikeluarkan dari gudang ke ruang treatment"
-              : `Rata-rata biaya bahan ${rp(data.inventory.current.materialCostPerVisit)} per tamu${data.inventory.previous.materialCostPerVisit === null ? "" : ` (bulan lalu ${rp(data.inventory.previous.materialCostPerVisit)})`}`}
+              : `Rata-rata biaya bahan ${rp(data.inventory.current.materialCostPerVisit)} per tamu${data.inventory.previous.materialCostPerVisit === null ? "" : ` (${data.comparisonLabel}: ${rp(data.inventory.previous.materialCostPerVisit)})`}`}
           />
           <div className="card-body"><UsageChart rows={data.inventory.current.weeklyUsage} /></div>
         </Card>
         <Card className="monthly-card">
-          <CardHead title="Pemakaian bahan vs perkiraan" sub="Perkiraan = jumlah tamu ÷ takaran (1 unit ≈ N tamu). Selisih dalam ±20% dianggap wajar." />
+          <CardHead
+            title="Pemakaian bahan vs perkiraan"
+            sub={data.status === "FINAL"
+              ? "Perkiraan = jumlah tamu ÷ takaran (1 unit ≈ N tamu). Selisih dalam ±20% dianggap wajar."
+              : "Bulan masih berjalan: bahan diambil per pak/botol sehingga selisih belum bermakna. Status Wajar/Boros dinilai setelah bulan tutup."}
+          />
           {data.inventory.current.consumables.length ? (
             <div className="table-wrap">
               <table className="tbl">
@@ -844,7 +854,9 @@ export default function MonthlyReport({
                       <td className="num">{row.expectedUnits === null ? "—" : `${num(row.expectedUnits, 1)} ${row.uom}`}</td>
                       <td className="num">{row.variancePct === null ? "—" : `${row.variancePct > 0 ? "+" : ""}${num(row.variancePct, 0)}%`}</td>
                       <td className="num">{rp(row.cost)}</td>
-                      <td><Badge tone={USAGE_STATUS[row.status].tone}>{USAGE_STATUS[row.status].label}</Badge></td>
+                      <td>{data.status === "FINAL" || row.status === "TANPA_TAKARAN"
+                        ? <Badge tone={USAGE_STATUS[row.status].tone}>{USAGE_STATUS[row.status].label}</Badge>
+                        : <span className="muted small">Dinilai setelah bulan tutup</span>}</td>
                     </tr>
                   ))}
                 </tbody>

@@ -7,7 +7,11 @@ import {
   calculateRoomUtilization,
   calculateSalaryAllowanceCost,
   getCommissionTotalForPeriod,
+  assessConsumableUsage,
   buildWeeklyCashflow,
+  buildWeeklyUsage,
+  type UsageStatus,
+  type WeeklyUsageRow,
   summarizeRevenueItems,
   type WeeklyCashflowRow,
   type RevenueCategoryKey,
@@ -114,6 +118,35 @@ export type CostsReport = {
   fixedPayroll: number | null;
 };
 
+export type InventoryReport = {
+  /** Value (Rp) of stock movements in the period, per product category. */
+  byCategory: {
+    category: string;
+    purchased: number;
+    sold: number;
+    usedInTreatment: number;
+    transferNet: number;
+    opnameVariance: number;
+  }[];
+  opnameVarianceTotal: number;
+  /** Treatment consumables issued vs. what the guest count implies. */
+  consumables: {
+    productId: string;
+    name: string;
+    uom: string;
+    issuedUnits: number;
+    cost: number;
+    guestsPerUnit: number | null;
+    expectedUnits: number | null;
+    variancePct: number | null;
+    status: UsageStatus;
+  }[];
+  weeklyUsage: WeeklyUsageRow[];
+  materialCostPerVisit: number | null;
+  /** Value of stock on hand now (at print time), at cost price. */
+  stockValueNow: number;
+};
+
 export type OutletReport = {
   outletId: string;
   outletName: string;
@@ -153,6 +186,7 @@ export type MonthlyReport = {
   therapists: { current: TherapistReport[]; previous: TherapistReport[] };
   operations: { current: OperationsReport; previous: OperationsReport };
   costs: { current: CostsReport; previous: CostsReport };
+  inventory: { current: InventoryReport; previous: InventoryReport };
   payrollMissingOutlets: { current: string[]; previous: string[] };
   perOutlet?: { current: OutletReport[]; previous: OutletReport[] };
   profit?: {
@@ -198,7 +232,10 @@ type AdjustmentRow = {
 };
 type RoomAlertRow = { outlet_id: string; created_at: string };
 type StockMovementRow = { outlet_id: string; product_id: string; type: string; qty: number | string; unit_cost: number | string; posted_at: string };
-type ProductRow = { id: string; name: string; min_stock: number | string; track_stock: boolean; cost_price: number | string | null };
+type ProductRow = {
+  id: string; name: string; min_stock: number | string; track_stock: boolean; cost_price: number | string | null;
+  category?: string; uom?: string; guests_per_unit?: number | string | null;
+};
 type ProductStockRow = { product_id: string; outlet_id: string; qty: number | string };
 type PettyCashRow = { outlet_id: string; balance: number | string };
 type PettyCashMovementRow = { outlet_id: string; amount: number | string; at: string };
@@ -310,11 +347,13 @@ async function fetchData(outletIds: string[], windows: [Window, Window]): Promis
       .select("outlet_id, created_at").in("outlet_id", outletIds).gte("created_at", timestampStart).lt("created_at", timestampEnd)
       .order("created_at").order("id").range(from, to)),
     paged<StockMovementRow>((from, to) => supabase.from("stock_movements")
-      .select("outlet_id, product_id, type, qty, unit_cost, posted_at").in("outlet_id", outletIds).in("type", ["TREATMENT_USAGE", "SALE"])
-      .lt("qty", 0).gte("posted_at", timestampStart).lt("posted_at", timestampEnd)
+      .select("outlet_id, product_id, type, qty, unit_cost, posted_at").in("outlet_id", outletIds)
+      .gte("posted_at", timestampStart).lt("posted_at", timestampEnd)
       .order("posted_at").order("id").range(from, to)),
     paged<ProductRow>((from, to) => supabase.from("products")
-      .select("id, name, min_stock, track_stock, cost_price").order("id").range(from, to)),
+      // "*" (not a column list) so the report keeps working before and after
+      // migration 0041 adds products.guests_per_unit.
+      .select("*").order("id").range(from, to)),
     paged<ProductStockRow>((from, to) => supabase.from("product_stocks")
       .select("product_id, outlet_id, qty").in("outlet_id", outletIds).order("outlet_id").order("product_id").range(from, to)),
     paged<PettyCashRow>((from, to) => supabase.from("petty_cash")
@@ -427,6 +466,7 @@ type BuiltReport = {
   therapists: TherapistReport[];
   operations: OperationsReport;
   costs: CostsReport;
+  inventory: InventoryReport;
   perOutlet: OutletReport[];
   profit?: ProfitReport;
   outletProfit?: OutletProfitReport[];
@@ -559,8 +599,8 @@ function buildReport(
   const periodMovements = data.movements.filter((movement) => inWindow(movement.posted_at.slice(0, 10), window));
   // Treatment consumables used on guests vs. products sold over the counter:
   // the first is an operating cost, the second is cost of goods sold.
-  const movements = periodMovements.filter((movement) => movement.type === "TREATMENT_USAGE");
-  const saleMovements = periodMovements.filter((movement) => movement.type === "SALE");
+  const movements = periodMovements.filter((movement) => movement.type === "TREATMENT_USAGE" && n(movement.qty) < 0);
+  const saleMovements = periodMovements.filter((movement) => movement.type === "SALE" && n(movement.qty) < 0);
   const materialCost = movements.reduce((sum, movement) => sum + Math.abs(n(movement.qty)) * n(movement.unit_cost), 0);
   const costOfGoodsSold = saleMovements.reduce((sum, movement) => sum + Math.abs(n(movement.qty)) * n(movement.unit_cost), 0);
   const revenueItems = summarizeRevenueItems(
@@ -748,6 +788,7 @@ function buildReport(
     therapists: therapistRows,
     operations,
     costs,
+    inventory: buildInventory(data, window, periodMovements, movements, visitedBookings),
     perOutlet: outletReports,
   };
 
@@ -796,6 +837,81 @@ function buildReport(
   return result;
 }
 
+function buildInventory(
+  data: ReportData,
+  window: Window,
+  periodMovements: StockMovementRow[],
+  treatmentMovements: StockMovementRow[],
+  visitedBookings: BookingRow[]
+): InventoryReport {
+  const productById = new Map(data.products.map((product) => [product.id, product]));
+  const valueOf = (row: StockMovementRow) => n(row.qty) * n(row.unit_cost);
+  const categories = new Map<string, InventoryReport["byCategory"][number]>();
+  for (const row of periodMovements) {
+    const category = productById.get(row.product_id)?.category ?? "Lainnya";
+    const entry = categories.get(category)
+      ?? { category, purchased: 0, sold: 0, usedInTreatment: 0, transferNet: 0, opnameVariance: 0 };
+    const value = valueOf(row);
+    if (row.type === "PURCHASE_RECEIPT") entry.purchased += value;
+    else if (row.type === "RETURN_TO_SUPPLIER") entry.purchased += value;
+    else if (row.type === "SALE") entry.sold += -value;
+    else if (row.type === "TREATMENT_USAGE" || row.type === "WASTE_DAMAGE") entry.usedInTreatment += -value;
+    else if (row.type === "TRANSFER_IN" || row.type === "TRANSFER_OUT") entry.transferNet += value;
+    else if (row.type === "STOCK_OPNAME" || row.type === "ADJUSTMENT") entry.opnameVariance += value;
+    categories.set(category, entry);
+  }
+
+  const visits = visitedBookings.length;
+  const issued = new Map<string, { units: number; cost: number }>();
+  for (const row of treatmentMovements) {
+    const entry = issued.get(row.product_id) ?? { units: 0, cost: 0 };
+    entry.units += Math.abs(n(row.qty));
+    entry.cost += Math.abs(n(row.qty)) * n(row.unit_cost);
+    issued.set(row.product_id, entry);
+  }
+  const consumableIds = new Set([
+    ...issued.keys(),
+    ...data.products
+      .filter((product) => product.guests_per_unit !== null && product.guests_per_unit !== undefined && n(product.guests_per_unit) > 0)
+      .map((product) => product.id),
+  ]);
+  const consumables = [...consumableIds].flatMap((productId) => {
+    const product = productById.get(productId);
+    if (!product) return [];
+    const guestsPerUnit = product.guests_per_unit === null || product.guests_per_unit === undefined ? null : n(product.guests_per_unit);
+    const used = issued.get(productId) ?? { units: 0, cost: 0 };
+    return [{
+      productId,
+      name: product.name,
+      uom: product.uom ?? "unit",
+      issuedUnits: used.units,
+      cost: used.cost,
+      guestsPerUnit,
+      ...assessConsumableUsage(used.units, visits, guestsPerUnit),
+    }];
+  }).sort((a, b) => b.cost - a.cost || a.name.localeCompare(b.name));
+
+  const materialTotal = treatmentMovements.reduce((sum, row) => sum + Math.abs(n(row.qty)) * n(row.unit_cost), 0);
+  const stockValueNow = data.stocks.reduce((sum, stock) => {
+    const product = productById.get(stock.product_id);
+    return sum + (product ? n(stock.qty) * n(product.cost_price ?? 0) : 0);
+  }, 0);
+
+  return {
+    byCategory: [...categories.values()].sort((a, b) => a.category.localeCompare(b.category)),
+    opnameVarianceTotal: [...categories.values()].reduce((sum, row) => sum + row.opnameVariance, 0),
+    consumables,
+    weeklyUsage: buildWeeklyUsage(
+      window.start,
+      window.days,
+      visitedBookings.map((booking) => booking.date),
+      treatmentMovements.map((row) => ({ date: row.posted_at.slice(0, 10), amount: Math.abs(n(row.qty)) * n(row.unit_cost) }))
+    ).filter((row) => row.start <= todayIsoDate()),
+    materialCostPerVisit: visits && treatmentMovements.length ? materialTotal / visits : null,
+    stockValueNow,
+  };
+}
+
 function inWindowDate(timestamp: string, window: Window): boolean {
   return inWindow(timestamp.slice(0, 10), window);
 }
@@ -839,6 +955,7 @@ export async function getMonthlyReport({
     therapists: { current: currentReport.therapists, previous: previousReport.therapists },
     operations: { current: currentReport.operations, previous: previousReport.operations },
     costs: { current: currentReport.costs, previous: previousReport.costs },
+    inventory: { current: currentReport.inventory, previous: previousReport.inventory },
     payrollMissingOutlets: {
       current: data.outlets
         .filter((outlet) => !data.payrollItems.some((item) => item.outlet_id === outlet.id && item.period === current.period))

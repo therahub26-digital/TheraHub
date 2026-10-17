@@ -289,6 +289,74 @@ function CashflowChart({ rows, fixedPayroll, showContribution }: {
   );
 }
 
+type UsageRows = MonthlyReport["inventory"]["current"]["weeklyUsage"];
+
+function UsageChart({ rows }: { rows: UsageRows }) {
+  if (!rows.some((row) => row.visits || row.materialCost)) {
+    return <p className="monthly-empty-inline">Belum ada kunjungan atau pemakaian bahan pada periode ini.</p>;
+  }
+  const chart = { left: 56, right: 930, top: 24, bottom: 222 };
+  const plotHeight = chart.bottom - chart.top;
+  const maxVisits = Math.max(...rows.map((row) => row.visits), 1);
+  const maxCost = Math.max(...rows.map((row) => row.materialCost), 1);
+  const yVisits = (value: number) => chart.bottom - value / maxVisits * plotHeight;
+  const yCost = (value: number) => chart.bottom - value / maxCost * plotHeight;
+  const slot = (chart.right - chart.left) / rows.length;
+  const barWidth = Math.min(60, slot * 0.45);
+  const costLabel = (value: number) => value >= 1_000_000 ? `${num(value / 1_000_000, 1)}jt` : `${num(value / 1_000, 0)}rb`;
+  const points = rows.map((row, index) => `${chart.left + slot * (index + 0.5)},${yCost(row.materialCost)}`).join(" ");
+  return (
+    <>
+      <svg className="monthly-daily-chart" viewBox="0 0 1000 260" role="img" aria-label="Jumlah tamu dan biaya bahan per minggu">
+        <title>Jumlah tamu vs biaya bahan per minggu</title>
+        {Array.from({ length: 5 }, (_, index) => {
+          const ratio = (4 - index) / 4;
+          const lineY = chart.top + plotHeight * index / 4;
+          return (
+            <g key={index} className="monthly-chart-gridline">
+              <line x1={chart.left} x2={chart.right} y1={lineY} y2={lineY} />
+              <text x={chart.left - 8} y={lineY + 4} textAnchor="end">{num(maxVisits * ratio, 0)}</text>
+              <text x={chart.right + 8} y={lineY + 4} textAnchor="start">{costLabel(maxCost * ratio)}</text>
+            </g>
+          );
+        })}
+        <text className="monthly-chart-date" x={chart.left - 8} y={14} textAnchor="end">tamu</text>
+        <text className="monthly-chart-date" x={chart.right + 8} y={14} textAnchor="start">Rp bahan</text>
+        {rows.map((row, index) => {
+          const center = chart.left + slot * (index + 0.5);
+          return (
+            <g key={row.label}>
+              <rect className="monthly-cash-revenue" x={center - barWidth / 2} y={yVisits(row.visits)} width={barWidth} height={Math.max(0, chart.bottom - yVisits(row.visits))}>
+                <title>{`Tgl ${row.label}: ${row.visits} tamu`}</title>
+              </rect>
+              <text className="monthly-chart-date" x={center} y={chart.bottom + 20} textAnchor="middle">Tgl {row.label}</text>
+            </g>
+          );
+        })}
+        <g className="monthly-cash-line">
+          <polyline points={points} />
+          {rows.map((row, index) => (
+            <circle key={row.label} cx={chart.left + slot * (index + 0.5)} cy={yCost(row.materialCost)} r="4">
+              <title>{`Tgl ${row.label}: bahan ${rp(row.materialCost)}${row.costPerVisit === null ? "" : ` · ${rp(row.costPerVisit)}/tamu`}`}</title>
+            </circle>
+          ))}
+        </g>
+      </svg>
+      <div className="monthly-cash-legend">
+        <span><i className="monthly-cash-revenue" />Jumlah tamu (sumbu kiri)</span>
+        <span><i className="monthly-cash-line-key" />Biaya bahan treatment (sumbu kanan)</span>
+      </div>
+    </>
+  );
+}
+
+const USAGE_STATUS: Record<string, { label: string; tone: "success" | "warning" | "neutral" | "danger" }> = {
+  WAJAR: { label: "Wajar", tone: "success" },
+  BOROS: { label: "Boros", tone: "danger" },
+  HEMAT: { label: "Lebih hemat", tone: "warning" },
+  TANPA_TAKARAN: { label: "Takaran belum diatur", tone: "neutral" },
+};
+
 function RevenueByCategory({ rows }: { rows: MonthlyReport["revenue"]["current"]["byCategory"] }) {
   const total = rows.reduce((sum, row) => sum + row.amount, 0);
   if (!total) return <p className="monthly-empty-inline">Belum ada data penjualan.</p>;
@@ -749,6 +817,84 @@ export default function MonthlyReport({
             </div>
           ) : <div className="card-body"><p className="monthly-empty-inline">Belum ada pengeluaran tercatat pada periode ini.</p></div>}
         </Card>
+      </Section>
+
+      <Section number="07" title="Inventory & Pemakaian Bahan">
+        <Card className="monthly-card">
+          <CardHead
+            title="Jumlah tamu vs biaya bahan per minggu"
+            sub={data.inventory.current.materialCostPerVisit === null
+              ? "Biaya bahan = unit yang dikeluarkan dari gudang ke ruang treatment"
+              : `Rata-rata biaya bahan ${rp(data.inventory.current.materialCostPerVisit)} per tamu${data.inventory.previous.materialCostPerVisit === null ? "" : ` (bulan lalu ${rp(data.inventory.previous.materialCostPerVisit)})`}`}
+          />
+          <div className="card-body"><UsageChart rows={data.inventory.current.weeklyUsage} /></div>
+        </Card>
+        <Card className="monthly-card">
+          <CardHead title="Pemakaian bahan vs perkiraan" sub="Perkiraan = jumlah tamu ÷ takaran (1 unit ≈ N tamu). Selisih dalam ±20% dianggap wajar." />
+          {data.inventory.current.consumables.length ? (
+            <div className="table-wrap">
+              <table className="tbl">
+                <thead><tr><th>Bahan</th><th className="num">Takaran</th><th className="num">Dikeluarkan</th><th className="num">Perkiraan</th><th className="num">Selisih</th><th className="num">Biaya</th><th>Status</th></tr></thead>
+                <tbody>
+                  {data.inventory.current.consumables.map((row) => (
+                    <tr key={row.productId}>
+                      <td>{row.name}</td>
+                      <td className="num">{row.guestsPerUnit === null ? "—" : `1 ${row.uom} ≈ ${num(row.guestsPerUnit, 1)} tamu`}</td>
+                      <td className="num">{num(row.issuedUnits, 1)} {row.uom}</td>
+                      <td className="num">{row.expectedUnits === null ? "—" : `${num(row.expectedUnits, 1)} ${row.uom}`}</td>
+                      <td className="num">{row.variancePct === null ? "—" : `${row.variancePct > 0 ? "+" : ""}${num(row.variancePct, 0)}%`}</td>
+                      <td className="num">{rp(row.cost)}</td>
+                      <td><Badge tone={USAGE_STATUS[row.status].tone}>{USAGE_STATUS[row.status].label}</Badge></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="card-body">
+              <p className="monthly-empty-inline">Belum ada bahan dengan takaran atau pemakaian tercatat. Atur takaran di Inventory → Daftar Produk, lalu catat lewat tombol &ldquo;Keluarkan Bahan&rdquo;.</p>
+            </div>
+          )}
+        </Card>
+        <div className="monthly-two-column">
+          <Card className="monthly-card">
+            <CardHead title="Pergerakan stok per kategori (Rp)" sub={`Nilai stok saat ini ${rp(data.inventory.current.stockValueNow)} (harga pokok)`} />
+            {data.inventory.current.byCategory.length ? (
+              <div className="table-wrap">
+                <table className="tbl">
+                  <thead><tr><th>Kategori</th><th className="num">Pembelian</th><th className="num">Terjual (HPP)</th><th className="num">Pemakaian</th><th className="num">Transfer</th><th className="num">Selisih opname</th></tr></thead>
+                  <tbody>
+                    {data.inventory.current.byCategory.map((row) => (
+                      <tr key={row.category}>
+                        <td>{row.category}</td><td className="num">{rp(row.purchased)}</td><td className="num">{rp(row.sold)}</td>
+                        <td className="num">{rp(row.usedInTreatment)}</td><td className="num">{rp(row.transferNet)}</td>
+                        <td className="num">{rp(row.opnameVariance)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : <div className="card-body"><p className="monthly-empty-inline">Belum ada pergerakan stok pada periode ini.</p></div>}
+          </Card>
+          <Card className="monthly-card">
+            <CardHead title="Stok di bawah minimum" sub={`Selisih stok opname bulan ini ${rp(data.inventory.current.opnameVarianceTotal)}`} />
+            {data.costs.current.lowStockItems.length ? (
+              <div className="table-wrap">
+                <table className="tbl">
+                  <thead><tr><th>Produk</th><th>Cabang</th><th className="num">Stok</th><th className="num">Minimum</th></tr></thead>
+                  <tbody>
+                    {data.costs.current.lowStockItems.map((row) => (
+                      <tr key={`${row.outletId}-${row.productId}`}>
+                        <td>{row.name}</td><td>{outletNames[row.outletId] ?? "—"}</td>
+                        <td className="num">{num(row.quantity)}</td><td className="num">{num(row.minimum)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : <div className="card-body"><p className="monthly-empty-inline">Semua stok di atas minimum.</p></div>}
+          </Card>
+        </div>
       </Section>
 
       {data.profit && (

@@ -1,7 +1,9 @@
 // Uji fungsi murni Laporan Bulanan — `npx tsx scripts/monthly-report.test.ts`.
 import assert from "node:assert/strict";
 import {
+  assessConsumableUsage,
   buildWeeklyCashflow,
+  buildWeeklyUsage,
   calculatePerformanceScore,
   calculateOperatingProfit,
   calculateRoomUtilization,
@@ -149,6 +151,25 @@ test("M13", "Arus mingguan: tgl 1–7, 8–14, …, 29–30; kontribusi kumulati
   assert.equal(weeks[1].contribution, -500_000);
   assert.equal(weeks[1].cumulativeContribution, 200_000);
   assert.equal(weeks[4].cumulativeContribution, 600_000);
+});
+
+test("M14", "Pemakaian bahan: 1 botol ≈ 20 tamu, 150 tamu → perkiraan 7,5 botol; ±20% wajar", () => {
+  assert.equal(assessConsumableUsage(8, 150, 20).status, "WAJAR");
+  assert.equal(assessConsumableUsage(8, 150, 20).expectedUnits, 7.5);
+  assert.equal(assessConsumableUsage(10, 150, 20).status, "BOROS");
+  assert.equal(assessConsumableUsage(5, 150, 20).status, "HEMAT");
+  assert.equal(assessConsumableUsage(3, 150, null).status, "TANPA_TAKARAN");
+});
+
+test("M15", "Tamu vs biaya bahan per minggu dan biaya per tamu", () => {
+  const rows = buildWeeklyUsage("2026-09-01", 30, ["2026-09-02", "2026-09-03", "2026-09-10"], [
+    { date: "2026-09-02", amount: 35_000 },
+    { date: "2026-09-29", amount: 18_000 },
+  ]);
+  assert.equal(rows[0].visits, 2);
+  assert.equal(rows[0].costPerVisit, 17_500);
+  assert.equal(rows[1].materialCost, 0);
+  assert.equal(rows[4].costPerVisit, null);
 });
 
 for (const result of results) {

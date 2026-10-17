@@ -214,3 +214,49 @@ export function buildWeeklyCashflow(
   }
   return rows;
 }
+
+export type UsageStatus = "WAJAR" | "BOROS" | "HEMAT" | "TANPA_TAKARAN";
+
+/**
+ * Compares units actually issued from the store room with the units the
+ * guest count implies (visits ÷ guests-per-unit). Usage is never exact, so
+ * ±tolerance (default 20%) is still "wajar".
+ */
+export function assessConsumableUsage(
+  issuedUnits: number,
+  visits: number,
+  guestsPerUnit: number | null,
+  tolerancePct = 20
+): { expectedUnits: number | null; variancePct: number | null; status: UsageStatus } {
+  if (!guestsPerUnit || guestsPerUnit <= 0) return { expectedUnits: null, variancePct: null, status: "TANPA_TAKARAN" };
+  const expectedUnits = visits / guestsPerUnit;
+  if (expectedUnits === 0) {
+    return { expectedUnits, variancePct: null, status: issuedUnits > 0 ? "BOROS" : "WAJAR" };
+  }
+  const variancePct = (issuedUnits - expectedUnits) / expectedUnits * 100;
+  const status: UsageStatus = variancePct > tolerancePct ? "BOROS" : variancePct < -tolerancePct ? "HEMAT" : "WAJAR";
+  return { expectedUnits, variancePct, status };
+}
+
+export type WeeklyUsageRow = { label: string; start: string; end: string; visits: number; materialCost: number; costPerVisit: number | null };
+
+/** Visits and treatment-material cost per week of the month (same buckets as the cashflow chart). */
+export function buildWeeklyUsage(
+  monthStart: string,
+  days: number,
+  visitDates: string[],
+  materials: { date: string; amount: number }[]
+): WeeklyUsageRow[] {
+  const prefix = monthStart.slice(0, 8);
+  const rows: WeeklyUsageRow[] = [];
+  for (let first = 1; first <= days; first += 7) {
+    const last = Math.min(days, first + 6);
+    const start = `${prefix}${String(first).padStart(2, "0")}`;
+    const end = `${prefix}${String(last).padStart(2, "0")}`;
+    const inBucket = (date: string) => date.slice(0, 10) >= start && date.slice(0, 10) <= end;
+    const visits = visitDates.filter(inBucket).length;
+    const materialCost = materials.filter((row) => inBucket(row.date)).reduce((sum, row) => sum + row.amount, 0);
+    rows.push({ label: `${first}–${last}`, start, end, visits, materialCost, costPerVisit: visits ? materialCost / visits : null });
+  }
+  return rows;
+}

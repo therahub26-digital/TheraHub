@@ -603,6 +603,8 @@ export interface Product {
   stocks: Record<string, number>;
   minStock: number;
   usedThisMonth: number;
+  /** Perkiraan tamu per 1 unit stok (1 botol ≈ N tamu). null = tidak diperkirakan. Migrasi 0041. */
+  guestsPerUnit?: number | null;
 }
 
 export type StockMovementType =

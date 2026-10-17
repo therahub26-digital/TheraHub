@@ -10,7 +10,7 @@ import {
   getStockTransfersForOutlet,
 } from "@/lib/data/inventory";
 import { rp, fmtDateTime, num } from "@/lib/format";
-import { NewProductForm, PurchaseOrderForm, ReceivePOButton, StockTransferForm, StockOpnameForm } from "@/components/InventoryEditor";
+import { NewProductForm, PurchaseOrderForm, ReceivePOButton, StockTransferForm, StockOpnameForm, IssueStockForm, GuestsPerUnitCell } from "@/components/InventoryEditor";
 
 // NewProductForm — was deliberately unwired (RLS `products_write` in
 // 0002_rls_policies.sql admits only admin/owner, so a manager pressing it
@@ -73,6 +73,7 @@ export default async function InventoryPage() {
         desc={`${outlet.name} · Stok produk, consumable, purchase order, transfer, dan stock opname.`}
         actions={
           <>
+            <IssueStockForm outletId={outlet.id} products={products} />
             <NewProductForm tenantId={outlet.tenantId} />
             <StockTransferForm tenantId={outlet.tenantId} currentOutletId={outlet.id} outlets={outlets.map((o) => ({ id: o.id, name: o.name }))} products={products} />
             <StockOpnameForm outletId={outlet.id} products={products} />
@@ -126,7 +127,7 @@ export default async function InventoryPage() {
         />
         <div className="table-wrap">
           <table className="tbl">
-            <thead><tr><th>Produk</th><th>Kategori</th><th>Stok di outlet ini</th><th>Harga cost</th><th>Harga jual</th></tr></thead>
+            <thead><tr><th>Produk</th><th>Kategori</th><th>Stok di outlet ini</th><th>Harga cost</th><th>Harga jual</th><th>Takaran per unit</th></tr></thead>
             <tbody>
               {products.map((p) => (
                 <tr key={p.id}>
@@ -137,10 +138,15 @@ export default async function InventoryPage() {
                   <td className="num small" style={{ color: p.sellPrice === null ? "var(--text-3)" : "var(--accent)" }}>
                     {p.sellPrice === null ? "tidak dijual" : rp(p.sellPrice)}
                   </td>
+                  <td className="num small">
+                    {p.category === "Treatment Consumable" || p.category === "Operational Supply"
+                      ? <GuestsPerUnitCell productId={p.id} uom={p.uom} value={p.guestsPerUnit ?? null} />
+                      : <span className="dim">—</span>}
+                  </td>
                 </tr>
               ))}
               {products.length === 0 && (
-                <tr><td colSpan={5} className="dim small" style={{ textAlign: "center", padding: "20px 0" }}>Belum ada produk.</td></tr>
+                <tr><td colSpan={6} className="dim small" style={{ textAlign: "center", padding: "20px 0" }}>Belum ada produk.</td></tr>
               )}
             </tbody>
           </table>

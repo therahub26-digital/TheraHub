@@ -89,6 +89,7 @@ export type CreateProductInput = {
   costPrice: number;
   sellPrice: number | null;
   minStock: number;
+  guestsPerUnit?: number | null;
 };
 
 export async function createProduct(input: CreateProductInput): Promise<ActionResult> {
@@ -113,6 +114,7 @@ export async function createProduct(input: CreateProductInput): Promise<ActionRe
     sell_price: input.sellPrice,
     track_stock: true,
     min_stock: input.minStock,
+    ...(input.guestsPerUnit ? { guests_per_unit: input.guestsPerUnit } : {}),
   });
   if (error) {
     // 23505 = unique violation (SKU already taken).
@@ -428,6 +430,98 @@ export async function createStockOpnameAndPost(input: CreateStockOpnameInput): P
     if (stockError) return { ok: false, error: "Opname tersimpan tapi saldo stok gagal diperbarui — hubungi admin." };
   }
 
+  revalidatePath("/manager/inventory");
+  return { ok: true };
+}
+
+// ======================================================= PEMAKAIAN BAHAN
+
+export type IssueForTreatmentInput = {
+  outletId: string;
+  note: string;
+  items: { productId: string; qty: number }[];
+};
+
+/**
+ * "Keluarkan ke Ruang Treatment": unit bahan (botol lotion, minyak,
+ * handuk sekali pakai, …) diambil dari gudang untuk dipakai melayani
+ * tamu. Inilah pemakaian SEBENARNYA yang dibandingkan Laporan Bulanan
+ * dengan perkiraan dari jumlah tamu (products.guests_per_unit, 0041).
+ *
+ * Pasangan tulisan sama seperti aksi stok lain: satu baris
+ * stock_movements (TREATMENT_USAGE, qty negatif, unit_cost = harga
+ * pokok produk) + satu upsert product_stocks. Stok tidak boleh minus.
+ */
+export async function issueStockForTreatment(input: IssueForTreatmentInput): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Sesi tidak ditemukan — silakan login ulang." };
+
+  const items = input.items.filter((item) => item.productId && item.qty > 0);
+  if (items.length === 0) return { ok: false, error: "Pilih minimal 1 bahan dan jumlahnya." };
+
+  const productIds = [...new Set(items.map((item) => item.productId))];
+  const [{ data: products }, { data: stocks }] = await Promise.all([
+    supabase.from("products").select("id, name, cost_price").in("id", productIds),
+    supabase.from("product_stocks").select("product_id, qty").eq("outlet_id", input.outletId).in("product_id", productIds),
+  ]);
+  const productById = new Map((products ?? []).map((row) => [row.id as string, row]));
+  const stockById = new Map((stocks ?? []).map((row) => [row.product_id as string, Number(row.qty)]));
+
+  const totals = new Map<string, number>();
+  for (const item of items) totals.set(item.productId, (totals.get(item.productId) ?? 0) + item.qty);
+  for (const [productId, qty] of totals) {
+    const product = productById.get(productId);
+    if (!product) return { ok: false, error: "Ada bahan yang tidak ditemukan — muat ulang halaman." };
+    const available = stockById.get(productId) ?? 0;
+    if (qty > available) {
+      return { ok: false, error: `Stok ${product.name} tidak cukup: tersedia ${available}, diminta ${qty}.` };
+    }
+  }
+
+  const { appUserId } = await resolveIdentity(supabase, user.id);
+  const postedAt = nowIso();
+  for (const [productId, qty] of totals) {
+    const product = productById.get(productId)!;
+    const { error: moveError } = await supabase.from("stock_movements").insert({
+      outlet_id: input.outletId,
+      product_id: productId,
+      type: "TREATMENT_USAGE",
+      qty: -qty,
+      unit_cost: Number(product.cost_price),
+      ref_type: "TREATMENT_ISSUE",
+      ref_id: null,
+      posted_at: postedAt,
+      posted_by: appUserId,
+    });
+    if (moveError) return { ok: false, error: `Gagal mencatat pemakaian ${product.name}.` };
+    const { error: stockError } = await supabase
+      .from("product_stocks")
+      .upsert({ outlet_id: input.outletId, product_id: productId, qty: (stockById.get(productId) ?? 0) - qty }, { onConflict: "outlet_id,product_id" });
+    if (stockError) return { ok: false, error: `Pemakaian ${product.name} tercatat tapi saldo stok gagal diperbarui — hubungi admin.` };
+  }
+
+  revalidatePath("/manager/inventory");
+  return { ok: true };
+}
+
+/** Ubah takaran perkiraan "1 unit ≈ N tamu" sebuah produk (null = hapus). */
+export async function updateProductGuestsPerUnit(productId: string, guestsPerUnit: number | null): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Sesi tidak ditemukan — silakan login ulang." };
+  if (guestsPerUnit !== null && !(guestsPerUnit > 0)) return { ok: false, error: "Takaran harus lebih dari 0." };
+
+  const { error } = await supabase.from("products").update({ guests_per_unit: guestsPerUnit }).eq("id", productId);
+  if (error) {
+    if (error.code === "42703") return { ok: false, error: "Migrasi 0041 belum dijalankan — kolom takaran belum ada." };
+    if (error.code === "42501") return { ok: false, error: "Role kamu belum diizinkan mengubah produk." };
+    return { ok: false, error: "Gagal menyimpan takaran." };
+  }
   revalidatePath("/manager/inventory");
   return { ok: true };
 }

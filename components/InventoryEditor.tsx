@@ -9,6 +9,8 @@ import {
   receivePurchaseOrder,
   createAndCompleteStockTransfer,
   createStockOpnameAndPost,
+  issueStockForTreatment,
+  updateProductGuestsPerUnit,
 } from "@/lib/actions/inventory";
 import { FloatingPanel as Panel } from "@/components/FloatingPanel";
 import type { Product } from "@/lib/types";
@@ -46,7 +48,7 @@ function ErrorNote({ error }: { error: string | null }) {
 export function NewProductForm({ tenantId }: { tenantId: string }) {
   const [open, setOpen] = useState(false);
   const anchorRef = useRef<HTMLButtonElement>(null);
-  const empty = { sku: "", name: "", category: CATEGORIES[0], uom: "pcs", costPrice: "0", sellPrice: "", minStock: "5" };
+  const empty = { sku: "", name: "", category: CATEGORIES[0], uom: "pcs", costPrice: "0", sellPrice: "", minStock: "5", guestsPerUnit: "" };
   const [v, setV] = useState(empty);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -99,6 +101,12 @@ export function NewProductForm({ tenantId }: { tenantId: string }) {
               <input className="input" type="number" value={v.sellPrice} disabled={isPending} onChange={(e) => setV({ ...v, sellPrice: e.target.value })} />
             </label>
           </div>
+          {(v.category === "Treatment Consumable" || v.category === "Operational Supply") && (
+            <label className="stack g1">
+              <span className="tiny dim">Takaran perkiraan: 1 {v.uom || "unit"} ≈ berapa tamu? (boleh dikosongkan)</span>
+              <input className="input" type="number" min="0" step="0.5" value={v.guestsPerUnit} disabled={isPending} onChange={(e) => setV({ ...v, guestsPerUnit: e.target.value })} />
+            </label>
+          )}
           <ErrorNote error={error} />
           <div className="row g2">
             <button
@@ -116,6 +124,7 @@ export function NewProductForm({ tenantId }: { tenantId: string }) {
                     costPrice: Number(v.costPrice) || 0,
                     sellPrice: v.sellPrice === "" ? null : Number(v.sellPrice),
                     minStock: Number(v.minStock) || 0,
+                    guestsPerUnit: Number(v.guestsPerUnit) > 0 ? Number(v.guestsPerUnit) : null,
                   });
                   if (r.ok) setOpen(false);
                   else setError(r.error);
@@ -477,5 +486,117 @@ export function StockOpnameForm({ outletId, products }: { outletId: string; prod
         </Panel>
       )}
     </>
+  );
+}
+
+// ===================================================== PEMAKAIAN BAHAN
+
+/**
+ * "Keluarkan ke Ruang Treatment" — mencatat unit bahan yang diambil dari
+ * gudang untuk melayani tamu. Hanya bahan Treatment Consumable &
+ * Operational Supply yang ditawarkan.
+ */
+export function IssueStockForm({ outletId, products }: { outletId: string; products: Product[] }) {
+  const [open, setOpen] = useState(false);
+  const anchorRef = useRef<HTMLButtonElement>(null);
+  const [rows, setRows] = useState<{ productId: string; qty: string }[]>([{ productId: "", qty: "1" }]);
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+  const usable = products.filter((p) => p.trackStock && (p.category === "Treatment Consumable" || p.category === "Operational Supply"));
+
+  function update(i: number, patch: Partial<{ productId: string; qty: string }>) {
+    setRows(rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+  }
+
+  return (
+    <>
+      <button ref={anchorRef} className="btn btn-ghost btn-sm" onClick={() => { setRows([{ productId: "", qty: "1" }]); setError(null); setOpen(true); }}>
+        <Icon name="droplet" size={14} /> Keluarkan Bahan
+      </button>
+      {open && (
+        <Panel anchorRef={anchorRef} onClose={() => setOpen(false)}>
+          <div className="small strong" style={{ color: "var(--text-1)" }}>Keluarkan bahan ke ruang treatment</div>
+          <div className="tiny dim">Catat setiap botol/pak yang diambil dari gudang. Laporan Bulanan membandingkannya dengan jumlah tamu.</div>
+          <div className="stack g2">
+            {rows.map((row, i) => {
+              const product = usable.find((p) => p.id === row.productId);
+              return (
+                <div key={i} className="row g1" style={{ alignItems: "center" }}>
+                  <select className="select" style={{ flex: 2 }} value={row.productId} onChange={(e) => update(i, { productId: e.target.value })}>
+                    <option value="">Pilih bahan…</option>
+                    {usable.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.stocks[outletId] ?? 0} {p.uom})</option>)}
+                  </select>
+                  <input className="input" type="number" min="1" style={{ width: 70 }} value={row.qty} onChange={(e) => update(i, { qty: e.target.value })} />
+                  <span className="tiny dim" style={{ width: 48 }}>{product?.uom ?? ""}</span>
+                  <button className="btn btn-ghost btn-icon btn-sm" type="button" onClick={() => setRows(rows.filter((_, idx) => idx !== i))}>
+                    <Icon name="x" size={13} />
+                  </button>
+                </div>
+              );
+            })}
+            <button className="btn btn-ghost btn-sm" type="button" onClick={() => setRows([...rows, { productId: "", qty: "1" }])}>
+              <Icon name="plus" size={12} /> Tambah bahan
+            </button>
+          </div>
+          <ErrorNote error={error} />
+          <div className="row g2">
+            <button
+              className="btn btn-primary btn-sm"
+              disabled={isPending}
+              onClick={() => {
+                setError(null);
+                startTransition(async () => {
+                  const res = await issueStockForTreatment({
+                    outletId,
+                    note: "",
+                    items: rows.filter((r) => r.productId).map((r) => ({ productId: r.productId, qty: Number(r.qty) || 0 })),
+                  });
+                  if (res.ok) setOpen(false);
+                  else setError(res.error);
+                });
+              }}
+            >
+              <Icon name="check" size={13} /> {isPending ? "Mencatat…" : "Catat Pemakaian"}
+            </button>
+            <button className="btn btn-ghost btn-sm" disabled={isPending} onClick={() => setOpen(false)}>Batal</button>
+          </div>
+        </Panel>
+      )}
+    </>
+  );
+}
+
+/** Sel tabel: takaran "1 unit ≈ N tamu", bisa diubah langsung. */
+export function GuestsPerUnitCell({ productId, uom, value }: { productId: string; uom: string; value: number | null }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value === null ? "" : String(value));
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+  if (!editing) {
+    return (
+      <button className="btn btn-ghost btn-sm" type="button" onClick={() => { setDraft(value === null ? "" : String(value)); setError(null); setEditing(true); }}>
+        {value === null ? <span className="dim">Atur takaran</span> : <>1 {uom} ≈ {value} tamu</>}
+      </button>
+    );
+  }
+  return (
+    <span className="row g1" style={{ alignItems: "center", justifyContent: "flex-end" }}>
+      <input className="input" type="number" min="0" step="0.5" style={{ width: 70 }} value={draft} disabled={isPending} onChange={(e) => setDraft(e.target.value)} />
+      <span className="tiny dim">tamu</span>
+      <button
+        className="btn btn-primary btn-sm"
+        disabled={isPending}
+        onClick={() => startTransition(async () => {
+          const next = draft.trim() === "" ? null : Number(draft);
+          const res = await updateProductGuestsPerUnit(productId, next);
+          if (res.ok) setEditing(false);
+          else setError(res.error);
+        })}
+      >
+        <Icon name="check" size={12} />
+      </button>
+      <button className="btn btn-ghost btn-sm" disabled={isPending} onClick={() => setEditing(false)}><Icon name="x" size={12} /></button>
+      {error && <span className="tiny" style={{ color: "var(--danger)" }}>{error}</span>}
+    </span>
   );
 }

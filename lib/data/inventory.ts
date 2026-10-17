@@ -41,6 +41,7 @@ type ProductRow = {
   sell_price: number | string | null;
   track_stock: boolean;
   min_stock: number;
+  guests_per_unit?: number | string | null;
 };
 
 type StockRow = { product_id: string; outlet_id: string; qty: number | string };
@@ -122,6 +123,7 @@ function mapProduct(row: ProductRow, stocksByProduct: Map<string, Record<string,
     stocks: stocksByProduct.get(row.id) ?? {},
     minStock: row.min_stock,
     usedThisMonth: usedThisMonth.get(row.id) ?? 0,
+    guestsPerUnit: row.guests_per_unit === null || row.guests_per_unit === undefined ? null : Number(row.guests_per_unit),
   };
 }
 

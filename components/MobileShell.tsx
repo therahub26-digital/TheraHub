@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import Icon from "./Icon";
@@ -51,6 +51,22 @@ export default function MobileShell({
   const router = useRouter();
   const [switcher, setSwitcher] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  // UAT 18 Okt 2026: "Ganti Role" hanya untuk mode demo (tanpa sesi login).
+  // Shell ini dipakai belasan halaman terapis/customer, jadi cek sesi di
+  // klien alih-alih menambah prop di tiap halaman. Default tersembunyi
+  // sampai terbukti tidak ada sesi, supaya tidak berkedip muncul.
+  const [isDemo, setIsDemo] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    createClient()
+      .auth.getSession()
+      .then(({ data }) => {
+        if (alive) setIsDemo(!data.session);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
   // UPDATE 2026-08-23 — user caught (via Shell.tsx's manager logout bug
   // report, then asked to fix the rest) that MobileShell had NO sign-out
   // control anywhere for a real (non-demo) therapist login: the tab bar
@@ -173,12 +189,14 @@ export default function MobileShell({
         <div className="grow" />
 
         <div className="row g2" style={{ marginBottom: 8 }}>
-          <button className="btn btn-ghost btn-sm btn-block" onClick={() => setSwitcher((v) => !v)}>
-            <Icon name="repeat" size={14} /> Ganti Role
-          </button>
+          {isDemo && (
+            <button className="btn btn-ghost btn-sm btn-block" onClick={() => setSwitcher((v) => !v)}>
+              <Icon name="repeat" size={14} /> Ganti Role
+            </button>
+          )}
           <ThemeToggle className="btn-ghost" />
         </div>
-        {switcher && (
+        {switcher && isDemo && (
           <div className="stack g2" style={{ marginBottom: 8 }}>
             {ROLES.map((r) => (
               <Link key={r.key} href={r.base} className={`chip ${r.key === role ? "on" : ""}`} style={{ justifyContent: "flex-start" }}>

@@ -4,13 +4,15 @@ import { getCurrentOutlet } from "@/lib/data/outlets";
 import { getOpenRoomAlerts } from "@/lib/data/alerts";
 import { getExtensionRequestsForOutlet } from "@/lib/data/sessions";
 import { getTenantTheme } from "@/lib/data/tenant";
+import { getSignedInName } from "@/lib/data/currentUser";
 
 export default async function KasirLayout({ children }: { children: React.ReactNode }) {
   const outlet = await getCurrentOutlet();
-  const [alerts, extensionRequests, theme] = await Promise.all([
+  const [alerts, extensionRequests, theme, signedInName] = await Promise.all([
     getOpenRoomAlerts(outlet.id),
     getExtensionRequestsForOutlet(outlet.id),
     getTenantTheme(),
+    getSignedInName(),
   ]);
   // UPDATE 2026-08-23 — user caught the header bell showing a permanent
   // dot with nothing behind it (see Shell.tsx's header). This is what
@@ -23,7 +25,7 @@ export default async function KasirLayout({ children }: { children: React.ReactN
   // UAT 18 Okt 2026: kepala halaman kasir masih memakai PRIMARY_OUTLET dari
   // lib/mock ("Amethyst — Cikawao") — bukan outlet yang sedang login.
   return (
-    <KasirShell scopeLabel={outlet.name} scopeSub={outlet.city} brandKey={theme.brandKey} bgKey={theme.bgKey} notificationCount={pendingExtensions}>
+    <KasirShell scopeLabel={outlet.name} scopeSub={outlet.city} brandKey={theme.brandKey} bgKey={theme.bgKey} notificationCount={pendingExtensions} signedInName={signedInName}>
       <RoomAlertBanner outletId={outlet.id} alerts={alerts} />
       {children}
     </KasirShell>

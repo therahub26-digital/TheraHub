@@ -33,7 +33,9 @@ import { createClient } from "@/lib/supabase/client";
  * see PRIMARY_HREFS below for why.
  */
 
-// Hand-picked instead of `def.nav.slice(0, 4)`: /kasir/closing is still
+// 18 Okt 2026: /kasir/closing sekarang sudah live (tabel cashier_shifts,
+// migrasi 0042) — tetap di "Lainnya" karena dibuka 1–2x sehari saja.
+// Catatan lama: Hand-picked instead of `def.nav.slice(0, 4)`: /kasir/closing was
 // 100% mock/presentational (no live data, no working actions) as of
 // 2026-08-31, so surfacing it in the primary tab bar would put a
 // dead-end screen in the four most-reachable slots. (/kasir/payment,
@@ -50,6 +52,7 @@ export default function KasirShell({
   brandKey,
   bgKey,
   notificationCount,
+  signedInName,
   children,
 }: {
   scopeLabel: string;
@@ -57,6 +60,8 @@ export default function KasirShell({
   brandKey?: string;
   bgKey?: string;
   notificationCount?: number;
+  /** Nama dari sesi login asli (getSignedInName). null = mode demo "Ganti Role". */
+  signedInName?: string | null;
   children: React.ReactNode;
 }) {
   const def = roleByKey("kasir");
@@ -111,14 +116,19 @@ export default function KasirShell({
           <div className="tiny dim truncate">{scopeSub}</div>
         </div>
 
-        <button
-          className="btn btn-ghost btn-sm kasir-icon-btn"
-          onClick={() => setSwitcher((v) => !v)}
-          style={{ position: "relative", width: "auto" }}
-          aria-label="Ganti Role"
-        >
-          <Icon name="repeat" size={14} />
-        </button>
+        {/* UAT 18 Okt 2026: dengan sesi kasir asli tombol ini kontrol mati
+            (middleware memantulkan portal lain). Sama seperti Shell.tsx —
+            hanya tampil di mode demo. */}
+        {!signedInName && (
+          <button
+            className="btn btn-ghost btn-sm kasir-icon-btn"
+            onClick={() => setSwitcher((v) => !v)}
+            style={{ position: "relative", width: "auto" }}
+            aria-label="Ganti Role"
+          >
+            <Icon name="repeat" size={14} />
+          </button>
+        )}
         <ThemeToggle className="kasir-icon-btn" />
         {/* The dot here counts pending extension requests, and the bell
             used to be a <button> with no handler — it showed there was
@@ -136,7 +146,7 @@ export default function KasirShell({
         </Link>
       </header>
 
-      {switcher && (
+      {switcher && !signedInName && (
         <div className="kasir-role-switch">
           <div className="row g2 wrap">
             <span className="tiny uppercase dim" style={{ marginRight: 4 }}>

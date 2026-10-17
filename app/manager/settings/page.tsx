@@ -4,6 +4,9 @@ import AlarmSoundSetting from "@/components/AlarmSoundSetting";
 import BookingWindowSetting from "@/components/BookingWindowSetting";
 import { TaxServiceEditor, DepositEditor } from "@/components/OutletSettingsEditor";
 import { getCurrentOutlet } from "@/lib/data/outlets";
+import { getCashierShiftState } from "@/lib/data/cashierShifts";
+import { ShiftsPerDayEditor } from "@/components/CashierShiftPanel";
+import { rp, fmtDateShort } from "@/lib/format";
 
 // ---------------------------------------------------------------------
 // Outlet Settings.
@@ -29,6 +32,9 @@ import { getCurrentOutlet } from "@/lib/data/outlets";
 
 export default async function OutletSettingsPage() {
   const outlet = await getCurrentOutlet();
+  // UAT 18 Okt 2026: pengaturan & review Tutup Kasir (migrasi 0042).
+  const shiftState = await getCashierShiftState(outlet.id);
+  const shiftsWithVariance = shiftState.history.filter((s) => (s.variance ?? 0) !== 0).slice(0, 8);
 
   return (
     <>
@@ -84,6 +90,45 @@ export default async function OutletSettingsPage() {
           </div>
         </Card>
       </div>
+
+      {shiftState.live && (
+        <Card style={{ marginBottom: 20 }}>
+          <CardHead title="Shift Kasir" sub="Jumlah shift per hari & selisih kas yang perlu direview" />
+          <div className="card-body">
+            {shiftState.migrationMissing ? (
+              <InfoNote tone="warning" icon="alert-triangle">
+                Modul shift belum aktif — migrasi <code>0042_cashier_shifts.sql</code> belum diterapkan.
+              </InfoNote>
+            ) : (
+              <div className="grid grid-2" style={{ alignItems: "start" }}>
+                <ShiftsPerDayEditor outletId={outlet.id} value={shiftState.shiftsPerDay} />
+                <div>
+                  <div className="tiny dim uppercase" style={{ marginBottom: 8 }}>Selisih kas terakhir</div>
+                  {shiftsWithVariance.length === 0 ? (
+                    <div className="small muted">Belum ada selisih kas.</div>
+                  ) : (
+                    <div className="stack g2">
+                      {shiftsWithVariance.map((s) => (
+                        <div key={s.id} className="small" style={{ borderBottom: "1px solid var(--border)", paddingBottom: 6 }}>
+                          <div className="row between">
+                            <span style={{ color: "var(--text-1)" }}>
+                              {fmtDateShort(s.businessDate)} · Shift {s.shiftNo} · {s.closedByName ?? s.openedByName}
+                            </span>
+                            <span className="num strong" style={{ color: (s.variance ?? 0) < 0 ? "var(--danger)" : "var(--warning)" }}>
+                              {rp(s.variance ?? 0, { sign: true })}
+                            </span>
+                          </div>
+                          <div className="tiny dim">{s.varianceNote}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
 
       <Card style={{ marginBottom: 20 }}>
         <CardHead title="Deposit Booking" sub="Nominal dan kebijakan deposit khusus outlet ini" />

@@ -993,3 +993,25 @@ table { border-collapse: collapse; width: 100%; }
   .monthly-cash-fixed text { fill: #111827 !important; }
   .monthly-cash-legend i { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+
+/* Laporan Bulanan & Laporan Keuangan versi cetak: bingkai siku, bukan
+   melengkung (permintaan Adjie 18 Okt 2026) — lebih rapi untuk dokumen resmi. */
+@media print {
+  .monthly-report .card,
+  .monthly-report .monthly-card,
+  .monthly-report .monthly-highlight,
+  .monthly-report .monthly-profit-note,
+  .monthly-report .monthly-metric,
+  .monthly-report .stat,
+  .monthly-report .table-wrap,
+  .finance-report .card,
+  .finance-report-kpis .stat {
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .monthly-report .card,
+  .monthly-report .monthly-card {
+    border: 0.5pt solid #9ca3af !important;
+  }
+}

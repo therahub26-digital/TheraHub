@@ -868,7 +868,9 @@ export default function MonthlyReport({
             </div>
           )}
         </Card>
-        <div className="monthly-two-column">
+        {/* 18 Okt 2026: 6 kolom rupiah tidak muat di setengah lebar A4 (terpotong
+            di PDF) — kartu ini sekarang selebar penuh, stok minimum di bawahnya. */}
+        <div className="stack g4">
           <Card className="monthly-card">
             <CardHead title="Pergerakan stok per kategori (Rp)" sub={`Nilai stok saat ini ${rp(data.inventory.current.stockValueNow)} (harga pokok)`} />
             {data.inventory.current.byCategory.length ? (

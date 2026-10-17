@@ -5,10 +5,13 @@ import { MONTHLY_TREND, CONSOLIDATED_PNL, TENANT_PNL, OUTLETS } from "@/lib/mock
 import { rp, pct } from "@/lib/format";
 import Link from "next/link";
 import FinanceReport from "@/components/FinanceReport";
+import PrintButton from "@/components/PrintButton";
 import { getOutlets, isLiveOutletsData } from "@/lib/data/outlets";
+import { getCurrentTenant } from "@/lib/data/tenant";
 import { getEffectiveToday } from "@/lib/data/bookings";
 import { getFinanceRows } from "@/lib/data/financeReport";
 import { parseFinanceParams, trendBuckets } from "@/lib/finance/periods";
+import { ACTIVE_TENANT } from "@/lib/mock";
 
 // ---------------------------------------------------------------------
 // UPDATE 2026-10-15 — Laporan Keuangan LINTAS CABANG untuk owner
@@ -28,7 +31,7 @@ export default async function RevenuePage({
 }: {
   searchParams: Promise<{ outlet?: string; g?: string; d?: string }>;
 }) {
-  const [sp, live] = await Promise.all([searchParams, isLiveOutletsData()]);
+  const [sp, live, tenant] = await Promise.all([searchParams, isLiveOutletsData(), getCurrentTenant()]);
   if (live) {
     const [outlets, today] = await Promise.all([getOutlets(), getEffectiveToday()]);
     const { gran, date } = parseFinanceParams(sp, today);
@@ -51,8 +54,9 @@ export default async function RevenuePage({
         <PageHead
           title="Laporan Keuangan"
           desc="Pendapatan, komisi, pengeluaran, dan sisa kas seluruh cabang — per hari, minggu, atau bulan."
+          actions={<PrintButton label="Cetak / Simpan PDF" />}
         />
-        <div className="row g2 wrap" style={{ marginBottom: 16 }}>
+        <div className="row g2 wrap no-print" style={{ marginBottom: 16 }}>
           {chip("all", `Semua cabang (${outlets.length})`)}
           {outlets.map((o) => chip(o.id, o.name))}
         </div>
@@ -67,6 +71,8 @@ export default async function RevenuePage({
             rows={rows}
             scopeLabel={single ? single.name : `Semua cabang (${outlets.length})`}
             csvBase={single ? single.code : "semua-cabang"}
+            tenantName={tenant?.brandName ?? ACTIVE_TENANT.name}
+            printOutletName={single?.name ?? "Semua cabang"}
           />
         ) : (
           <MockDataNotice>Sesi login tidak terbaca — muat ulang halaman atau masuk kembali.</MockDataNotice>

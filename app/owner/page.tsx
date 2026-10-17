@@ -6,10 +6,13 @@ import { TrendArea, BarsChart, DonutChart, LegendList } from "@/components/Chart
 import { OUTLETS, MONTHLY_TREND, CONSOLIDATED_PNL, TENANT_PNL, THERAPIST_RANKING, APPROVALS } from "@/lib/mock";
 import { rp, pct } from "@/lib/format";
 import FinanceReport from "@/components/FinanceReport";
+import PrintButton from "@/components/PrintButton";
 import { getOutlets, isLiveOutletsData } from "@/lib/data/outlets";
+import { getCurrentTenant } from "@/lib/data/tenant";
 import { getEffectiveToday } from "@/lib/data/bookings";
 import { getFinanceRows } from "@/lib/data/financeReport";
 import { parseFinanceParams, trendBuckets } from "@/lib/finance/periods";
+import { ACTIVE_TENANT } from "@/lib/mock";
 
 // ---------------------------------------------------------------------
 // UPDATE 2026-10-15 — beranda owner kini LIVE untuk sesi sungguhan:
@@ -24,7 +27,7 @@ export default async function OwnerDashboard({
 }: {
   searchParams: Promise<{ g?: string; d?: string }>;
 }) {
-  const [sp, live] = await Promise.all([searchParams, isLiveOutletsData()]);
+  const [sp, live, tenant] = await Promise.all([searchParams, isLiveOutletsData(), getCurrentTenant()]);
   if (live) {
     const [outlets, today] = await Promise.all([getOutlets(), getEffectiveToday()]);
     const { gran, date } = parseFinanceParams(sp, today, "month");
@@ -36,9 +39,12 @@ export default async function OwnerDashboard({
           title="All Outlets KPI"
           desc={`Konsolidasi ${outlets.length} cabang — keuangan per hari, minggu, atau bulan.`}
           actions={
-            <Link href="/owner/revenue" className="btn btn-ghost btn-sm">
-              Laporan per cabang <Icon name="arrow-right" size={13} />
-            </Link>
+            <>
+              <PrintButton label="Cetak / Simpan PDF" />
+              <Link href="/owner/revenue" className="btn btn-ghost btn-sm no-print">
+                Laporan per cabang <Icon name="arrow-right" size={13} />
+              </Link>
+            </>
           }
         />
         {rows ? (
@@ -52,6 +58,8 @@ export default async function OwnerDashboard({
             rows={rows}
             scopeLabel={`Semua cabang (${outlets.length})`}
             csvBase="semua-cabang"
+            tenantName={tenant?.brandName ?? ACTIVE_TENANT.name}
+            printOutletName="Semua cabang"
           />
         ) : (
           <MockDataNotice>Sesi login tidak terbaca — muat ulang halaman atau masuk kembali.</MockDataNotice>

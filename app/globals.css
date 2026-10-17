@@ -365,3 +365,144 @@ table { border-collapse: collapse; width: 100%; }
     transition-duration: 0.01ms !important;
   }
 }
+
+.finance-print-header {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 15mm;
+  }
+
+  *,
+  *::before,
+  *::after {
+    color: #000 !important;
+    background-color: #fff !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    filter: none !important;
+    backdrop-filter: none !important;
+  }
+
+  html,
+  body {
+    width: auto;
+    height: auto;
+    overflow: visible !important;
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  body::before,
+  .app-bg,
+  .sidebar,
+  .topbar,
+  .scrim,
+  nav,
+  button,
+  form,
+  .btn,
+  .no-print {
+    display: none !important;
+  }
+
+  .app-shell,
+  .main-col,
+  .page {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+    color: #000 !important;
+    box-shadow: none !important;
+    filter: none !important;
+    backdrop-filter: none !important;
+  }
+
+  .finance-print-header {
+    display: block !important;
+    margin-bottom: 8mm;
+    padding-bottom: 4mm;
+    border-bottom: 1px solid #888;
+    color: #000 !important;
+  }
+
+  .finance-print-header h1 {
+    margin-bottom: 2mm;
+    color: #000 !important;
+    font-size: 20pt;
+  }
+
+  .finance-print-header h2 {
+    margin: 4mm 0 2mm;
+    color: #000 !important;
+    font-size: 15pt;
+  }
+
+  .finance-print-header div {
+    color: #000 !important;
+  }
+
+  .page-head,
+  .page-head h1,
+  .page-head p,
+  .card,
+  .card-head,
+  .card-body,
+  .tbl,
+  .tbl th,
+  .tbl td,
+  .tbl a,
+  .stat-card,
+  .stat-card * {
+    background: #fff !important;
+    color: #000 !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    filter: none !important;
+    backdrop-filter: none !important;
+  }
+
+  .page-head {
+    margin-bottom: 5mm !important;
+    padding: 0 !important;
+    border: 0 !important;
+  }
+
+  .card {
+    margin: 0 0 5mm !important;
+    border: 1px solid #bbb !important;
+  }
+
+  .table-wrap {
+    width: 100% !important;
+    overflow: visible !important;
+  }
+
+  table,
+  .tbl {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  .tbl th,
+  .tbl td {
+    border: 1px solid #bbb !important;
+    padding: 5px !important;
+  }
+
+  .tbl tr,
+  .tbl th,
+  .tbl td {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}

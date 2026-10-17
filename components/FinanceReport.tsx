@@ -59,6 +59,8 @@ export default function FinanceReport({
   scopeLabel,
   csvBase,
   outletLinkBase,
+  tenantName,
+  printOutletName,
 }: {
   /** Mis. "/manager/finance" atau "/owner/revenue". */
   basePath: string;
@@ -76,6 +78,8 @@ export default function FinanceReport({
   csvBase: string;
   /** Halaman tujuan saat nama cabang diklik (default basePath). */
   outletLinkBase?: string;
+  tenantName: string;
+  printOutletName: string;
 }) {
   const multi = outlets.length > 1;
   const buckets = trendBuckets(gran, date);
@@ -118,8 +122,15 @@ export default function FinanceReport({
 
   return (
     <>
+      <section className="finance-print-header">
+        <h1>{tenantName}</h1>
+        <div>{printOutletName}</div>
+        <h2>Laporan Keuangan</h2>
+        <div>Periode: {selected.long}</div>
+        <div>Tanggal cetak: {new Intl.DateTimeFormat("id-ID", { dateStyle: "long" }).format(new Date())}</div>
+      </section>
       {/* ------------------------------------------------ toolbar periode */}
-      <Card className="card-pad" style={{ marginBottom: 16 }}>
+      <Card className="card-pad no-print" style={{ marginBottom: 16 }}>
         <div className="row between wrap g3" style={{ alignItems: "center" }}>
           <div className="row g2 wrap">
             {(["day", "week", "month"] as FinanceGranularity[]).map((g) => (

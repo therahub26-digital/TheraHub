@@ -2,10 +2,13 @@ import Link from "next/link";
 import { PageHead } from "@/components/ui";
 import MockDataNotice from "@/components/MockDataNotice";
 import FinanceReport from "@/components/FinanceReport";
+import PrintButton from "@/components/PrintButton";
 import { getCurrentOutlet } from "@/lib/data/outlets";
+import { getCurrentTenant } from "@/lib/data/tenant";
 import { getEffectiveToday } from "@/lib/data/bookings";
 import { getFinanceRows } from "@/lib/data/financeReport";
 import { parseFinanceParams, trendBuckets } from "@/lib/finance/periods";
+import { ACTIVE_TENANT } from "@/lib/mock";
 
 // ---------------------------------------------------------------------
 // Laporan Keuangan outlet — permintaan Adjie 2026-10-15: "laporan
@@ -20,7 +23,12 @@ export default async function ManagerFinancePage({
 }: {
   searchParams: Promise<{ g?: string; d?: string }>;
 }) {
-  const [sp, outlet, today] = await Promise.all([searchParams, getCurrentOutlet(), getEffectiveToday()]);
+  const [sp, outlet, today, tenant] = await Promise.all([
+    searchParams,
+    getCurrentOutlet(),
+    getEffectiveToday(),
+    getCurrentTenant(),
+  ]);
   const { gran, date } = parseFinanceParams(sp, today);
   const buckets = trendBuckets(gran, date);
   const rows = await getFinanceRows([outlet.id], buckets[0].start, buckets[buckets.length - 1].endExcl);
@@ -31,9 +39,12 @@ export default async function ManagerFinancePage({
         title="Laporan Keuangan"
         desc={`${outlet.name} · pendapatan, komisi, pengeluaran, dan sisa kas — per hari, minggu, atau bulan.`}
         actions={
-          <Link href="/manager/reports" className="btn btn-ghost btn-sm">
-            Ringkasan bulanan &amp; item terlaris
-          </Link>
+          <>
+            <PrintButton label="Cetak / Simpan PDF" />
+            <Link href="/manager/reports" className="btn btn-ghost btn-sm no-print">
+              Ringkasan bulanan &amp; item terlaris
+            </Link>
+          </>
         }
       />
       {rows ? (
@@ -46,6 +57,8 @@ export default async function ManagerFinancePage({
           rows={rows}
           scopeLabel={outlet.name}
           csvBase={outlet.code}
+          tenantName={tenant?.brandName ?? ACTIVE_TENANT.name}
+          printOutletName={outlet.name}
         />
       ) : (
         <MockDataNotice>

@@ -166,3 +166,51 @@ export function withOptionalProfit<T extends object, P>(
 ): T | (T & { profit: P }) {
   return includeProfit ? { ...report, profit: getProfit() } : report;
 }
+
+export type CashflowCostKind = "commission" | "expenses" | "materials";
+
+export type WeeklyCashflowRow = {
+  label: string;
+  start: string;
+  end: string;
+  revenue: number;
+  commission: number;
+  expenses: number;
+  materials: number;
+  contribution: number;
+  cumulativeContribution: number;
+};
+
+/**
+ * Buckets a month into calendar weeks of the month (1–7, 8–14, 15–21,
+ * 22–28, 29–end) and sums revenue and variable costs per bucket.
+ * "Contribution" = revenue − commission − expenses − materials, i.e. before
+ * fixed salary; its running total shows when the month covers fixed payroll.
+ */
+export function buildWeeklyCashflow(
+  monthStart: string,
+  days: number,
+  revenueByDay: { date: string; amount: number }[],
+  costs: { date: string; kind: CashflowCostKind; amount: number }[]
+): WeeklyCashflowRow[] {
+  const prefix = monthStart.slice(0, 8);
+  const rows: WeeklyCashflowRow[] = [];
+  let cumulative = 0;
+  for (let first = 1; first <= days; first += 7) {
+    const last = Math.min(days, first + 6);
+    const start = `${prefix}${String(first).padStart(2, "0")}`;
+    const end = `${prefix}${String(last).padStart(2, "0")}`;
+    const inBucket = (date: string) => date.slice(0, 10) >= start && date.slice(0, 10) <= end;
+    const revenue = revenueByDay.filter((row) => inBucket(row.date)).reduce((sum, row) => sum + row.amount, 0);
+    const sumOf = (kind: CashflowCostKind) => costs
+      .filter((row) => row.kind === kind && inBucket(row.date))
+      .reduce((sum, row) => sum + row.amount, 0);
+    const commission = sumOf("commission");
+    const expenses = sumOf("expenses");
+    const materials = sumOf("materials");
+    const contribution = revenue - commission - expenses - materials;
+    cumulative += contribution;
+    rows.push({ label: `${first}–${last}`, start, end, revenue, commission, expenses, materials, contribution, cumulativeContribution: cumulative });
+  }
+  return rows;
+}

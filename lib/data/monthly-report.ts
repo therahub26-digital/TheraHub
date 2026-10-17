@@ -7,7 +7,9 @@ import {
   calculateRoomUtilization,
   calculateSalaryAllowanceCost,
   getCommissionTotalForPeriod,
+  buildWeeklyCashflow,
   summarizeRevenueItems,
+  type WeeklyCashflowRow,
   type RevenueCategoryKey,
   withOptionalProfit,
 } from "@/lib/data/monthly-report-math";
@@ -107,6 +109,9 @@ export type CostsReport = {
   }[];
   materials: { quantity: number; cost: number | null }[];
   lowStockItems: { productId: string; name: string; outletId: string; quantity: number; minimum: number }[];
+  /** Revenue vs variable costs per week of the month; fixed payroll shown separately. */
+  weekly: WeeklyCashflowRow[];
+  fixedPayroll: number | null;
 };
 
 export type OutletReport = {
@@ -704,6 +709,16 @@ function buildReport(
       cost: materialCost,
     }],
     lowStockItems,
+    weekly: buildWeeklyCashflow(window.start, window.days, [...byDay.entries()].map(([date, amount]) => ({ date, amount })), [
+      ...periodCommissionRows.map((row) => ({ date: row.date, kind: "commission" as const, amount: n(row.amount) })),
+      ...expenseRows.map((row) => ({ date: row.date, kind: "expenses" as const, amount: n(row.amount) })),
+      ...[...movements, ...saleMovements].map((row) => ({
+        date: row.posted_at.slice(0, 10),
+        kind: "materials" as const,
+        amount: Math.abs(n(row.qty)) * n(row.unit_cost),
+      })),
+    ]).filter((row) => window.period !== effectivePeriod || row.start <= today),
+    fixedPayroll: payrollCost,
   };
   const result: BuiltReport = {
     summary,

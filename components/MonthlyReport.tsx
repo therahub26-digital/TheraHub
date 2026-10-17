@@ -193,6 +193,102 @@ const EXTRA_TYPE_LABEL: Record<string, string> = {
   BEVERAGE: "Minuman",
 };
 
+type CashflowRows = MonthlyReport["costs"]["current"]["weekly"];
+
+function CashflowChart({ rows, fixedPayroll, showContribution }: {
+  rows: CashflowRows;
+  fixedPayroll: number | null;
+  showContribution: boolean;
+}) {
+  const hasData = rows.some((row) => row.revenue || row.commission || row.expenses || row.materials);
+  if (!hasData) return <p className="monthly-empty-inline">Belum ada data pendapatan atau biaya pada periode ini.</p>;
+  const chart = { left: 70, right: 990, top: 24, bottom: 222 };
+  const costOf = (row: CashflowRows[number]) => row.commission + row.expenses + row.materials;
+  const values = [
+    ...rows.map((row) => row.revenue),
+    ...rows.map(costOf),
+    ...(showContribution ? rows.map((row) => row.cumulativeContribution) : []),
+    ...(showContribution && fixedPayroll ? [fixedPayroll] : []),
+  ];
+  const rawMax = Math.max(...values, 1);
+  const rawMin = Math.min(0, ...values);
+  const step = (rawMax - rawMin) / 4;
+  const top = rawMax;
+  const bottom = rawMin;
+  const plotHeight = chart.bottom - chart.top;
+  const y = (value: number) => chart.bottom - (value - bottom) / (top - bottom) * plotHeight;
+  const slot = (chart.right - chart.left) / rows.length;
+  const barWidth = Math.min(46, slot * 0.28);
+  const axisLabel = (value: number) => Math.abs(value) >= 1_000_000
+    ? `${num(value / 1_000_000, 1)}jt`
+    : Math.abs(value) >= 1_000 ? `${num(value / 1_000, 0)}rb` : num(value);
+  const linePoints = rows.map((row, index) => `${chart.left + slot * (index + 0.5)},${y(row.cumulativeContribution)}`).join(" ");
+  return (
+    <>
+      <svg className="monthly-daily-chart" viewBox="0 0 1000 260" role="img" aria-label="Pendapatan dan biaya per minggu">
+        <title>Pendapatan vs biaya per minggu</title>
+        {Array.from({ length: 5 }, (_, index) => {
+          const value = bottom + step * (4 - index);
+          const lineY = y(value);
+          return (
+            <g key={index} className="monthly-chart-gridline">
+              <line x1={chart.left} x2={chart.right} y1={lineY} y2={lineY} />
+              <text x={chart.left - 8} y={lineY + 4} textAnchor="end">{axisLabel(value)}</text>
+            </g>
+          );
+        })}
+        {rows.map((row, index) => {
+          const center = chart.left + slot * (index + 0.5);
+          const revenueX = center - barWidth - 3;
+          const costX = center + 3;
+          let stackTop = y(0);
+          const segments = (["commission", "expenses", "materials"] as const).map((kind) => {
+            const height = Math.max(0, y(0) - y(row[kind]));
+            stackTop -= height;
+            return { kind, height, top: stackTop };
+          });
+          return (
+            <g key={row.label}>
+              <rect className="monthly-cash-revenue" x={revenueX} y={y(row.revenue)} width={barWidth} height={Math.max(0, y(0) - y(row.revenue))}>
+                <title>{`Tgl ${row.label}: pendapatan ${rp(row.revenue)}`}</title>
+              </rect>
+              {segments.map((segment) => segment.height > 0 && (
+                <rect key={segment.kind} className={`monthly-cash-${segment.kind}`} x={costX} y={segment.top} width={barWidth} height={segment.height}>
+                  <title>{`Tgl ${row.label}: ${segment.kind === "commission" ? "komisi" : segment.kind === "expenses" ? "pengeluaran" : "bahan & HPP"} ${rp(row[segment.kind])}`}</title>
+                </rect>
+              ))}
+              <text className="monthly-chart-date" x={center} y={chart.bottom + 20} textAnchor="middle">Tgl {row.label}</text>
+            </g>
+          );
+        })}
+        {showContribution && fixedPayroll !== null && fixedPayroll > 0 && (
+          <g className="monthly-cash-fixed">
+            <line x1={chart.left} x2={chart.right} y1={y(fixedPayroll)} y2={y(fixedPayroll)} />
+            <text x={chart.right} y={y(fixedPayroll) - 6} textAnchor="end">Gaji & tunjangan bulan ini · {rp(fixedPayroll, { short: true })}</text>
+          </g>
+        )}
+        {showContribution && (
+          <g className="monthly-cash-line">
+            <polyline points={linePoints} />
+            {rows.map((row, index) => (
+              <circle key={row.label} cx={chart.left + slot * (index + 0.5)} cy={y(row.cumulativeContribution)} r="4">
+                <title>{`s.d. tgl ${row.end.slice(8)}: kontribusi kumulatif ${rp(row.cumulativeContribution)}`}</title>
+              </circle>
+            ))}
+          </g>
+        )}
+      </svg>
+      <div className="monthly-cash-legend">
+        <span><i className="monthly-cash-revenue" />Pendapatan</span>
+        <span><i className="monthly-cash-commission" />Komisi</span>
+        <span><i className="monthly-cash-expenses" />Pengeluaran</span>
+        <span><i className="monthly-cash-materials" />Bahan & HPP</span>
+        {showContribution && <span><i className="monthly-cash-line-key" />Kontribusi kumulatif (sebelum gaji)</span>}
+      </div>
+    </>
+  );
+}
+
 function RevenueByCategory({ rows }: { rows: MonthlyReport["revenue"]["current"]["byCategory"] }) {
   const total = rows.reduce((sum, row) => sum + row.amount, 0);
   if (!total) return <p className="monthly-empty-inline">Belum ada data penjualan.</p>;
@@ -601,6 +697,58 @@ export default function MonthlyReport({
         ) : (
           <Card className="monthly-card"><div className="card-body"><p className="monthly-empty-inline">Belum ada data kinerja terapis.</p></div></Card>
         )}
+      </Section>
+
+      <Section number="06" title="Pendapatan vs Biaya">
+        <Card className="monthly-card">
+          <CardHead
+            title="Pendapatan vs biaya per minggu"
+            sub={isOwner
+              ? "Batang kiri pendapatan, batang kanan biaya variabel. Garis = kontribusi kumulatif sebelum gaji; bulan menutup gaji saat garis melewati garis putus-putus."
+              : "Batang kiri pendapatan, batang kanan biaya variabel (komisi, pengeluaran, bahan & HPP)."}
+          />
+          <div className="card-body">
+            <CashflowChart rows={data.costs.current.weekly} fixedPayroll={data.costs.current.fixedPayroll} showContribution={Boolean(data.profit)} />
+          </div>
+          {data.costs.current.weekly.length > 0 && (
+            <div className="table-wrap">
+              <table className="tbl">
+                <thead><tr><th>Minggu</th><th className="num">Pendapatan</th><th className="num">Komisi</th><th className="num">Pengeluaran</th><th className="num">Bahan & HPP</th>{data.profit && <th className="num">Kontribusi</th>}</tr></thead>
+                <tbody>
+                  {data.costs.current.weekly.map((row) => (
+                    <tr key={row.label}>
+                      <td>Tgl {row.label}</td><td className="num">{rp(row.revenue)}</td><td className="num">{rp(row.commission)}</td>
+                      <td className="num">{rp(row.expenses)}</td><td className="num">{rp(row.materials)}</td>
+                      {data.profit && <td className="num">{rp(row.contribution)}</td>}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+        <Card className="monthly-card">
+          <CardHead title="Pengeluaran per kategori" sub="Pengeluaran yang diajukan/disetujui pada periode ini" />
+          {data.costs.current.expensesByCategory.length ? (
+            <div className="table-wrap">
+              <table className="tbl">
+                <thead><tr><th>Kategori</th><th className="num">Bulan ini</th><th className="num">Bulan lalu</th><th className="num">% pendapatan</th></tr></thead>
+                <tbody>
+                  {data.costs.current.expensesByCategory.map((row) => {
+                    const previousRow = data.costs.previous.expensesByCategory.find((item) => item.category === row.category);
+                    return (
+                      <tr key={row.category}>
+                        <td>{row.category}</td><td className="num">{rp(row.amount)}</td>
+                        <td className="num">{previousRow ? rp(previousRow.amount) : "—"}</td>
+                        <td className="num">{current.revenue > 0 ? pct(row.amount / current.revenue * 100) : "—"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : <div className="card-body"><p className="monthly-empty-inline">Belum ada pengeluaran tercatat pada periode ini.</p></div>}
+        </Card>
       </Section>
 
       {data.profit && (

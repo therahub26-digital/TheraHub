@@ -1,6 +1,7 @@
 // Uji fungsi murni Laporan Bulanan — `npx tsx scripts/monthly-report.test.ts`.
 import assert from "node:assert/strict";
 import {
+  buildWeeklyCashflow,
   calculatePerformanceScore,
   calculateOperatingProfit,
   calculateRoomUtilization,
@@ -131,6 +132,23 @@ test("M11", "F&B: tingkat pembelian per transaksi dan laba kotor memakai harga p
 
 test("M12", "Estimasi laba mengurangi HPP produk terjual", () => {
   assert.equal(calculateOperatingProfit(20_000_000, 1_250_000, 5_250_000, 2_000_000, 500_000, 300_000), 10_700_000);
+});
+
+test("M13", "Arus mingguan: tgl 1–7, 8–14, …, 29–30; kontribusi kumulatif = pendapatan − biaya variabel", () => {
+  const weeks = buildWeeklyCashflow("2026-09-01", 30, [
+    { date: "2026-09-02", amount: 1_000_000 },
+    { date: "2026-09-09", amount: 2_000_000 },
+    { date: "2026-09-30", amount: 500_000 },
+  ], [
+    { date: "2026-09-03", kind: "commission", amount: 300_000 },
+    { date: "2026-09-10", kind: "expenses", amount: 2_500_000 },
+    { date: "2026-09-30", kind: "materials", amount: 100_000 },
+  ]);
+  assert.deepEqual(weeks.map((row) => row.label), ["1–7", "8–14", "15–21", "22–28", "29–30"]);
+  assert.equal(weeks[0].contribution, 700_000);
+  assert.equal(weeks[1].contribution, -500_000);
+  assert.equal(weeks[1].cumulativeContribution, 200_000);
+  assert.equal(weeks[4].cumulativeContribution, 600_000);
 });
 
 for (const result of results) {

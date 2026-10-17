@@ -967,3 +967,29 @@ table { border-collapse: collapse; width: 100%; }
   font-size: 1.1rem;
   font-variant-numeric: tabular-nums;
 }
+
+.monthly-cash-revenue { fill: #10b981; background: #10b981; }
+.monthly-cash-commission { fill: #f59e0b; background: #f59e0b; }
+.monthly-cash-expenses { fill: #ef4444; background: #ef4444; }
+.monthly-cash-materials { fill: #a855f7; background: #a855f7; }
+.monthly-cash-line polyline { fill: none; stroke: #38bdf8; stroke-width: 3; }
+.monthly-cash-line circle { fill: #38bdf8; stroke: var(--bg-surface); stroke-width: 2; }
+.monthly-cash-fixed line { stroke: #94a3b8; stroke-width: 2; stroke-dasharray: 6 5; }
+.monthly-cash-fixed text { fill: #94a3b8; font-size: 12px; }
+.monthly-cash-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 8px; font-size: 12px; }
+.monthly-cash-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.monthly-cash-legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; }
+.monthly-cash-legend i.monthly-cash-line-key { height: 3px; background: #38bdf8; }
+
+@media print {
+  .monthly-cash-revenue { fill: #0f766e !important; background-color: #0f766e !important; }
+  .monthly-cash-commission { fill: #b45309 !important; background-color: #b45309 !important; }
+  .monthly-cash-expenses { fill: #b91c1c !important; background-color: #b91c1c !important; }
+  .monthly-cash-materials { fill: #6d28d9 !important; background-color: #6d28d9 !important; }
+  .monthly-cash-line polyline { stroke: #1d4ed8 !important; }
+  .monthly-cash-line circle { fill: #1d4ed8 !important; stroke: #fff !important; }
+  .monthly-cash-legend i.monthly-cash-line-key { background-color: #1d4ed8 !important; }
+  .monthly-cash-fixed line { stroke: #475569 !important; }
+  .monthly-cash-fixed text { fill: #111827 !important; }
+  .monthly-cash-legend i { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

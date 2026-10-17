@@ -291,7 +291,9 @@ export default function MonthlyReport({
     {
       label: "Utilisasi room",
       value: current.roomUtilizationPct === null ? "Tidak tersedia" : pct(current.roomUtilizationPct),
-      comparison: changeLabel(current.roomUtilizationPct, previous.roomUtilizationPct, { points: true }),
+      comparison: previousTransactionsExist
+        ? changeLabel(current.roomUtilizationPct, previous.roomUtilizationPct, { points: true })
+        : null,
     },
     {
       label: "Rating rata-rata",
@@ -301,7 +303,9 @@ export default function MonthlyReport({
     {
       label: "Pelanggan kembali",
       value: current.returningCustomerPct === null ? "Belum ada data" : pct(current.returningCustomerPct),
-      comparison: changeLabel(current.returningCustomerPct, previous.returningCustomerPct, { points: true }),
+      comparison: previousTransactionsExist
+        ? changeLabel(current.returningCustomerPct, previous.returningCustomerPct, { points: true })
+        : null,
     },
     {
       label: "Pengeluaran",

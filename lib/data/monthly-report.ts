@@ -6,6 +6,7 @@ import {
   calculateOperatingProfit,
   calculateRoomUtilization,
   calculateSalaryAllowanceCost,
+  getCommissionTotalForPeriod,
   withOptionalProfit,
 } from "@/lib/data/monthly-report-math";
 import { minutesBetween, nowIso, todayIsoDate } from "@/lib/wallclock";
@@ -135,6 +136,7 @@ export type MonthlyReport = {
   therapists: { current: TherapistReport[]; previous: TherapistReport[] };
   operations: { current: OperationsReport; previous: OperationsReport };
   costs: { current: CostsReport; previous: CostsReport };
+  payrollMissingOutlets: { current: string[]; previous: string[] };
   perOutlet?: { current: OutletReport[]; previous: OutletReport[] };
   profit?: {
     current: ProfitReport;
@@ -161,7 +163,7 @@ type SessionRow = {
   actual_start: string | null; expected_end: string | null; actual_end: string | null;
   extension_minutes: number | null; status: string;
 };
-type CommissionRow = { outlet_id: string; therapist_id: string; amount: number | string; status: string };
+type CommissionRow = { outlet_id: string; therapist_id: string; amount: number | string; status: string; date: string };
 type ReviewRow = { employee_id: string; outlet_id: string; visit_date: string; rating: number };
 type AttendanceRow = { employee_id: string; outlet_id: string; status: string; late_minutes: number | null };
 type EmployeeRow = { id: string; outlet_id: string; name: string; job_role: string | null; is_therapist: boolean };
@@ -266,7 +268,7 @@ async function fetchData(outletIds: string[], windows: [Window, Window]): Promis
       .in("outlet_id", outletIds).gte("actual_start", timestampStart).lt("actual_start", timestampEnd)
       .order("actual_start").order("id").range(from, to)),
     paged<CommissionRow>((from, to) => supabase.from("commission_entries")
-      .select("outlet_id, therapist_id, amount, status").in("outlet_id", outletIds)
+      .select("outlet_id, therapist_id, amount, status, date").in("outlet_id", outletIds)
       .gte("date", start).lt("date", endExcl).order("date").order("id").range(from, to)),
     paged<ReviewRow>((from, to) => supabase.from("customer_reviews")
       .select("employee_id, outlet_id, visit_date, rating").in("outlet_id", outletIds)
@@ -502,11 +504,31 @@ function buildReport(
   };
 
   const payroll = payrollFor(data, window);
-  const commissionRows = data.commissions.filter((row) => row.status !== "REVERSED");
-  const commissionTotal = commissionRows.reduce((sum, row) => sum + n(row.amount), 0);
-  const payrollCost = payroll
-    ? payroll.rows.reduce((sum, row) => sum
-      + calculateSalaryAllowanceCost(row.fixed, row.allowance, row.deductions), 0)
+  const periodCommissionRows = data.commissions.filter((row) =>
+    row.status !== "REVERSED" && inWindow(row.date, window));
+  const payrollRowsForPeriod = data.payrollItems
+    .filter((row) => row.period === window.period)
+    .map((row) => ({ outletId: row.outlet_id, period: row.period, variable: n(row.variable) }));
+  const commissionTotalForOutlet = (outletId: string) => getCommissionTotalForPeriod(
+    outletId,
+    window.period,
+    payrollRowsForPeriod,
+    periodCommissionRows.map((row) => ({
+      outletId: row.outlet_id,
+      date: row.date,
+      amount: n(row.amount),
+      status: row.status,
+    }))
+  );
+  const commissionByOutlet = new Map(data.outlets.map((outlet) => [outlet.id, commissionTotalForOutlet(outlet.id)]));
+  const commissionTotal = [...commissionByOutlet.values()].reduce((sum, amount) => sum + amount, 0);
+  const payrollOutletIds = new Set(payrollRowsForPeriod.map((row) => row.outletId));
+  const payrollCost = data.outlets.length > 0 && data.outlets.every((outlet) => payrollOutletIds.has(outlet.id))
+    ? data.outlets.reduce((total, outlet) => {
+      const outletPayrollRows = payroll?.rows.filter((row) => row.outletId === outlet.id) ?? [];
+      return total + outletPayrollRows.reduce((sum, row) => sum
+        + calculateSalaryAllowanceCost(row.fixed, row.allowance, row.deductions), 0);
+    }, 0)
     : null;
   const humanResourceCost = payrollCost === null ? null : payrollCost + commissionTotal;
   const reviews = data.reviews.filter((review) => inWindow(review.visit_date, window));
@@ -563,8 +585,7 @@ function buildReport(
         n(row.allowance),
         n(row.late_penalty) + n(row.absence_penalty) + n(row.savings) + n(row.loan) + n(row.other_deductions)
       ), 0) : null;
-    const outletCommission = commissionRows.filter((row) => row.outlet_id === outlet.id)
-      .reduce((sum, row) => sum + n(row.amount), 0);
+    const outletCommission = commissionByOutlet.get(outlet.id) ?? 0;
     const outletHrCost = outletPayroll === null ? null : outletPayroll + outletCommission;
     const outletVisits = new Set(visitedBookings.filter((booking) => booking.outlet_id === outlet.id).map((booking) => booking.id)).size;
     return {
@@ -590,8 +611,10 @@ function buildReport(
         outletId: employee.outlet_id,
         treatments: therapistSessions.length,
         generatedRevenue: therapistRevenue.get(employee.id) ?? 0,
-        commission: commissionRows.filter((row) => row.therapist_id === employee.id)
-          .reduce((sum, row) => sum + n(row.amount), 0),
+        commission: payrollRowsForPeriod.some((row) => row.outletId === employee.outlet_id)
+          ? payroll?.rows.find((row) => row.employeeId === employee.id && row.outletId === employee.outlet_id)?.commission ?? 0
+          : periodCommissionRows.filter((row) => row.therapist_id === employee.id)
+            .reduce((sum, row) => sum + n(row.amount), 0),
         averageRating: performance.customerAvg,
         extendedSessionPct: therapistSessions.length ? extendedSessions / therapistSessions.length * 100 : null,
         lateCount: performance.lateCount,
@@ -661,7 +684,7 @@ function buildReport(
         date.setUTCDate(date.getUTCDate() + index);
         const key = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
         return { date: key, amount: byDay.get(key) ?? 0 };
-      }),
+      }).filter((row) => window.period !== effectivePeriod || row.date <= today),
       byService: [...services.entries()].map(([name, detail]) => ({
         name, ...detail, sharePct: revenue ? detail.amount / revenue * 100 : 0,
       })).sort((a, b) => b.amount - a.amount),
@@ -703,8 +726,7 @@ function buildReport(
           n(row.allowance),
           n(row.late_penalty) + n(row.absence_penalty) + n(row.savings) + n(row.loan) + n(row.other_deductions)
         ), 0) : null;
-      const outletCommission = commissionRows.filter((row) => row.outlet_id === outlet.outletId)
-        .reduce((sum, row) => sum + n(row.amount), 0);
+      const outletCommission = commissionByOutlet.get(outlet.outletId) ?? 0;
       const outletExpenseRows = expenseRows.filter((row) => row.outlet_id === outlet.outletId);
       const outletExpenses = outletExpenseRows.reduce((sum, row) => sum + n(row.amount), 0);
       const outletMovementRows = movements.filter((row) => row.outlet_id === outlet.outletId);
@@ -767,6 +789,14 @@ export async function getMonthlyReport({
     therapists: { current: currentReport.therapists, previous: previousReport.therapists },
     operations: { current: currentReport.operations, previous: previousReport.operations },
     costs: { current: currentReport.costs, previous: previousReport.costs },
+    payrollMissingOutlets: {
+      current: data.outlets
+        .filter((outlet) => !data.payrollItems.some((item) => item.outlet_id === outlet.id && item.period === current.period))
+        .map((outlet) => outlet.name),
+      previous: data.outlets
+        .filter((outlet) => !data.payrollItems.some((item) => item.outlet_id === outlet.id && item.period === previous.period))
+        .map((outlet) => outlet.name),
+    },
   };
   if (uniqueOutletIds.length > 1) {
     reportBase.perOutlet = { current: currentReport.perOutlet, previous: previousReport.perOutlet };

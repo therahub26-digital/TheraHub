@@ -437,6 +437,9 @@ table { border-collapse: collapse; width: 100%; }
 
 .monthly-change.up { color: var(--success); }
 .monthly-change.down { color: var(--danger); }
+.monthly-change.good { color: var(--success); }
+.monthly-change.bad { color: var(--danger); }
+.monthly-change.flat { color: var(--text-3); }
 
 .monthly-card {
   margin-bottom: 14px;
@@ -472,47 +475,44 @@ table { border-collapse: collapse; width: 100%; }
 }
 
 .monthly-daily-chart {
-  display: flex;
-  min-width: 600px;
-  height: 220px;
-  align-items: stretch;
-  gap: 3px;
-  overflow-x: auto;
-  padding: 12px 2px 0;
-  border-bottom: 1px solid var(--border-2);
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1000 / 260;
+  overflow: visible;
 }
 
-.monthly-day-column {
-  display: grid;
-  min-width: 12px;
-  flex: 1 0 12px;
-  grid-template-rows: 15px 1fr 18px;
-  align-items: end;
-  justify-items: center;
+.monthly-chart-gridline line {
+  stroke: var(--border-2);
+  stroke-width: 1;
 }
 
-.monthly-day-column > span {
-  overflow: hidden;
-  color: var(--text-3);
-  font-size: 8px;
-  white-space: nowrap;
+.monthly-chart-gridline text,
+.monthly-chart-date {
+  fill: var(--text-3);
+  font-family: var(--font-body);
+  font-size: 10px;
 }
 
-.monthly-day-column i {
-  width: 80%;
-  min-height: 2px;
-  border-radius: 3px 3px 0 0;
-  background: var(--accent);
+.monthly-chart-bar rect {
+  fill: #10b981;
 }
 
-.monthly-day-column i.weekend {
-  background: var(--gold);
+.monthly-chart-bar rect.weekend {
+  fill: #d99a1c;
 }
 
-.monthly-day-column small {
-  align-self: end;
-  color: var(--text-3);
-  font-size: 9px;
+.monthly-chart-maximum circle {
+  fill: #047857;
+  stroke: var(--bg-surface);
+  stroke-width: 2;
+}
+
+.monthly-chart-maximum text {
+  fill: var(--text-1);
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .monthly-payment-list {
@@ -757,28 +757,38 @@ table { border-collapse: collapse; width: 100%; }
   }
 
   .monthly-daily-chart {
-    min-width: 0 !important;
+    display: block !important;
     width: 100% !important;
-    height: 48mm !important;
-    overflow: hidden !important;
-  }
-
-  .monthly-day-column {
+    height: auto !important;
+    aspect-ratio: 1000 / 260 !important;
     min-width: 0 !important;
-    flex-basis: 0 !important;
+    overflow: visible !important;
   }
 
-  .monthly-day-column > span,
-  .monthly-day-column small {
-    font-size: 6pt !important;
+  .monthly-chart-gridline line {
+    stroke: #cbd5e1 !important;
   }
 
-  .monthly-day-column i {
-    background: #0f766e !important;
+  .monthly-chart-gridline text,
+  .monthly-chart-date {
+    fill: #111827 !important;
   }
 
-  .monthly-day-column i.weekend {
-    background: #b45309 !important;
+  .monthly-chart-bar rect {
+    fill: #0f766e !important;
+  }
+
+  .monthly-chart-bar rect.weekend {
+    fill: #92400e !important;
+  }
+
+  .monthly-chart-maximum circle {
+    fill: #111827 !important;
+    stroke: #fff !important;
+  }
+
+  .monthly-chart-maximum text {
+    fill: #111827 !important;
   }
 
   .monthly-payment-track i {

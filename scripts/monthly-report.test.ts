@@ -5,6 +5,8 @@ import {
   calculateOperatingProfit,
   calculateRoomUtilization,
   calculateSalaryAllowanceCost,
+  getCommissionTotalForPeriod,
+  percentagePointChange,
   percentageChange,
   withOptionalProfit,
 } from "@/lib/data/monthly-report-math";
@@ -81,6 +83,23 @@ test("M7", "Biaya gaji dan tunjangan tidak menghitung komisi, bonus, atau take-h
   const commission = 1_250_000;
   assert.equal(salaryAndAllowance, 5_250_000);
   assert.equal(calculateOperatingProfit(20_000_000, commission, salaryAndAllowance, 2_000_000, 500_000), 11_000_000);
+});
+
+test("M8", "Komisi Oktober tidak memuat entri September dan payroll tersimpan menjadi sumber utama", () => {
+  const entries = [
+    { outletId: "dago", date: "2026-09-29", amount: 8_470_000, status: "PENDING" },
+    { outletId: "dago", date: "2026-10-05", amount: 2_000_000, status: "PENDING" },
+    { outletId: "dago", date: "2026-10-12", amount: 2_070_000, status: "PAID" },
+  ];
+  assert.equal(getCommissionTotalForPeriod("dago", "2026-10", [], entries), 4_070_000);
+  assert.equal(
+    getCommissionTotalForPeriod("dago", "2026-10", [{ outletId: "dago", period: "2026-10", variable: 4_070_000 }], entries),
+    4_070_000
+  );
+});
+
+test("M9", "Perubahan rasio dihitung sebagai poin persentase, bukan persen relatif", () => {
+  assert.equal(percentagePointChange(78.7, 15.5), 63.2);
 });
 
 for (const result of results) {

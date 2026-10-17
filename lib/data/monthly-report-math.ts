@@ -43,6 +43,10 @@ export function percentageChange(current: number, previous: number): number | nu
   return (current - previous) / Math.abs(previous) * 100;
 }
 
+export function percentagePointChange(current: number, previous: number): number {
+  return current - previous;
+}
+
 /** Room occupancy percentage from occupied minutes and available room-hours. */
 export function calculateRoomUtilization(
   usedMinutes: number,
@@ -69,6 +73,19 @@ export function calculateOperatingProfit(
   materials: number
 ): number {
   return revenue - commission - salaryAndAllowances - expenses - materials;
+}
+
+export function getCommissionTotalForPeriod(
+  outletId: string,
+  period: string,
+  payrollRows: { outletId: string; period: string; variable: number }[],
+  commissionEntries: { outletId: string; date: string; amount: number; status: string }[]
+): number {
+  const storedRows = payrollRows.filter((row) => row.outletId === outletId && row.period === period);
+  if (storedRows.length) return storedRows.reduce((total, row) => total + row.variable, 0);
+  return commissionEntries
+    .filter((row) => row.outletId === outletId && row.date.slice(0, 7) === period && row.status !== "REVERSED")
+    .reduce((total, row) => total + row.amount, 0);
 }
 
 /** Lazily attaches the profit property, leaving it truly absent when disabled. */

@@ -3,7 +3,7 @@ import { Badge, Card, CardHead, EmptyState, PageHead } from "@/components/ui";
 import MonthlyReportFilters from "@/components/MonthlyReportFilters";
 import PrintButton from "@/components/PrintButton";
 import { fmtDateLong, monthLabel, num, pct, rp } from "@/lib/format";
-import { percentageChange } from "@/lib/data/monthly-report-math";
+import { percentageChange, percentagePointChange } from "@/lib/data/monthly-report-math";
 import type { MonthlyReport } from "@/lib/data/monthly-report";
 
 type OutletOption = { id: string; name: string };
@@ -35,12 +35,26 @@ function showValue(value: number | null, format: (value: number) => string, miss
   return value === null ? missing : format(value);
 }
 
-function changeLabel(current: number | null, previous: number | null) {
-  if (current === null || previous === null) return "vs pembanding tidak tersedia";
-  const change = percentageChange(current, previous);
-  if (change === null) return "vs pembanding tidak tersedia";
+type Comparison = { label: string; tone: "good" | "bad" | "flat" };
+
+function changeLabel(
+  current: number | null,
+  previous: number | null,
+  options: { points?: boolean; lowerIsBetter?: boolean } = {}
+): Comparison | null {
+  if (current === null || previous === null) return null;
+  const change = options.points
+    ? percentagePointChange(current, previous)
+    : percentageChange(current, previous);
+  if (change === null) return null;
   const arrow = change > 0 ? "▲" : change < 0 ? "▼" : "•";
-  return `${arrow} ${change > 0 ? "+" : ""}${num(change, 1)}% vs bulan sebelumnya`;
+  const tone = change === 0
+    ? "flat"
+    : (change > 0) !== (options.lowerIsBetter ?? false) ? "good" : "bad";
+  return {
+    label: `${arrow} ${change > 0 ? "+" : ""}${num(change, 1)}${options.points ? " poin" : "%"} vs bulan sebelumnya`,
+    tone,
+  };
 }
 
 function Section({ number, title, children }: { number: string; title: string; children: React.ReactNode }) {
@@ -59,17 +73,21 @@ function Metric({
   label,
   value,
   comparison,
+  detail,
 }: {
   label: string;
   value: string;
-  comparison?: string;
+  comparison?: Comparison | null;
+  detail?: string;
 }) {
-  const direction = comparison?.startsWith("▲") ? "up" : comparison?.startsWith("▼") ? "down" : "flat";
   return (
     <div className="monthly-metric">
       <span className="monthly-metric-label">{label}</span>
       <strong>{value}</strong>
-      {comparison && <small className={`monthly-change ${direction}`}>{comparison}</small>}
+      {detail && <small className="monthly-change bad">{detail}</small>}
+      {comparison
+        ? <small className={`monthly-change ${comparison.tone}`}>{comparison.label}</small>
+        : <small className="monthly-change flat">vs pembanding tidak tersedia</small>}
     </div>
   );
 }
@@ -84,24 +102,68 @@ function DailyRevenueChart({
   if (!values.length || !hasTransactions) {
     return <p className="monthly-empty-inline">Belum ada pendapatan harian untuk periode ini.</p>;
   }
+  const highest = values.reduce((best, item) => item.amount > best.amount ? item : best, values[0]);
   const maximum = Math.max(...values.map((item) => item.amount), 1);
+  const top = maximum;
+  const chart = { left: 66, right: 990, top: 24, bottom: 222 };
+  const plotWidth = chart.right - chart.left;
+  const plotHeight = chart.bottom - chart.top;
+  const slotWidth = plotWidth / values.length;
+  const barWidth = Math.min(20, slotWidth * 0.62);
+  const valueY = (amount: number) => chart.bottom - amount / top * plotHeight;
+  const axisLabel = (value: number) => value >= 1_000_000
+    ? `${num(value / 1_000_000, value % 1_000_000 ? 1 : 0)}jt`
+    : value >= 1_000 ? `${num(value / 1_000, value % 1_000 ? 1 : 0)}rb` : num(value);
+  const highestX = chart.left + slotWidth * (values.indexOf(highest) + 0.5);
+  const highestY = valueY(highest.amount);
   return (
-    <div className="monthly-daily-chart" role="img" aria-label="Grafik pendapatan harian; Sabtu dan Minggu dibedakan warnanya">
-      {values.map((item) => {
-        const date = Number(item.date.slice(8, 10));
-        const weekday = new Date(`${item.date}T00:00:00Z`).getUTCDay();
+    <svg
+      className="monthly-daily-chart"
+      viewBox="0 0 1000 260"
+      role="img"
+      aria-label="Grafik pendapatan harian; Sabtu dan Minggu dibedakan warnanya"
+    >
+      <title>Pendapatan harian</title>
+      <desc>Grafik pendapatan per hari dengan nilai tertinggi ditandai.</desc>
+      {Array.from({ length: 5 }, (_, index) => {
+        const value = top * (4 - index) / 4;
+        const y = chart.top + plotHeight * index / 4;
         return (
-          <div className="monthly-day-column" key={item.date} title={`${item.date}: ${rp(item.amount)}`}>
-            <span className="monthly-day-amount">{item.amount ? rp(item.amount, { short: true }) : ""}</span>
-            <i
-              className={weekday === 0 || weekday === 6 ? "weekend" : ""}
-              style={{ height: `${Math.max(2, item.amount / maximum * 100)}%` }}
-            />
-            <small>{date}</small>
-          </div>
+          <g key={index} className="monthly-chart-gridline">
+            <line x1={chart.left} x2={chart.right} y1={y} y2={y} />
+            <text x={chart.left - 8} y={y + 4} textAnchor="end">{axisLabel(value)}</text>
+          </g>
         );
       })}
-    </div>
+      {values.map((item, index) => {
+        const weekday = new Date(`${item.date}T00:00:00Z`).getUTCDay();
+        const x = chart.left + slotWidth * index + (slotWidth - barWidth) / 2;
+        const y = valueY(item.amount);
+        const day = Number(item.date.slice(8, 10));
+        return (
+          <g key={item.date} className="monthly-chart-bar">
+            <rect
+              x={x}
+              y={item.amount > 0 ? y : chart.bottom}
+              width={barWidth}
+              height={Math.max(0, chart.bottom - y)}
+              className={weekday === 0 || weekday === 6 ? "weekend" : ""}
+            >
+              <title>{`${item.date}: ${rp(item.amount)}`}</title>
+            </rect>
+            <text className="monthly-chart-date" x={x + barWidth / 2} y={chart.bottom + 20} textAnchor="middle">
+              {day}
+            </text>
+          </g>
+        );
+      })}
+      <g className="monthly-chart-maximum">
+        <circle cx={highestX} cy={highestY} r="4" />
+        <text x={Math.min(chart.right - 2, Math.max(chart.left + 2, highestX))} y={Math.max(14, highestY - 9)} textAnchor="middle">
+          Tertinggi · {rp(highest.amount, { short: true })}
+        </text>
+      </g>
+    </svg>
   );
 }
 
@@ -182,6 +244,11 @@ export default function MonthlyReport({
   const previous = data.summary.previous;
   const transactionsExist = data.revenue.current.byPaymentMethod.length > 0;
   const previousTransactionsExist = data.revenue.previous.byPaymentMethod.length > 0;
+  const currentPayrollIncomplete = data.payrollMissingOutlets.current.length > 0;
+  const previousPayrollIncomplete = data.payrollMissingOutlets.previous.length > 0;
+  const payrollIncompleteMessage = currentPayrollIncomplete
+    ? `Payroll ${data.payrollMissingOutlets.current.join(", ")} belum dihitung`
+    : undefined;
   const hasCustomerData = data.customers.current.active + data.customers.current.noShow
     + data.customers.current.cancelled + data.customers.current.extendedSessions > 0;
   const hasProfitInputs = transactionsExist || (data.payroll.current?.rows.length ?? 0) > 0
@@ -192,56 +259,74 @@ export default function MonthlyReport({
     {
       label: "Pendapatan bersih",
       value: transactionsExist ? rp(current.revenue) : "Belum ada data",
-      change: transactionsExist && previousTransactionsExist ? changeLabel(current.revenue, previous.revenue) : "vs pembanding tidak tersedia",
+      comparison: transactionsExist && previousTransactionsExist ? changeLabel(current.revenue, previous.revenue) : null,
     },
     {
       label: "Kunjungan",
       value: hasCustomerData || transactionsExist ? num(current.visits) : "Belum ada data",
-      change: hasCustomerData && (previous.visits > 0 || data.customers.previous.active > 0)
-        ? changeLabel(current.visits, previous.visits) : "vs pembanding tidak tersedia",
+      comparison: hasCustomerData && (previous.visits > 0 || data.customers.previous.active > 0)
+        ? changeLabel(current.visits, previous.visits) : null,
     },
     {
       label: "Rata-rata transaksi",
       value: transactionsExist ? rp(current.averageTransaction) : "Belum ada data",
-      change: transactionsExist && previousTransactionsExist ? changeLabel(current.averageTransaction, previous.averageTransaction) : "vs pembanding tidak tersedia",
+      comparison: transactionsExist && previousTransactionsExist ? changeLabel(current.averageTransaction, previous.averageTransaction) : null,
     },
     {
       label: "Biaya SDM",
-      value: current.humanResourceCost === null ? "Payroll belum dihitung" : rp(current.humanResourceCost),
-      change: current.humanResourceCost !== null && previous.humanResourceCost !== null
-        ? changeLabel(current.humanResourceCost, previous.humanResourceCost) : "vs pembanding tidak tersedia",
+      value: currentPayrollIncomplete ? "Tidak lengkap" : current.humanResourceCost === null ? "Belum ada data" : rp(current.humanResourceCost),
+      detail: payrollIncompleteMessage,
+      comparison: !currentPayrollIncomplete && !previousPayrollIncomplete
+        ? changeLabel(current.humanResourceCost, previous.humanResourceCost, { lowerIsBetter: true })
+        : null,
     },
     {
       label: "Biaya SDM / pendapatan",
-      value: current.humanResourceCostPct === null ? "Belum ada data" : pct(current.humanResourceCostPct),
-      change: current.humanResourceCostPct !== null && previous.humanResourceCostPct !== null
-        ? changeLabel(current.humanResourceCostPct, previous.humanResourceCostPct) : "vs pembanding tidak tersedia",
+      value: currentPayrollIncomplete ? "Tidak lengkap" : current.humanResourceCostPct === null ? "Belum ada data" : pct(current.humanResourceCostPct),
+      detail: payrollIncompleteMessage,
+      comparison: !currentPayrollIncomplete && !previousPayrollIncomplete
+        ? changeLabel(current.humanResourceCostPct, previous.humanResourceCostPct, { points: true, lowerIsBetter: true })
+        : null,
     },
     {
       label: "Utilisasi room",
       value: current.roomUtilizationPct === null ? "Tidak tersedia" : pct(current.roomUtilizationPct),
-      change: current.roomUtilizationPct !== null && previous.roomUtilizationPct !== null
-        ? changeLabel(current.roomUtilizationPct, previous.roomUtilizationPct) : "vs pembanding tidak tersedia",
+      comparison: changeLabel(current.roomUtilizationPct, previous.roomUtilizationPct, { points: true }),
     },
     {
       label: "Rating rata-rata",
       value: current.averageRating === null ? "Belum ada data" : `${num(current.averageRating, 1)} / 5`,
-      change: current.averageRating !== null && previous.averageRating !== null
-        ? changeLabel(current.averageRating, previous.averageRating) : "vs pembanding tidak tersedia",
+      comparison: changeLabel(current.averageRating, previous.averageRating),
     },
     {
       label: "Pelanggan kembali",
       value: current.returningCustomerPct === null ? "Belum ada data" : pct(current.returningCustomerPct),
-      change: current.returningCustomerPct !== null && previous.returningCustomerPct !== null
-        ? changeLabel(current.returningCustomerPct, previous.returningCustomerPct) : "vs pembanding tidak tersedia",
+      comparison: changeLabel(current.returningCustomerPct, previous.returningCustomerPct, { points: true }),
+    },
+    {
+      label: "Pengeluaran",
+      value: data.costs.current.expensesByCategory.length
+        ? rp(data.costs.current.expensesByCategory.reduce((sum, row) => sum + row.amount, 0))
+        : "Belum ada data",
+      comparison: data.costs.current.expensesByCategory.length && data.costs.previous.expensesByCategory.length
+        ? changeLabel(
+          data.costs.current.expensesByCategory.reduce((sum, row) => sum + row.amount, 0),
+          data.costs.previous.expensesByCategory.reduce((sum, row) => sum + row.amount, 0),
+          { lowerIsBetter: true }
+        )
+        : null,
     },
     ...(data.profit ? [{
       label: "Estimasi laba operasional",
-      value: data.profit.current.total === null
-        ? "Payroll belum dihitung"
+      value: currentPayrollIncomplete
+        ? "Tidak lengkap"
+        : data.profit.current.total === null
+          ? "Belum ada data"
         : hasProfitInputs ? rp(data.profit.current.total) : "Belum ada data",
-      change: data.profit.current.total !== null && data.profit.previous.total !== null
-        ? changeLabel(data.profit.current.total, data.profit.previous.total) : "vs pembanding tidak tersedia",
+      detail: payrollIncompleteMessage,
+      comparison: !currentPayrollIncomplete && !previousPayrollIncomplete
+        ? changeLabel(data.profit.current.total, data.profit.previous.total)
+        : null,
     }] : []),
   ];
   const best = data.therapists.current
@@ -283,7 +368,7 @@ export default function MonthlyReport({
 
       <Section number="01" title="Ringkasan">
         <div className="monthly-metrics-grid">
-          {metrics.map((metric) => <Metric key={metric.label} label={metric.label} value={metric.value} comparison={metric.change} />)}
+          {metrics.map((metric) => <Metric key={metric.label} label={metric.label} value={metric.value} comparison={metric.comparison} detail={metric.detail} />)}
         </div>
         {isOwner && (data.perOutlet?.current.length ?? 0) > 1 && (
           <Card className="monthly-card">
@@ -294,9 +379,10 @@ export default function MonthlyReport({
                 <tbody>
                   {data.perOutlet?.current.map((row) => (
                     <tr key={row.outletId}>
-                      <td>                      {row.outletName}</td><td className="num">{transactionsExist ? rp(row.revenue) : "Belum ada data"}</td>
-                        <td className="num">{hasCustomerData || transactionsExist ? num(row.visits) : "Belum ada data"}</td>
-                        <td className="num">{transactionsExist ? rp(row.averageTransaction) : "Belum ada data"}</td>
+                      <td>{row.outletName}</td>
+                      <td className="num">{transactionsExist ? rp(row.revenue) : "Belum ada data"}</td>
+                      <td className="num">{hasCustomerData || transactionsExist ? num(row.visits) : "Belum ada data"}</td>
+                      <td className="num">{transactionsExist ? rp(row.averageTransaction) : "Belum ada data"}</td>
                       <td className="num">{row.humanResourceCostPct === null ? "Belum ada data" : pct(row.humanResourceCostPct)}</td>
                     </tr>
                   ))}
@@ -494,9 +580,9 @@ export default function MonthlyReport({
                       <td className="num">{data.profit.current.total === null || data.profit.current.revenue <= 0 ? "—" : pct(data.profit.current.total / data.profit.current.revenue * 100)}</td>
                     </tr>
                   </tbody>
-                </table>
-              </div>
-            ) : <div className="card-body"><p className="monthly-empty-inline">Belum ada data laba per cabang.</p></div>}
+              </table>
+            </div>
+          ) : <div className="card-body"><p className="monthly-empty-inline">Belum ada data laba per cabang.</p></div>}
           </Card>
           <p className="monthly-profit-note">Estimasi ini bukan laporan laba-rugi akuntansi.</p>
         </Section>

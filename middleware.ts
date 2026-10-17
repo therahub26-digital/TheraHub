@@ -76,7 +76,8 @@ export async function middleware(request: NextRequest) {
     if (customerRow) actualRole = "customer";
   }
 
-  if (actualRole === requiredRole) return supabaseResponse;
+  const adminMonthlyReport = actualRole === "admin" && pathname === "/owner/laporan-bulanan";
+  if (actualRole === requiredRole || adminMonthlyReport) return supabaseResponse;
 
   // Signed in, but wrong portal (or an identity with no role/customer
   // link at all) — send them to their own home instead of letting the

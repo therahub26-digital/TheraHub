@@ -2,7 +2,9 @@
 import assert from "node:assert/strict";
 import {
   calculatePerformanceScore,
+  calculateOperatingProfit,
   calculateRoomUtilization,
+  calculateSalaryAllowanceCost,
   percentageChange,
   withOptionalProfit,
 } from "@/lib/data/monthly-report-math";
@@ -72,6 +74,13 @@ test("M6", "Profit benar-benar tidak ada saat includeProfit false", () => {
 
   const withProfit = withOptionalProfit({ summary: { revenue: 100 } }, true, () => 25);
   assert.equal("profit" in withProfit ? withProfit.profit : undefined, 25);
+});
+
+test("M7", "Biaya gaji dan tunjangan tidak menghitung komisi, bonus, atau take-home", () => {
+  const salaryAndAllowance = calculateSalaryAllowanceCost(5_000_000, 500_000, 250_000);
+  const commission = 1_250_000;
+  assert.equal(salaryAndAllowance, 5_250_000);
+  assert.equal(calculateOperatingProfit(20_000_000, commission, salaryAndAllowance, 2_000_000, 500_000), 11_000_000);
 });
 
 for (const result of results) {

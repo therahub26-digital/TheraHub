@@ -56,6 +56,21 @@ export function calculateRoomUtilization(
   return usedMinutes / (operatingHoursPerDay * 60 * operatingDays * activeRooms) * 100;
 }
 
+/** Salary-and-allowance cost only; excludes commission, other earnings, and take-home. */
+export function calculateSalaryAllowanceCost(fixed: number, allowance: number, deductions: number): number {
+  return fixed + allowance - deductions;
+}
+
+export function calculateOperatingProfit(
+  revenue: number,
+  commission: number,
+  salaryAndAllowances: number,
+  expenses: number,
+  materials: number
+): number {
+  return revenue - commission - salaryAndAllowances - expenses - materials;
+}
+
 /** Lazily attaches the profit property, leaving it truly absent when disabled. */
 export function withOptionalProfit<T extends object, P>(
   report: T,

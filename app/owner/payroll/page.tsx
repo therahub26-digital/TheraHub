@@ -21,7 +21,11 @@ import { rp, monthLabel } from "@/lib/format";
 // policy, so those figures could only ever have been fabricated.
 // ---------------------------------------------------------------------
 
-export default async function PayrollPage() {
+export default async function PayrollPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ period?: string }>;
+}) {
   // Owner is tenant-wide by design (oversees every outlet), not bound to
   // one via app_users.outlet_id the way manager/kasir now are (see
   // getCurrentOutlet(), lib/data/outlets.ts) — so "first outlet" here isn't
@@ -29,9 +33,15 @@ export default async function PayrollPage() {
   // an owner with more than one outlet needs a switcher or an aggregate
   // view across outlets, neither of which exists yet. Cikawao-only is the
   // known limitation until that's built.
-  const OUTLETS = await getOutlets();
+  const [params, OUTLETS, effectivePeriod] = await Promise.all([
+    searchParams,
+    getOutlets(),
+    getEffectivePeriod(),
+  ]);
   const outlet = OUTLETS[0];
-  const period = await getEffectivePeriod();
+  const period = params.period && /^\d{4}-(0[1-9]|1[0-2])$/.test(params.period)
+    ? params.period
+    : effectivePeriod;
   const [settings, items, commissions] = await Promise.all([
     getPayrollSettings(outlet.id),
     getPayrollForOutlet(outlet.id, period),

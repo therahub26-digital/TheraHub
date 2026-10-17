@@ -2,7 +2,12 @@ import { createClient } from "@/lib/supabase/server";
 import { fetchAllRows } from "@/lib/supabase/paginate";
 import { getEffectivePeriod } from "@/lib/data/commissions";
 import { getTherapistPerformance, monthWindow, type TherapistPerformanceRow } from "@/lib/data/performance";
-import { calculateRoomUtilization, withOptionalProfit } from "@/lib/data/monthly-report-math";
+import {
+  calculateOperatingProfit,
+  calculateRoomUtilization,
+  calculateSalaryAllowanceCost,
+  withOptionalProfit,
+} from "@/lib/data/monthly-report-math";
 import { minutesBetween, nowIso, todayIsoDate } from "@/lib/wallclock";
 
 type Window = ReturnType<typeof monthWindow> & { period: string };
@@ -42,6 +47,8 @@ export type PayrollReport = {
     employeeId: string;
     employeeName: string;
     outletId: string;
+    outletName: string;
+    jobTitle: string | null;
     fixed: number;
     allowance: number;
     commission: number;
@@ -104,7 +111,7 @@ export type ProfitReport = {
   revenue: number;
   commission: number;
   payrollCost: number | null;
-  expenses: number;
+  expenses: number | null;
   materials: number | null;
   total: number | null;
 };
@@ -112,7 +119,7 @@ export type ProfitReport = {
 export type OutletProfitReport = OutletReport & {
   commission: number;
   payrollCost: number | null;
-  expenses: number;
+  expenses: number | null;
   materials: number | null;
   profit: number | null;
 };
@@ -157,7 +164,7 @@ type SessionRow = {
 type CommissionRow = { outlet_id: string; therapist_id: string; amount: number | string; status: string };
 type ReviewRow = { employee_id: string; outlet_id: string; visit_date: string; rating: number };
 type AttendanceRow = { employee_id: string; outlet_id: string; status: string; late_minutes: number | null };
-type EmployeeRow = { id: string; outlet_id: string; name: string; is_therapist: boolean };
+type EmployeeRow = { id: string; outlet_id: string; name: string; job_role: string | null; is_therapist: boolean };
 type RoomRow = { id: string; outlet_id: string; name: string; status: string };
 type ExpenseRow = { outlet_id: string; date: string; category: string; amount: number | string; status: string };
 type PayrollItemRow = {
@@ -268,7 +275,7 @@ async function fetchData(outletIds: string[], windows: [Window, Window]): Promis
       .select("employee_id, outlet_id, status, late_minutes").in("outlet_id", outletIds)
       .gte("date", start).lt("date", endExcl).order("date").order("id").range(from, to)),
     paged<EmployeeRow>((from, to) => supabase.from("employees")
-      .select("id, outlet_id, name, is_therapist").in("outlet_id", outletIds).order("id").range(from, to)),
+      .select("id, outlet_id, name, job_role, is_therapist").in("outlet_id", outletIds).order("id").range(from, to)),
     paged<RoomRow>((from, to) => supabase.from("rooms")
       .select("id, outlet_id, name, status").in("outlet_id", outletIds).order("id").range(from, to)),
     paged<ExpenseRow>((from, to) => supabase.from("expenses")
@@ -360,7 +367,8 @@ async function fetchData(outletIds: string[], windows: [Window, Window]): Promis
 function payrollFor(data: ReportData, window: Window): PayrollReport | null {
   const payrollItems = data.payrollItems.filter((item) => item.period === window.period);
   if (!payrollItems.length) return null;
-  const employeeNames = new Map(data.employees.map((employee) => [employee.id, employee.name]));
+  const employeeById = new Map(data.employees.map((employee) => [employee.id, employee]));
+  const outletNames = new Map(data.outlets.map((outlet) => [outlet.id, outlet.name]));
   const adjustments = data.adjustments.filter((adjustment) => adjustment.period === window.period);
   const rows = payrollItems.map((item) => {
     const fixed = n(item.fixed);
@@ -370,8 +378,10 @@ function payrollFor(data: ReportData, window: Window): PayrollReport | null {
     const deductions = n(item.late_penalty) + n(item.absence_penalty) + n(item.savings) + n(item.loan) + n(item.other_deductions);
     return {
       employeeId: item.employee_id,
-      employeeName: employeeNames.get(item.employee_id) ?? "",
+      employeeName: employeeById.get(item.employee_id)?.name ?? "",
       outletId: item.outlet_id,
+      outletName: outletNames.get(item.outlet_id) ?? "",
+      jobTitle: employeeById.get(item.employee_id)?.job_role ?? null,
       fixed,
       allowance,
       commission,
@@ -495,7 +505,8 @@ function buildReport(
   const commissionRows = data.commissions.filter((row) => row.status !== "REVERSED");
   const commissionTotal = commissionRows.reduce((sum, row) => sum + n(row.amount), 0);
   const payrollCost = payroll
-    ? payroll.rows.reduce((sum, row) => sum + row.fixed + row.allowance + row.otherEarnings - row.deductions, 0)
+    ? payroll.rows.reduce((sum, row) => sum
+      + calculateSalaryAllowanceCost(row.fixed, row.allowance, row.deductions), 0)
     : null;
   const humanResourceCost = payrollCost === null ? null : payrollCost + commissionTotal;
   const reviews = data.reviews.filter((review) => inWindow(review.visit_date, window));
@@ -547,8 +558,11 @@ function buildReport(
     const outletRevenue = outletTransactions.reduce((sum, row) => sum + n(row.total), 0);
     const outletItems = data.payrollItems.filter((row) => row.outlet_id === outlet.id && row.period === window.period);
     const outletPayroll = outletItems.length ? outletItems.reduce((sum, row) => sum
-      + n(row.fixed) + n(row.allowance) + n(row.bonus) + n(row.thr)
-      - n(row.late_penalty) - n(row.absence_penalty) - n(row.savings) - n(row.loan) - n(row.other_deductions), 0) : null;
+      + calculateSalaryAllowanceCost(
+        n(row.fixed),
+        n(row.allowance),
+        n(row.late_penalty) + n(row.absence_penalty) + n(row.savings) + n(row.loan) + n(row.other_deductions)
+      ), 0) : null;
     const outletCommission = commissionRows.filter((row) => row.outlet_id === outlet.id)
       .reduce((sum, row) => sum + n(row.amount), 0);
     const outletHrCost = outletPayroll === null ? null : outletPayroll + outletCommission;
@@ -672,35 +686,38 @@ function buildReport(
     const totalExpenses = expenseRows.reduce((sum, row) => sum + n(row.amount), 0);
     const profitTotal = payrollCost === null
       ? null
-      : revenue - commissionTotal - payrollCost - totalExpenses - materialCost;
+      : calculateOperatingProfit(revenue, commissionTotal, payrollCost, totalExpenses, materialCost);
     result.profit = {
       revenue,
       commission: commissionTotal,
       payrollCost,
-      expenses: totalExpenses,
-      materials: materialCost,
+      expenses: expenseRows.length ? totalExpenses : null,
+      materials: movements.length ? materialCost : null,
       total: profitTotal,
     };
     result.outletProfit = outletReports.map((outlet) => {
       const outletPayrollItems = data.payrollItems.filter((item) => item.outlet_id === outlet.outletId && item.period === window.period);
       const outletPayrollCost = outletPayrollItems.length ? outletPayrollItems.reduce((sum, row) => sum
-        + n(row.fixed) + n(row.allowance) + n(row.bonus) + n(row.thr)
-        - n(row.late_penalty) - n(row.absence_penalty) - n(row.savings) - n(row.loan) - n(row.other_deductions), 0) : null;
+        + calculateSalaryAllowanceCost(
+          n(row.fixed),
+          n(row.allowance),
+          n(row.late_penalty) + n(row.absence_penalty) + n(row.savings) + n(row.loan) + n(row.other_deductions)
+        ), 0) : null;
       const outletCommission = commissionRows.filter((row) => row.outlet_id === outlet.outletId)
         .reduce((sum, row) => sum + n(row.amount), 0);
-      const outletExpenses = expenseRows.filter((row) => row.outlet_id === outlet.outletId)
-        .reduce((sum, row) => sum + n(row.amount), 0);
+      const outletExpenseRows = expenseRows.filter((row) => row.outlet_id === outlet.outletId);
+      const outletExpenses = outletExpenseRows.reduce((sum, row) => sum + n(row.amount), 0);
       const outletMovementRows = movements.filter((row) => row.outlet_id === outlet.outletId);
       const outletMaterials = outletMovementRows.reduce((sum, row) => sum + Math.abs(n(row.qty)) * n(row.unit_cost), 0);
       return {
         ...outlet,
         commission: outletCommission,
         payrollCost: outletPayrollCost,
-        expenses: outletExpenses,
-        materials: outletMaterials,
+        expenses: outletExpenseRows.length ? outletExpenses : null,
+        materials: outletMovementRows.length ? outletMaterials : null,
         profit: outletPayrollCost === null
           ? null
-          : outlet.revenue - outletCommission - outletPayrollCost - outletExpenses - outletMaterials,
+          : calculateOperatingProfit(outlet.revenue, outletCommission, outletPayrollCost, outletExpenses, outletMaterials),
       };
     });
   }

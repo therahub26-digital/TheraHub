@@ -84,7 +84,7 @@ export default async function MasterDataPage() {
       </div>
 
       <InfoNote icon="info" title="Kategori/Jenis Layanan aktif vs. opsional">
-        Amethyst saat ini baru benar-benar memakai <strong>1 jenis layanan</strong> untuk penetapan harga di Manager
+        Saat ini <strong>{activeCount} jenis layanan aktif</strong> yang dipakai untuk penetapan harga di Manager
         &gt; Catalog. Jenis layanan lain yang ditambahkan di sini boleh dibuat <strong>opsional</strong> (saklar
         &quot;Aktif&quot; dimatikan) — tetap tersimpan sebagai master, tapi tidak akan muncul di dropdown &quot;Tambah
         Paket&quot; Manager sampai diaktifkan.

@@ -2,10 +2,16 @@ import Link from "next/link";
 import Icon from "@/components/Icon";
 import { PageHead, Card, Badge, StatCard } from "@/components/ui";
 import { getOutlets, formatDepositLabel } from "@/lib/data/outlets";
+import { getEmployees } from "@/lib/data/employees";
 import OutletEditor from "@/components/OutletEditor";
 
 export default async function OutletsPage() {
-  const OUTLETS = await getOutlets();
+  const [OUTLETS, employees] = await Promise.all([getOutlets(), getEmployees()]);
+  // UAT 18 Okt 2026: kolom Manager dulu dari outlets.manager_name (teks bebas,
+  // kosong untuk Buah Batu) padahal Rina Kusuma terdaftar sebagai Manager di
+  // Users & Assignment. Sekarang diambil dari karyawan ber-role Manager.
+  const managerOf = (outletId: string, fallback: string) =>
+    employees.filter((e) => e.outletId === outletId && e.jobRole === "Manager" && e.status === "ACTIVE").map((e) => e.name).join(", ") || fallback || "—";
   return (
     <>
       <PageHead
@@ -48,7 +54,7 @@ export default async function OutletsPage() {
               </div>
               <div className="row between small">
                 <span className="muted row g2"><Icon name="user" size={13} /> Manager</span>
-                <span style={{ color: "var(--text-1)" }}>{o.managerName}</span>
+                <span style={{ color: "var(--text-1)" }}>{managerOf(o.id, o.managerName)}</span>
               </div>
               <div className="row between small">
                 <span className="muted row g2"><Icon name="radar" size={13} /> Geofence</span>

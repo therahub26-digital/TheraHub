@@ -2,7 +2,10 @@ import Link from "next/link";
 import Icon from "@/components/Icon";
 import { PageHead, Card, Progress, Badge } from "@/components/ui";
 import MockDataNotice from "@/components/MockDataNotice";
-import { SETUP_STEPS, OUTLETS, ACTIVE_TENANT } from "@/lib/mock";
+import { SETUP_STEPS } from "@/lib/mock";
+import { getOutlets } from "@/lib/data/outlets";
+import { getEmployees } from "@/lib/data/employees";
+import { getCurrentTenant } from "@/lib/data/tenant";
 
 const STEP_LINK: Record<string, string> = {
   profile: "/admin/profile",
@@ -15,7 +18,12 @@ const STEP_LINK: Record<string, string> = {
   policy: "/admin/settings",
 };
 
-export default function AdminSetupPage() {
+export default async function AdminSetupPage() {
+  // UAT 18 Okt 2026: nama tenant & tabel "Outlet Terprovisi" dulu dari lib/mock
+  // (Amethyst Cikawao/Mekarwangi) — sekarang outlet & karyawan sungguhan.
+  const [OUTLETS, employees, tenant] = await Promise.all([getOutlets(), getEmployees(), getCurrentTenant()]);
+  const managerOf = (outletId: string, fallback: string) =>
+    employees.filter((e) => e.outletId === outletId && e.jobRole === "Manager" && e.status === "ACTIVE").map((e) => e.name).join(", ") || fallback || "—";
   const done = SETUP_STEPS.filter((s) => s.done).length;
   const pct = Math.round((done / SETUP_STEPS.length) * 100);
 
@@ -23,7 +31,7 @@ export default function AdminSetupPage() {
     <>
       <PageHead
         title="Setup Progress"
-        desc={`Onboarding bisnis ${ACTIVE_TENANT.name} setelah tenant diprovision oleh Super Admin.`}
+        desc={`Onboarding bisnis ${tenant?.brandName ?? "tenant ini"} setelah tenant diprovision oleh Super Admin.`}
       />
 
       <MockDataNotice title="Kemajuan setup ini bukan kondisi tenant Anda">
@@ -84,7 +92,7 @@ export default function AdminSetupPage() {
                 <tr key={o.id}>
                   <td className="strong" style={{ color: "var(--text-1)" }}>{o.name}</td>
                   <td className="muted">{o.city}</td>
-                  <td className="muted">{o.managerName}</td>
+                  <td className="muted">{managerOf(o.id, o.managerName)}</td>
                   <td className="num">{o.roomCount}</td>
                   <td className="num">{o.therapistCount}</td>
                   <td><Badge tone="success" dot>{o.status}</Badge></td>

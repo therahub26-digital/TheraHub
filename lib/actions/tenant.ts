@@ -110,6 +110,12 @@ export async function setTenantProfile(input: TenantProfileInput): Promise<Actio
   const brandName = input.brandName.trim();
   if (!brandName) return { ok: false, error: "Nama Brand tidak boleh kosong." };
   if (brandName.length > 120) return { ok: false, error: "Nama Brand maksimal 120 karakter." };
+  // UAT 18 Okt 2026 (A3): "bukan-email" dulu tersimpan apa adanya, padahal
+  // alamat ini dipakai untuk notifikasi & dukungan pelanggan.
+  const email = input.email.trim();
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { ok: false, error: "Format email tidak valid — contoh: halo@namaspa.com." };
+  }
 
   const { data, error: writeErr } = await supabase
     .from("tenants")

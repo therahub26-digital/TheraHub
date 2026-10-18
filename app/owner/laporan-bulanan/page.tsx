@@ -13,7 +13,11 @@ export default async function OwnerMonthlyReportPage({
 }: {
   searchParams: Promise<{ period?: string; outlet?: string }>;
 }) {
-  await requireMonthlyReportRole(["owner", "admin"], "/owner/laporan-bulanan");
+  const actor = await requireMonthlyReportRole(["owner", "admin"], "/owner/laporan-bulanan");
+  // UAT 18 Okt 2026: Admin juga boleh membuka laporan ini (menu Insight), tapi
+  // keputusan Adjie: estimasi laba HANYA untuk Owner. Dulu includeProfit &
+  // isOwner selalu true di rute ini, jadi Admin ikut melihat Bagian 08.
+  const isOwner = actor.role === "owner";
   const [params, effectivePeriod, allOutlets, live, tenant] = await Promise.all([
     searchParams,
     getEffectivePeriod(),
@@ -30,7 +34,7 @@ export default async function OwnerMonthlyReportPage({
   const report = await getMonthlyReport({
     outletIds: scope.map((outlet) => outlet.id),
     period,
-    includeProfit: true,
+    includeProfit: isOwner,
   });
   const singleOutlet = scope.length === 1 ? scope[0] : null;
 
@@ -41,7 +45,7 @@ export default async function OwnerMonthlyReportPage({
       outletLabel={selectedOutlet === "all" ? "Semua cabang" : singleOutlet?.name ?? "Semua cabang"}
       outletNames={Object.fromEntries(outlets.map((outlet) => [outlet.id, outlet.name]))}
       pathname="/owner/laporan-bulanan"
-      isOwner
+      isOwner={isOwner}
       payrollHref={`/owner/payroll?period=${encodeURIComponent(period)}`}
       printDate={todayIsoDate()}
       periodOptions={monthlyReportPeriodOptions(effectivePeriod, period)}

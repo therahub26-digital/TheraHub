@@ -1,13 +1,21 @@
 /* Demo Royal Spa — gerbang marketing, pemilih peran, tombol ganti peran. */
 .demo-page{min-height:100vh;display:grid;place-items:center;background:radial-gradient(100% 80% at 80% 0%,#4a2245,#24101f 65%);padding:24px max(16px,env(safe-area-inset-right)) 24px max(16px,env(safe-area-inset-left))}
-.demo-box{width:min(100%,560px);background:var(--surface,#fff);color:var(--text,#2a1826);border-radius:18px;padding:28px;display:grid;gap:16px;box-shadow:0 24px 60px rgba(0,0,0,.35)}
+.demo-box{width:min(100%,560px);background:#fff;color:#2a1826;color-scheme:light;border-radius:18px;padding:28px;display:grid;gap:16px;box-shadow:0 24px 60px rgba(0,0,0,.35)}
 .demo-mark{font-family:"Cinzel",Georgia,serif;letter-spacing:.16em;font-weight:600;font-size:20px;color:#7a3a70}
 .demo-tag{justify-self:start;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;background:#c49a5a;color:#24101f;border-radius:999px;padding:3px 10px}
-.demo-h1{font-size:22px;margin:0 0 4px}
+.demo-h1{font-size:22px;margin:0 0 4px;color:#2a1826}
+/* Kotak demo selalu terang — jangan mewarisi tema gelap aplikasi. */
+.demo-box .muted{color:#6c5a66}
+.demo-box .field span{color:#2a1826;font-weight:600;font-size:13px}
+.demo-box .input{background:#fff;color:#2a1826;border:1px solid #d9ccd3}
+.demo-box .input:focus{outline:2px solid #c49a5a;outline-offset:1px;border-color:#c49a5a}
+.demo-box .btn-primary{background:#5b2453;color:#fff;border-color:#5b2453;box-shadow:none}
+.demo-box .btn-primary:hover{background:#6e2c65}
+.demo-box .btn-primary[disabled]{opacity:.7}
 .demo-err{background:rgba(220,38,38,.1);color:#b91c1c;border-radius:8px;padding:10px 12px;font-size:13.5px}
 .demo-roles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 @media (max-width:520px){.demo-roles{grid-template-columns:repeat(2,minmax(0,1fr))}}
-.demo-role{display:grid;gap:2px;text-align:left;padding:12px;border-radius:12px;border:1.5px solid var(--border,#e3d8d6);background:var(--surface-2,#faf6f8);cursor:pointer;color:inherit;font:inherit}
+.demo-role{display:grid;gap:2px;text-align:left;padding:12px;border-radius:12px;border:1.5px solid #e3d8d6;background:#faf6f8;cursor:pointer;color:#2a1826;font:inherit}
 .demo-role:hover{border-color:#7a3a70}
 .demo-role b{font-size:15px}
 .demo-role span{font-size:13px}

@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { getLandingData } from "@/lib/data/landing";
 import { LANDING_ASSETS } from "@/lib/landingAssets";
 import { brandByKey } from "@/lib/brand";
+import { DEMO_TENANT_SLUG, isDemoMode } from "@/lib/demo/config";
 import LandingCarousel from "@/components/LandingCarousel";
 import "./landing.css";
 
@@ -79,6 +80,9 @@ export async function generateMetadata({ params }: { params: Promise<{ tenant: s
 
 export default async function TenantLandingPage({ params }: { params: Promise<{ tenant: string }> }) {
   const { tenant } = await params;
+  // Tenant demo marketing hanya tampil di deploy demo (di balik gerbang
+  // marketing), tidak pernah di domain produksi.
+  if (tenant === DEMO_TENANT_SLUG && !isDemoMode()) notFound();
   const data = await getLandingData(tenant);
   if (!data) notFound();
 

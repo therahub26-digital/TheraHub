@@ -25,6 +25,9 @@
 export const TENANT_DOMAINS: Record<string, string> = {
   "amethystbdg.my.id": "amethyst",
   "www.amethystbdg.my.id": "amethyst",
+  // Tenant demo marketing (2026-10-20). Deploy demo juga me-rewrite "/"
+  // ke landing ini di middleware, terlepas dari host (mis. *.vercel.app).
+  "demo.therahub.biz.id": "royal-spa",
 };
 
 /** Slug tenant yang sah untuk /welcome/<slug> — dipakai lib/data/landing.ts

@@ -1,0 +1,27 @@
+/* Demo Royal Spa — gerbang marketing, pemilih peran, tombol ganti peran. */
+.demo-page{min-height:100vh;display:grid;place-items:center;background:radial-gradient(100% 80% at 80% 0%,#4a2245,#24101f 65%);padding:24px max(16px,env(safe-area-inset-right)) 24px max(16px,env(safe-area-inset-left))}
+.demo-box{width:min(100%,560px);background:var(--surface,#fff);color:var(--text,#2a1826);border-radius:18px;padding:28px;display:grid;gap:16px;box-shadow:0 24px 60px rgba(0,0,0,.35)}
+.demo-mark{font-family:"Cinzel",Georgia,serif;letter-spacing:.16em;font-weight:600;font-size:20px;color:#7a3a70}
+.demo-tag{justify-self:start;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;background:#c49a5a;color:#24101f;border-radius:999px;padding:3px 10px}
+.demo-h1{font-size:22px;margin:0 0 4px}
+.demo-err{background:rgba(220,38,38,.1);color:#b91c1c;border-radius:8px;padding:10px 12px;font-size:13.5px}
+.demo-roles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+@media (max-width:520px){.demo-roles{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.demo-role{display:grid;gap:2px;text-align:left;padding:12px;border-radius:12px;border:1.5px solid var(--border,#e3d8d6);background:var(--surface-2,#faf6f8);cursor:pointer;color:inherit;font:inherit}
+.demo-role:hover{border-color:#7a3a70}
+.demo-role b{font-size:15px}
+.demo-role span{font-size:13px}
+.demo-role small{font-size:12px;opacity:.7;line-height:1.35}
+.demo-role[disabled]{cursor:wait;opacity:.7}
+.demo-link{font-size:14px;font-weight:600;color:#7a3a70;text-decoration:none}
+.demo-switch{position:fixed;z-index:1000;left:max(12px,env(safe-area-inset-left));bottom:calc(84px + env(safe-area-inset-bottom));font-family:inherit}
+@media (min-width:1080px){.demo-switch{bottom:calc(16px + env(safe-area-inset-bottom))}}
+.demo-switch-btn{display:inline-flex;align-items:center;gap:8px;border:0;border-radius:999px;padding:9px 14px;background:#24101f;color:#f5ece3;font:600 13px/1 inherit;box-shadow:0 6px 20px rgba(0,0,0,.3);cursor:pointer}
+.demo-switch-dot{width:8px;height:8px;border-radius:50%;background:#c49a5a}
+.demo-switch-menu{position:absolute;bottom:calc(100% + 8px);left:0;min-width:220px;background:#fff;color:#2a1826;border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.28);padding:6px;display:grid}
+.demo-switch-head{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#8a6330;padding:8px 10px 6px}
+.demo-switch-menu button,.demo-switch-menu a{display:flex;justify-content:space-between;align-items:center;gap:8px;border:0;background:none;text-align:left;padding:9px 10px;border-radius:8px;font:500 14px/1.2 inherit;color:inherit;text-decoration:none;cursor:pointer}
+.demo-switch-menu button:hover:not([disabled]),.demo-switch-menu a:hover{background:#f4eef2}
+.demo-switch-menu button[disabled]{cursor:default;opacity:.65}
+.demo-switch-menu button span{font-size:11px;font-weight:700;color:#1f6b3f}
+.demo-switch-sub{border-top:1px solid #eee !important;border-radius:0 !important;color:#6c5a66 !important;font-size:13px !important}

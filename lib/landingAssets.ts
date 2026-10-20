@@ -101,4 +101,21 @@ export const LANDING_ASSETS: Record<string, LandingAssets> = {
       },
     ],
   },
+  "royal-spa": {
+    // Tenant demo marketing — foto hasil AI milik Adjie (contact sheet
+    // Royal Spa), bukan orang/tempat sungguhan.
+    brandKey: "violet",
+    hero: "/img/landing/royal-spa/hero-terapis-lobby.jpg",
+    heroAlt: "Terapis Royal Spa di area resepsionis",
+    about: "/img/landing/royal-spa/resepsionis.jpg",
+    ctaBg: "/img/landing/royal-spa/lounge.jpg",
+    baseUrl: "https://demo.therahub.biz.id",
+    ogImage: "/img/landing/royal-spa/og.jpg",
+    waPerOutlet: { "RSB-BDG": "081200002026" },
+    rooms: [
+      { src: "/img/landing/royal-spa/private-room.jpg", label: "Kamar Private", desc: "8 kamar pribadi di lantai 1 dan 2, masing-masing dengan wastafel dan pencahayaan redup." },
+      { src: "/img/landing/royal-spa/couple-suite.jpg", label: "Couple Suite", desc: "4 suite berdua dengan dua bed, shower, dan sofa untuk ritual pasangan." },
+      { src: "/img/landing/royal-spa/aromaterapi.jpg", label: "Royal Suite & Aromaterapi", desc: "2 suite dengan bathtub bunga dan minyak racikan Royal Spa." },
+    ],
+  },
 };

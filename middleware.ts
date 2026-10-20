@@ -2,8 +2,36 @@ import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 import { ROLE_HOME, roleForPath } from "@/lib/route-guard";
 import { tenantSlugForHost } from "@/lib/tenantDomains";
+import { DEMO_GATE_COOKIE, DEMO_TENANT_SLUG } from "@/lib/demo/config";
+import { verifyGate } from "@/lib/demo/gate";
 
 export async function middleware(request: NextRequest) {
+  // ---- Deploy demo marketing (DEMO_MODE=1, 2026-10-20) ---------------
+  // Seluruh situs demo.therahub.biz.id dikunci gerbang login marketing.
+  // Yang boleh lewat tanpa gerbang hanya halaman gerbang itu sendiri dan
+  // API demo (login, switch, exit, seed — seed punya otorisasi CRON_SECRET
+  // sendiri). /login & /register publik diganti pemilih peran /demo:
+  // pengunjung demo tidak pernah mengetik password akun peran.
+  // Di deploy produksi (DEMO_MODE kosong) blok ini tidak berjalan sama sekali.
+  if (process.env.DEMO_MODE === "1") {
+    const p = request.nextUrl.pathname;
+    const open = p === "/demo" || p.startsWith("/api/demo/") || p === "/manifest.webmanifest" || p.startsWith("/icons/");
+    if (!open) {
+      const ok = await verifyGate(request.cookies.get(DEMO_GATE_COOKIE)?.value);
+      if (!ok || p === "/login" || p === "/register") {
+        const url = request.nextUrl.clone();
+        url.pathname = "/demo";
+        url.search = "";
+        return NextResponse.redirect(url);
+      }
+      if (p === "/") {
+        const url = request.nextUrl.clone();
+        url.pathname = `/welcome/${DEMO_TENANT_SLUG}`;
+        return NextResponse.rewrite(url);
+      }
+    }
+  }
+
   // ---- Routing per-domain (2026-09-04) ------------------------------
   // Domain tenant (mis. amethystbdg.my.id) menyajikan WEBSITE PUBLIK
   // tenant di "/", bukan pemilih role demo — pemilih role tetap jadi

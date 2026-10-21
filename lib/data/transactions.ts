@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { TRANSACTIONS as MOCK_TRANSACTIONS } from "@/lib/mock/commerce";
 import type { Transaction, TransactionItem } from "@/lib/types";
 import { getAuthUser } from "@/lib/supabase/authUser";
+import { fetchAllRows, selectInChunks } from "@/lib/supabase/paginate";
 
 // ---------------------------------------------------------------------
 // Dual-mode read layer for "transactions" — the POS/billing module,
@@ -51,21 +52,25 @@ async function fetchLiveTransactions(): Promise<Transaction[] | null> {
   } = await getAuthUser();
   if (!user) return null; // demo/"Ganti Role" viewer -> mock, same as bookings/sessions.
 
-  const { data: rows, error } = await supabase.from("transactions").select("*").order("paid_at", { ascending: false });
+  // Anti-truncation (2026-10-21) — sama seperti bookings.ts. Urutan
+  // terbaru-dulu dipertahankan; id sebagai pemecah seri supaya halaman stabil.
+  const { rows, error } = await fetchAllRows<TransactionRow>((from, to) =>
+    Promise.resolve(supabase.from("transactions").select("*").order("paid_at", { ascending: false }).order("id").range(from, to))
+  );
   if (error) return null;
   if (!rows || rows.length === 0) return [];
 
-  const txRows = rows as TransactionRow[];
+  const txRows = rows;
   const bookingIds = [...new Set(txRows.map((t) => t.booking_id).filter((v): v is string => !!v))];
   const customerIds = [...new Set(txRows.map((t) => t.customer_id).filter((v): v is string => !!v))];
   const cashierIds = [...new Set(txRows.map((t) => t.cashier_id).filter((v): v is string => !!v))];
   const txIds = txRows.map((t) => t.id);
 
   const [{ data: bookingRows }, { data: customerRows }, { data: cashierRows }, { data: itemRows }] = await Promise.all([
-    bookingIds.length ? supabase.from("bookings").select("id, code").in("id", bookingIds) : Promise.resolve({ data: [] }),
-    customerIds.length ? supabase.from("customers").select("id, name").in("id", customerIds) : Promise.resolve({ data: [] }),
+    selectInChunks<{ id: string; code: string }>(bookingIds, (c, f, t) => supabase.from("bookings").select("id, code").in("id", c).order("id").range(f, t)),
+    selectInChunks<{ id: string; name: string }>(customerIds, (c, f, t) => supabase.from("customers").select("id, name").in("id", c).order("id").range(f, t)),
     cashierIds.length ? supabase.from("employees").select("id, name").in("id", cashierIds) : Promise.resolve({ data: [] }),
-    txIds.length ? supabase.from("transaction_items").select("*").in("transaction_id", txIds) : Promise.resolve({ data: [] }),
+    selectInChunks<TransactionItemRow>(txIds, (c, f, t) => supabase.from("transaction_items").select("*").in("transaction_id", c).order("id").range(f, t)),
   ]);
 
   const bookingCode = new Map((bookingRows ?? []).map((b) => [b.id, b.code]));

@@ -5,6 +5,7 @@ import { toHHMM, nowIso, minutesBetween } from "@/lib/wallclock";
 import type { SessionRec, ExtensionRequest } from "@/lib/types";
 import { sweepOverdueSessions } from "@/lib/data/sessionOverrunSweep";
 import { getAuthUser } from "@/lib/supabase/authUser";
+import { fetchAllRows, selectInChunks } from "@/lib/supabase/paginate";
 
 // ---------------------------------------------------------------------
 // Dual-mode data-access layer for "sessions" — the module after bookings
@@ -133,25 +134,28 @@ async function fetchLiveSessions(): Promise<SessionRec[] | null> {
   // (this whole function is behind loadSessionsData's cache()).
   await sweepOverdueSessions(supabase);
 
-  const { data: rows, error } = await supabase.from("sessions").select("*").order("actual_start");
+  // Anti-truncation (2026-10-21) — sama seperti bookings.ts.
+  const { rows, error } = await fetchAllRows<SessionRow>((from, to) =>
+    Promise.resolve(supabase.from("sessions").select("*").order("actual_start").order("id").range(from, to))
+  );
   if (error) return null;
   if (!rows || rows.length === 0) return []; // real session, genuinely no treatments — honest empty
 
-  const sessionRows = rows as SessionRow[];
+  const sessionRows = rows;
   const bookingIds = [...new Set(sessionRows.map((r) => r.booking_id))];
   const employeeIds = [...new Set(sessionRows.map((r) => r.therapist_id).filter((v): v is string => !!v))];
   const roomIds = [...new Set(sessionRows.map((r) => r.room_id).filter((v): v is string => !!v))];
 
-  const { data: bookingRows } = await supabase
-    .from("bookings")
-    .select("id, code, customer_id, package_id, status")
-    .in("id", bookingIds);
+  const { data: bookingRows } = await selectInChunks<{ id: string; code: string; customer_id: string; package_id: string; status: string }>(
+    bookingIds,
+    (c, f, t) => supabase.from("bookings").select("id, code, customer_id, package_id, status").in("id", c).order("id").range(f, t)
+  );
 
   const customerIds = [...new Set((bookingRows ?? []).map((b) => b.customer_id))];
   const packageIds = [...new Set((bookingRows ?? []).map((b) => b.package_id))];
 
   const [{ data: customerRows }, { data: employeeRows }, { data: roomRows }, { data: packageRows }] = await Promise.all([
-    customerIds.length ? supabase.from("customers").select("id, name").in("id", customerIds) : Promise.resolve({ data: [] }),
+    selectInChunks<{ id: string; name: string }>(customerIds, (c, f, t) => supabase.from("customers").select("id, name").in("id", c).order("id").range(f, t)),
     employeeIds.length ? supabase.from("employees").select("id, name").in("id", employeeIds) : Promise.resolve({ data: [] }),
     roomIds.length ? supabase.from("rooms").select("id, name").in("id", roomIds) : Promise.resolve({ data: [] }),
     packageIds.length ? supabase.from("service_packages").select("id, name").in("id", packageIds) : Promise.resolve({ data: [] }),

@@ -38,3 +38,32 @@ export async function fetchAllRows<T>(
 
   return { rows, error: null };
 }
+
+// ---------------------------------------------------------------------
+// `.in(col, ids)` untuk daftar id yang panjang (2026-10-21).
+//
+// PostgREST mengirim filter `.in()` di query string. Ribuan UUID (36
+// karakter + koma) membuat URL puluhan KB — ditolak server/proxy, dan
+// supabase-js mengembalikan error yang lalu dibaca pemanggil sebagai
+// "tidak ada data" (nama tamu/kode booking kosong). Ditemukan saat tenant
+// demo Royal Spa melewati 2.000 booking. Helper ini memecah id per
+// IN_CHUNK dan menggabungkan hasilnya; tiap potongan tetap lewat
+// fetchAllRows supaya juga aman dari batas baris.
+// ---------------------------------------------------------------------
+
+const IN_CHUNK = 150;
+
+export async function selectInChunks<T>(
+  ids: readonly string[],
+  chunkFetch: (chunk: string[], from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>
+): Promise<{ data: T[]; error: unknown }> {
+  const unique = [...new Set(ids)];
+  const out: T[] = [];
+  for (let i = 0; i < unique.length; i += IN_CHUNK) {
+    const chunk = unique.slice(i, i + IN_CHUNK);
+    const { rows, error } = await fetchAllRows<T>((from, to) => Promise.resolve(chunkFetch(chunk, from, to)));
+    if (error) return { data: out, error };
+    out.push(...rows);
+  }
+  return { data: out, error: null };
+}

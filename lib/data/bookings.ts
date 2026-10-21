@@ -6,6 +6,7 @@ import { TODAY as MOCK_TODAY, NOW_HHMM as MOCK_NOW_HHMM } from "@/lib/mock/rng";
 import { todayIsoDate, nowHHMM } from "@/lib/wallclock";
 import type { Booking } from "@/lib/types";
 import { getAuthUser } from "@/lib/supabase/authUser";
+import { fetchAllRows, selectInChunks } from "@/lib/supabase/paginate";
 
 // ---------------------------------------------------------------------
 // Dual-mode data-access layer for "bookings" — same pattern as the other
@@ -130,11 +131,17 @@ async function fetchLiveBookings(): Promise<Booking[] | null> {
   // rather than a cron job, and why it uses the caller's own RLS.
   await sweepNoShowBookings(supabase);
 
-  const { data: rows, error } = await supabase.from("bookings").select("*").order("date").order("scheduled_start");
+  // Anti-truncation (2026-10-21): tanpa .range() PostgREST memotong di
+  // ~1000 baris, dan karena urutannya dari tanggal TERLAMA, booking HARI
+  // INI yang terpotong duluan — tenant demo Royal Spa (2.100+ booking)
+  // tampil "0 booking hari ini". Lihat lib/supabase/paginate.ts.
+  const { rows, error } = await fetchAllRows<BookingRow>((from, to) =>
+    Promise.resolve(supabase.from("bookings").select("*").order("date").order("scheduled_start").order("id").range(from, to))
+  );
   if (error) return null;
   if (!rows || rows.length === 0) return []; // real session, genuinely zero bookings — NOT a mock-fallback trigger
 
-  const bookingRows = rows as BookingRow[];
+  const bookingRows = rows;
   const customerIds = [...new Set(bookingRows.map((r) => r.customer_id))];
   const employeeIds = [...new Set(bookingRows.map((r) => r.therapist_id).filter((v): v is string => !!v))];
   const roomIds = [...new Set(bookingRows.map((r) => r.room_id).filter((v): v is string => !!v))];
@@ -142,7 +149,7 @@ async function fetchLiveBookings(): Promise<Booking[] | null> {
   const addOnIds = [...new Set(bookingRows.flatMap((r) => r.add_on_ids ?? []))];
 
   const [{ data: customerRows }, { data: employeeRows }, { data: roomRows }, { data: packageRows }, { data: addOnRows }] = await Promise.all([
-    customerIds.length ? supabase.from("customers").select("id, name, phone").in("id", customerIds) : Promise.resolve({ data: [] }),
+    selectInChunks<{ id: string; name: string; phone: string }>(customerIds, (c, f, t) => supabase.from("customers").select("id, name, phone").in("id", c).order("id").range(f, t)),
     employeeIds.length ? supabase.from("employees").select("id, name").in("id", employeeIds) : Promise.resolve({ data: [] }),
     roomIds.length ? supabase.from("rooms").select("id, name").in("id", roomIds) : Promise.resolve({ data: [] }),
     packageIds.length ? supabase.from("service_packages").select("id, name").in("id", packageIds) : Promise.resolve({ data: [] }),

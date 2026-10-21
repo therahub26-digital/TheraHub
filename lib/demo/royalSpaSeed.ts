@@ -32,7 +32,8 @@ export type SeedLog = string[];
 
 const MARK = "[royal-demo]";
 const HISTORY_DAYS = 60;
-const OPEN_MIN = 10 * 60;
+// Jam buka 07.00 (revisi 21 Okt): demo pagi tetap tampil dengan jam nyata.
+const OPEN_MIN = 7 * 60;
 const CLOSE_MIN = 23 * 60;
 
 function mulberry32(seed: number) {
@@ -226,8 +227,8 @@ async function seedMasters(admin: Admin, log: SeedLog): Promise<Ctx> {
     lng: 107.6188,
     geofence_radius: 100,
     accuracy_threshold: 50,
-    open_hours: "Setiap hari · 10:00–23:00",
-    work_start_time: "10:00",
+    open_hours: "Setiap hari · 07:00–23:00",
+    work_start_time: "07:00",
     work_end_time: "23:00",
     status: "ACTIVE",
     manager_name: "Melinda Sari",
@@ -287,9 +288,9 @@ async function seedMasters(admin: Admin, log: SeedLog): Promise<Ctx> {
     outlet_id: outletId,
     published: true,
     tagline: "Relaksasi dalam sentuhan kemewahan.",
-    description: "Royal Spa adalah day spa di Bandung dengan 14 ruang perawatan pribadi: 8 kamar private, 4 couple suite, dan 2 royal suite. Pijat tradisional Nusantara dan terapi modern oleh 20 terapis bersertifikat, buka setiap hari pukul 10.00–23.00.",
+    description: "Royal Spa adalah day spa di Bandung dengan 14 ruang perawatan pribadi: 8 kamar private, 4 couple suite, dan 2 royal suite. Pijat tradisional Nusantara dan terapi modern oleh 20 terapis bersertifikat, buka setiap hari pukul 07.00–23.00.",
     cover_url: "/img/landing/royal-spa/hero-terapis-lobby.jpg",
-    highlights: ["20 terapis bersertifikat", "14 ruang perawatan pribadi", "Couple suite & royal suite", "Buka setiap hari 10.00–23.00"],
+    highlights: ["20 terapis bersertifikat", "14 ruang perawatan pribadi", "Couple suite & royal suite", "Buka setiap hari 07.00–23.00"],
   }, { onConflict: "outlet_id" }), "outlet_profiles");
   await admin.from("outlet_facilities").delete().eq("outlet_id", outletId);
   must(await admin.from("outlet_facilities").insert([
@@ -506,7 +507,8 @@ function fillDay(ctx: Ctx, acc: Acc, date: string, nowMin: number | null, rng: R
 
     // Satu customer tidak boleh punya dua kunjungan yang bentrok.
     let customerId = rng() < 0.08 ? ctx.customers[0] : pick(rng, ctx.customers);
-    for (let k = 0; k < 8 && !isFree(busyC, customerId, st, en); k++) customerId = pick(rng, ctx.customers);
+    // Jeda 3 jam: tamu yang sama tidak datang lagi tepat setelah selesai.
+    for (let k = 0; k < 8 && !isFree(busyC, customerId, st - 180, en + 180); k++) customerId = pick(rng, ctx.customers);
     occupy(busyC, customerId, st, en);
     for (let k = 0; k < pax; k++) {
       const th = cand[k];
@@ -581,14 +583,14 @@ function attendanceRows(ctx: Ctx, date: string, rng: Rng, closed: boolean): Row[
   for (const t of ctx.therapists) {
     if (OFF_DOW(t.idx) === dow) continue;
     const late = rng() < 0.08;
-    const inMin = late ? 600 + 5 + Math.floor(rng() * 20) : 570 + Math.floor(rng() * 28);
+    const inMin = late ? OPEN_MIN + 5 + Math.floor(rng() * 20) : OPEN_MIN - 30 + Math.floor(rng() * 28);
     const checkIn = wallClockIso(date, hhmm(inMin));
     rows.push({
-      employee_id: t.id, outlet_id: ctx.outletId, date, shift: "Setiap hari · 10:00–23:00",
+      employee_id: t.id, outlet_id: ctx.outletId, date, shift: "Setiap hari · 07:00–23:00",
       check_in_at: checkIn, check_out_at: closed ? wallClockIso(date, hhmm(1380 + Math.floor(rng() * 20))) : null,
       lat: -6.9024 + (rng() - 0.5) * 0.0006, lng: 107.6188 + (rng() - 0.5) * 0.0006, accuracy: 8 + Math.round(rng() * 20),
       distance_from_geofence: Math.round(5 + rng() * 60), device_id: "WEB-BROWSER", app_version: "web",
-      location_status: "VALID", late_minutes: late ? inMin - 600 : 0, status: closed ? "CHECKED_OUT" : late ? "LATE" : "CHECKED_IN", note: null,
+      location_status: "VALID", late_minutes: late ? inMin - OPEN_MIN : 0, status: closed ? "CHECKED_OUT" : late ? "LATE" : "CHECKED_IN", note: null,
     });
   }
   return rows;
@@ -681,7 +683,7 @@ export async function refreshToday(admin: Admin, log: SeedLog = []): Promise<See
   // Jam nyata kalau di dalam jam buka; di luar itu kondisi sore yang ramai
   // (catatan: di luar jam buka timer sesi akan tampak lewat waktu).
   let nowMin = h * 60 + m;
-  if (nowMin < 11 * 60 + 15 || nowMin > 22 * 60 + 15) nowMin = 15 * 60 + 40;
+  if (nowMin < 8 * 60 + 15 || nowMin > 22 * 60 + 45) nowMin = 15 * 60 + 40;
 
   // Booking hari ini yang masih utuh dari seed (belum disentuh pengunjung)
   // dibuang lalu dibuat ulang relatif jam sekarang.

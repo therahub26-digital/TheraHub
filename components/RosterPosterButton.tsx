@@ -2,26 +2,26 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ImageDown, Share2, X, Loader2 } from "lucide-react";
+import { POSTER_DEFAULT_TITLE, mixHex } from "@/lib/posterTheme";
 
 // ---------------------------------------------------------------------
-// "Your Relax Squad" — poster harian terapis bertugas untuk status WA.
-// Permintaan Adjie 2026-10-08: dari halaman cek jadwal harian, kasir/
-// manager menekan satu tombol, dapat PNG 1080×1920 berisi header brand,
-// grid foto + nama terapis yang bertugas, dan daftar nama yang off —
-// lalu langsung dibagikan ke status WhatsApp.
+// Poster "Our Squad Today" — terapis bertugas hari ini untuk status WA.
+//
+// Riwayat: 2026-10-08 versi pertama "Your Relax Squad" (hero foto + grid
+// gelap). 2026-10-21 didesain ulang mengikuti katalog Royal Spa milik
+// Adjie: pita atas berwarna brand (gambar header milik spa ATAU judul
+// teks), area foto krem dengan foto berbingkai + label nomor·nama di
+// pojok kiri bawah, pita bawah berisi kontak & daftar off. Gambar header,
+// warna pita, warna aksen, dan teks judul diatur admin per spa di
+// Business Profile (migrasi 0044). Kosong = default turunan warna brand.
 //
 // Keputusan "siapa yang bertugas" (Adjie, Opsi B): SEMUA terapis aktif
 // di outlet ini dikurangi yang punya pengecualian OFF/LEAVE hari ini.
-// Bukan berdasarkan check-in, karena poster dibuat pagi di awal
-// operasional sebelum semua terapis datang.
 //
-// Kenapa digambar di <canvas> browser, bukan next/og di server:
-// foto terapis diunggah dengan accept="image/*" sehingga bisa WebP/HEIC-
-// yang-sudah-dikonversi-browser, dan Satori (mesin next/og) tidak bisa
-// membaca WebP. Browser bisa membaca format apa pun yang ia tampilkan.
-// Foto dari Supabase Storage publik dikirim dengan header CORS `*`,
-// jadi `crossOrigin = "anonymous"` cukup supaya canvas tidak "tainted".
-// Foto yang gagal dimuat jatuh ke kotak inisial — poster tetap jadi.
+// Kenapa <canvas> browser, bukan next/og: foto terapis bisa WebP, dan
+// Satori tidak bisa membacanya. Foto dari Supabase Storage publik dikirim
+// dengan CORS `*`, jadi crossOrigin="anonymous" cukup. Foto/header yang
+// gagal dimuat jatuh ke kotak inisial / judul teks — poster tetap jadi.
 // ---------------------------------------------------------------------
 
 export type PosterTherapist = {
@@ -35,27 +35,26 @@ export type PosterOff = { name: string; type: "OFF" | "LEAVE" };
 
 export type RosterPosterData = {
   date: string; // YYYY-MM-DD
-  dateLabel: string; // "Kamis, 8 Oktober 2026"
+  dateLabel: string; // "Rabu, 21 Oktober 2026"
   brandName: string;
   outletName: string;
-  logoUrl: string | null;
-  heroPhotoUrl: string | null;
-  accent: string;
-  accent2: string;
-  base: string;
+  /** Gambar header milik spa (opsional). Kosong → judul teks. */
+  headerUrl: string | null;
+  /** Warna pita atas/bawah, #RRGGBB. */
+  bgColor: string;
+  /** Warna judul, nomor, garis ornamen, #RRGGBB. */
+  accentColor: string;
+  /** Teks judul kecil, mis. "OUR SQUAD TODAY". */
+  title: string;
   whatsapp: string | null;
   instagram: string | null;
   onDuty: PosterTherapist[];
   off: PosterOff[];
 };
 
+
 const W = 1080;
 const H = 1920;
-const PAD = 64;
-const TEXT = "#F6F1EA";
-const MUTED = "rgba(246, 241, 234, 0.70)";
-const CHIP = "rgba(255, 255, 255, 0.09)";
-const LINE = "rgba(255, 255, 255, 0.14)";
 
 function loadImage(src: string | null): Promise<HTMLImageElement | null> {
   if (!src) return Promise.resolve(null);
@@ -102,10 +101,18 @@ function fitText(ctx: CanvasRenderingContext2D, text: string, maxW: number): str
   return t + "…";
 }
 
-function hexToRgba(hex: string, a: number): string {
+function rgb(hex: string): [number, number, number] {
   const m = hex.replace("#", "");
   const n = parseInt(m.length === 3 ? m.split("").map((c) => c + c).join("") : m, 16);
-  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+function rgba(hex: string, a: number): string {
+  const [r, g, b] = rgb(hex);
+  return `rgba(${r}, ${g}, ${b}, ${a})`;
+}
+function luminance(hex: string): number {
+  const [r, g, b] = rgb(hex);
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
 }
 
 function initials(name: string): string {
@@ -113,34 +120,60 @@ function initials(name: string): string {
   return (parts.length > 1 ? parts[0][0] + parts[1][0] : name.slice(0, 2)).toUpperCase();
 }
 
-/** Warna teks (gelap/putih) yang terbaca di atas warna aksen. */
-function onAccent(hex: string): string {
-  const m = hex.replace("#", "");
-  const n = parseInt(m, 16);
-  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
-  return 0.299 * r + 0.587 * g + 0.114 * b > 150 ? "#14110d" : "#ffffff";
+/** Teks dengan jarak huruf (ctx.letterSpacing kalau ada, manual kalau tidak). */
+function spacedText(ctx: CanvasRenderingContext2D, text: string, cx: number, y: number, spacing: number): number {
+  const chars = [...text];
+  const widths = chars.map((c) => ctx.measureText(c).width);
+  const total = widths.reduce((s, w) => s + w, 0) + spacing * (chars.length - 1);
+  let x = cx - total / 2;
+  const prev = ctx.textAlign;
+  ctx.textAlign = "left";
+  chars.forEach((c, i) => {
+    ctx.fillText(c, x, y);
+    x += widths[i] + spacing;
+  });
+  ctx.textAlign = prev;
+  return total;
 }
 
-type Chip = { label: string; w: number };
-
-export type PosterColumns = 3 | 4;
+/** Garis ornamen kiri-kanan dengan belah ketupat kecil di ujung dalam. */
+function ornamentLines(ctx: CanvasRenderingContext2D, color: string, y: number, innerGap: number, outerPad: number) {
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = 2;
+  const cx = W / 2;
+  for (const dir of [-1, 1]) {
+    const x1 = cx + dir * innerGap;
+    const x2 = dir < 0 ? outerPad : W - outerPad;
+    ctx.beginPath();
+    ctx.moveTo(x1, y);
+    ctx.lineTo(x2, y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x1, y - 6);
+    ctx.lineTo(x1 + dir * 6, y);
+    ctx.lineTo(x1, y + 6);
+    ctx.lineTo(x1 - dir * 6, y);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
 
 export async function renderRosterPoster(data: RosterPosterData): Promise<Blob> {
-  const display = cssFont("--font-outfit", "system-ui, sans-serif");
-  const body = cssFont("--font-inter", "system-ui, sans-serif");
+  const sans = cssFont("--font-inter", "system-ui, sans-serif");
+  const serif = `"Cormorant Garamond", "Playfair Display", Georgia, "Times New Roman", serif`;
   if (document.fonts) {
-    await Promise.all([
-      document.fonts.load(`800 96px ${display}`),
-      document.fonts.load(`700 30px ${display}`),
-      document.fonts.load(`600 24px ${body}`),
-    ]).catch(() => undefined);
+    await Promise.all([document.fonts.load(`700 30px ${sans}`), document.fonts.load(`600 24px ${sans}`)]).catch(() => undefined);
   }
 
-  const [logo, hero, ...photos] = await Promise.all([
-    loadImage(data.logoUrl),
-    loadImage(data.heroPhotoUrl),
-    ...data.onDuty.map((t) => loadImage(t.photoUrl)),
-  ]);
+  const frame = data.bgColor;
+  const accent = data.accentColor;
+  const darkFrame = luminance(frame) < 0.55;
+  const onFrameMuted = darkFrame ? "rgba(246,238,228,0.72)" : "rgba(42,24,38,0.68)";
+  const body = mixHex("#FBF6F0", accent, 0.1); // krem hangat bernuansa aksen
+  const badge = mixHex(frame, "#000000", darkFrame ? 0.15 : 0.6);
+
+  const [header, ...photos] = await Promise.all([loadImage(data.headerUrl), ...data.onDuty.map((t) => loadImage(t.photoUrl))]);
 
   const canvas = document.createElement("canvas");
   canvas.width = W;
@@ -148,254 +181,165 @@ export async function renderRosterPoster(data: RosterPosterData): Promise<Blob> 
   const ctx = canvas.getContext("2d")!;
   ctx.textBaseline = "alphabetic";
 
-  // ---- latar dasar
-  ctx.fillStyle = data.base;
-  ctx.fillRect(0, 0, W, H);
-  const glow = ctx.createRadialGradient(W, H, 0, W, H, 900);
-  glow.addColorStop(0, hexToRgba(data.accent, 0.14));
-  glow.addColorStop(1, hexToRgba(data.accent, 0));
-  ctx.fillStyle = glow;
+  // ---- latar penuh warna pita (atas & bawah), area foto ditimpa krem
+  ctx.fillStyle = frame;
   ctx.fillRect(0, 0, W, H);
 
-  // ---- HERO
-  const HERO_H = 420;
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(0, 0, W, HERO_H);
-  ctx.clip();
-  if (hero) {
-    drawCover(ctx, hero, 0, 0, W, HERO_H, 0.5);
-    const scrim = ctx.createLinearGradient(0, 0, 0, HERO_H);
-    scrim.addColorStop(0, "rgba(0,0,0,0.45)");
-    scrim.addColorStop(1, "rgba(0,0,0,0.72)");
-    ctx.fillStyle = scrim;
-    ctx.fillRect(0, 0, W, HERO_H);
+  // ---- HEADER
+  let y = 0;
+  if (header) {
+    // Gambar header digambar selebar poster dengan rasio aslinya,
+    // dibatasi 150–460 px supaya grid tetap kebagian ruang.
+    const hh = Math.max(150, Math.min(460, Math.round((W * header.naturalHeight) / header.naturalWidth)));
+    drawCover(ctx, header, 0, 0, W, hh, 0.5);
+    y = hh;
   } else {
-    ctx.fillStyle = "rgba(255,255,255,0.04)";
-    ctx.fillRect(0, 0, W, HERO_H);
-    ctx.fillStyle = hexToRgba(data.accent, 0.2);
-    ctx.beginPath();
-    ctx.arc(W - 120, -40, 300, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = hexToRgba(data.accent2, 0.24);
-    ctx.beginPath();
-    ctx.arc(W - 330, HERO_H + 30, 130, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.restore();
-
-  // baris atas: logo + brand/outlet + chip tanggal
-  const topY = 44;
-  const LOGO = 76;
-  if (logo) {
-    ctx.save();
-    roundRect(ctx, PAD, topY, LOGO, LOGO, 20);
-    ctx.fillStyle = "#ffffff";
-    ctx.fill();
-    ctx.clip();
-    const s = Math.min((LOGO - 12) / logo.naturalWidth, (LOGO - 12) / logo.naturalHeight);
-    const lw = logo.naturalWidth * s, lh = logo.naturalHeight * s;
-    ctx.drawImage(logo, PAD + (LOGO - lw) / 2, topY + (LOGO - lh) / 2, lw, lh);
-    ctx.restore();
-  } else {
-    roundRect(ctx, PAD, topY, LOGO, LOGO, 20);
-    ctx.fillStyle = data.accent;
-    ctx.fill();
-    ctx.fillStyle = onAccent(data.accent);
-    ctx.font = `800 40px ${display}`;
+    // Judul teks: nama brand besar huruf kapital + garis ornamen.
+    ctx.fillStyle = accent;
     ctx.textAlign = "center";
-    ctx.fillText(data.brandName.slice(0, 1).toUpperCase(), PAD + LOGO / 2, topY + LOGO / 2 + 14);
-    ctx.textAlign = "left";
-  }
-
-  ctx.font = `700 22px ${body}`;
-  const dateChip = data.dateLabel;
-  const chipW = ctx.measureText(dateChip).width + 48;
-  roundRect(ctx, W - PAD - chipW, topY + 12, chipW, 52, 26);
-  ctx.fillStyle = "rgba(255,255,255,0.14)";
-  ctx.fill();
-  ctx.fillStyle = TEXT;
-  ctx.fillText(dateChip, W - PAD - chipW + 24, topY + 46);
-
-  const textX = PAD + LOGO + 20;
-  const textMax = W - PAD - chipW - 24 - textX;
-  ctx.fillStyle = TEXT;
-  ctx.font = `700 30px ${display}`;
-  ctx.fillText(fitText(ctx, data.brandName, textMax), textX, topY + 34);
-  ctx.fillStyle = MUTED;
-  ctx.font = `600 21px ${body}`;
-  ctx.fillText(fitText(ctx, data.outletName, textMax), textX, topY + 66);
-
-  // headline
-  ctx.fillStyle = TEXT;
-  ctx.font = `800 96px ${display}`;
-  ctx.fillText("Your Relax", PAD - 4, 236);
-  ctx.fillText("Squad", PAD - 4, 328);
-  const squadW = ctx.measureText("Squad ").width;
-  ctx.fillStyle = data.accent;
-  ctx.fillText("✦", PAD - 4 + squadW, 328);
-
-  ctx.fillStyle = MUTED;
-  ctx.font = `600 28px ${body}`;
-  ctx.fillText("Siap bikin harimu rileks. Pilih favoritmu, langsung booking.", PAD, 386);
-
-  // ---- FOOTER (dihitung dulu, supaya grid tahu sisa tinggi)
-  ctx.font = `600 25px ${body}`;
-  const chips: Chip[] = data.off.map((o) => {
-    const label = o.type === "LEAVE" ? `${o.name} · cuti` : o.name;
-    return { label, w: ctx.measureText(label).width + 44 };
-  });
-  const CHIP_H = 54, CHIP_GAP = 12;
-  const chipRows: Chip[][] = [];
-  let cur: Chip[] = [];
-  let curW = 0;
-  for (const c of chips) {
-    if (cur.length && curW + CHIP_GAP + c.w > W - PAD * 2) {
-      chipRows.push(cur);
-      cur = [];
-      curW = 0;
+    let fs = 112;
+    ctx.font = `600 ${fs}px ${serif}`;
+    const brand = data.brandName.toUpperCase();
+    while (fs > 56 && ctx.measureText(brand).width + brand.length * 6 > W - 260) {
+      fs -= 4;
+      ctx.font = `600 ${fs}px ${serif}`;
     }
-    curW += (cur.length ? CHIP_GAP : 0) + c.w;
-    cur.push(c);
+    const tw = spacedText(ctx, brand, W / 2, 150, 6);
+    ornamentLines(ctx, rgba(accent, 0.85), 112, tw / 2 + 34, 48);
+    ctx.textAlign = "left";
+    y = 196;
   }
-  if (cur.length) chipRows.push(cur);
-  const visibleRows = chipRows.slice(0, 3);
-  const offBlockH = chips.length ? visibleRows.length * CHIP_H + (visibleRows.length - 1) * CHIP_GAP : 40;
+
+  // ---- STRIP judul kecil + tanggal
+  const stripH = 104;
+  ctx.textAlign = "center";
+  ctx.fillStyle = accent;
+  ctx.font = `600 30px ${sans}`;
+  const tTitle = spacedText(ctx, (data.title || POSTER_DEFAULT_TITLE).toUpperCase(), W / 2, y + 44, 9);
+  ornamentLines(ctx, rgba(accent, 0.6), y + 34, tTitle / 2 + 26, 120);
+  ctx.fillStyle = onFrameMuted;
+  ctx.font = `500 24px ${sans}`;
+  spacedText(ctx, `${data.dateLabel} · ${data.outletName}`.toUpperCase(), W / 2, y + 84, 2.5);
+  ctx.textAlign = "left";
+  y += stripH;
+
+  // ---- FOOTER (dihitung dulu)
+  const offNames = data.off.map((o) => (o.type === "LEAVE" ? `${o.name.split(" ")[0]} (cuti)` : o.name.split(" ")[0]));
   const hasContact = !!(data.whatsapp || data.instagram);
-  const footerH = 40 + 22 + offBlockH + (hasContact ? 64 : 0) + 56;
+  const footerH = 118 + (offNames.length ? 38 : 0);
   const footerTop = H - footerH;
 
-  ctx.fillStyle = MUTED;
-  ctx.font = `700 26px ${display}`;
-  ctx.fillText("Lagi off hari ini", PAD, footerTop + 30);
-  const lblW = ctx.measureText("Lagi off hari ini").width;
-  ctx.fillStyle = LINE;
-  ctx.fillRect(PAD + lblW + 18, footerTop + 20, W - PAD * 2 - lblW - 18, 2);
-
-  let cy = footerTop + 62;
-  if (!chips.length) {
-    ctx.fillStyle = TEXT;
-    ctx.font = `600 26px ${body}`;
-    ctx.fillText("Semua terapis masuk hari ini — full squad!", PAD, cy + 30);
-  } else {
-    ctx.font = `600 25px ${body}`;
-    visibleRows.forEach((row, ri) => {
-      let cx = PAD;
-      const isLast = ri === visibleRows.length - 1 && chipRows.length > visibleRows.length;
-      row.forEach((c, ci) => {
-        let label = c.label;
-        let w = c.w;
-        if (isLast && ci === row.length - 1) {
-          const rest = chips.length - visibleRows.flat().length;
-          label = `+${rest + 1} lainnya`;
-          w = ctx.measureText(label).width + 44;
-        }
-        roundRect(ctx, cx, cy, w, CHIP_H, CHIP_H / 2);
-        ctx.fillStyle = CHIP;
-        ctx.fill();
-        ctx.fillStyle = TEXT;
-        ctx.fillText(label, cx + 22, cy + 36);
-        cx += w + CHIP_GAP;
-      });
-      cy += CHIP_H + CHIP_GAP;
-    });
-  }
-
-  if (hasContact) {
-    ctx.fillStyle = MUTED;
-    ctx.font = `600 23px ${body}`;
-    const baseY = H - 56;
-    if (data.whatsapp) ctx.fillText(`Booking via WA: ${data.whatsapp}`, PAD, baseY);
-    if (data.instagram) {
-      ctx.textAlign = "right";
-      ctx.fillText(data.instagram.startsWith("@") ? data.instagram : `@${data.instagram}`, W - PAD, baseY);
-      ctx.textAlign = "left";
-    }
-  }
-
-  // ---- GRID terapis bertugas
+  // ---- BODY krem + grid
+  const M = 14; // margin & jarak antar foto, seperti katalog contoh
+  ctx.fillStyle = body;
+  ctx.fillRect(0, y, W, footerTop - y);
   const n = data.onDuty.length;
-  const gridTop = HERO_H + 36;
-  const gridBottom = footerTop - 24;
+  const gridTop = y + M;
+  const gridBottom = footerTop - M;
   if (n === 0) {
-    ctx.fillStyle = MUTED;
-    ctx.font = `600 32px ${body}`;
+    ctx.fillStyle = "rgba(42,24,38,0.6)";
+    ctx.font = `600 32px ${sans}`;
     ctx.textAlign = "center";
     ctx.fillText("Belum ada terapis bertugas hari ini.", W / 2, (gridTop + gridBottom) / 2);
     ctx.textAlign = "left";
   } else {
-    // Auto-fit (Adjie 2026-10-08): format 3 atau 4 kolom, kotak foto 4:5,
-    // dipilih otomatis mana yang menghasilkan FOTO TERBESAR untuk jumlah
-    // terapis hari itu. Lebar kotak dibatasi lebar ATAU tinggi area (mana
-    // yang lebih sempit) supaya semua tetap muat satu poster. Hasilnya:
-    // 1–9 terapis → 3 kolom; 10 ke atas → 4 kolom (di 10–12 orang, 3 kolom
-    // butuh 4 baris sehingga fotonya justru lebih kecil dari 4 kolom).
-    const availW = W - PAD * 2;
+    // Pilih jumlah kolom (2–5) yang menghasilkan foto dengan LUAS terbesar
+    // untuk jumlah terapis hari itu. Kotak boleh memanjang dari 1:1 sampai
+    // 1:1,4 supaya area krem terisi saat terapis sedikit (tidak ada pita
+    // kosong di atas/bawah grid).
+    const MAX_RATIO = 1.4;
+    const availW = W - M * 2;
     const availH = gridBottom - gridTop;
-    const layoutFor = (c: PosterColumns) => {
+    let best = { cols: 4, rows: Math.ceil(n / 4), tw: 0, th: 0 };
+    for (const c of [2, 3, 4, 5]) {
       const rows = Math.ceil(n / c);
-      const gap = c === 4 ? 18 : 24;
-      const nameH = c === 4 ? 32 : 40;
-      const byWidth = (availW - gap * (c - 1)) / c;
-      const byHeight = ((availH - rows * (nameH + 10) - gap * (rows - 1)) / rows) * (4 / 5);
-      return { cols: c, rows, gap, nameH, tw: Math.floor(Math.min(byWidth, byHeight)) };
-    };
-    const three = layoutFor(3);
-    const four = layoutFor(4);
-    const { cols, rows, gap, nameH, tw } = four.tw > three.tw ? four : three;
-    const th = Math.floor((tw * 5) / 4);
-    const cellH = th + 10 + nameH;
-    const gridW = cols * tw + (cols - 1) * gap;
-    const gridH = rows * cellH + (rows - 1) * gap;
+      const byW = (availW - M * (c - 1)) / c;
+      const hMax = (availH - M * (rows - 1)) / rows;
+      const tw = Math.floor(Math.min(byW, hMax));
+      const th = Math.floor(Math.min(tw * MAX_RATIO, hMax));
+      if (tw * th > best.tw * best.th) best = { cols: c, rows, tw, th };
+    }
+    const { cols, rows, tw, th } = best;
+    const gridW = cols * tw + (cols - 1) * M;
+    const gridH = rows * th + (rows - 1) * M;
     const x0 = (W - gridW) / 2;
     const y0 = gridTop + Math.max(0, (availH - gridH) / 2);
-    const tileTones = [0.22, 0.3, 0.16, 0.26];
+    const BORDER = Math.max(4, Math.round(tw * 0.022));
 
     data.onDuty.forEach((t, i) => {
       const r = Math.floor(i / cols);
       const c = i % cols;
-      // baris terakhir yang tidak penuh ditengahkan
       const inRow = r === rows - 1 ? n - r * cols : cols;
-      const rowOffset = ((cols - inRow) * (tw + gap)) / 2;
-      const x = x0 + rowOffset + c * (tw + gap);
-      const y = y0 + r * (cellH + gap);
+      const rowOffset = ((cols - inRow) * (tw + M)) / 2;
+      const x = x0 + rowOffset + c * (tw + M);
+      const yy = y0 + r * (th + M);
 
+      // bingkai putih
+      ctx.fillStyle = "#FFFFFF";
+      ctx.fillRect(x, yy, tw, th);
+      ctx.shadowColor = "transparent";
+      const ix = x + BORDER, iy = yy + BORDER, iw = tw - BORDER * 2, ih = th - BORDER * 2;
       ctx.save();
-      roundRect(ctx, x, y, tw, th, Math.round(tw * 0.09));
+      ctx.beginPath();
+      ctx.rect(ix, iy, iw, ih);
       ctx.clip();
       const photo = photos[i];
       if (photo) {
-        drawCover(ctx, photo, x, y, tw, th, 0.2);
+        drawCover(ctx, photo, ix, iy, iw, ih, 0.22);
       } else {
-        ctx.fillStyle = hexToRgba(data.accent, tileTones[i % tileTones.length]);
-        ctx.fillRect(x, y, tw, th);
-        ctx.fillStyle = data.accent;
-        ctx.font = `800 ${Math.round(tw * 0.32)}px ${display}`;
+        ctx.fillStyle = mixHex(body, accent, 0.25);
+        ctx.fillRect(ix, iy, iw, ih);
+        ctx.fillStyle = frame;
+        ctx.font = `700 ${Math.round(iw * 0.3)}px ${serif}`;
         ctx.textAlign = "center";
-        ctx.fillText(initials(t.name), x + tw / 2, y + th / 2 + tw * 0.11);
+        ctx.fillText(initials(t.name), ix + iw / 2, iy + ih / 2 + iw * 0.1);
         ctx.textAlign = "left";
       }
-      if (t.skill) {
-        const fs = cols === 4 ? 15 : 18;
-        ctx.font = `600 ${fs}px ${body}`;
-        const label = fitText(ctx, t.skill, tw - 48);
-        const bw = ctx.measureText(label).width + 26;
-        const bh = fs + 16;
-        roundRect(ctx, x + 10, y + th - bh - 10, bw, bh, bh / 2);
-        ctx.fillStyle = "rgba(0,0,0,0.58)";
-        ctx.fill();
-        ctx.fillStyle = "#ffffff";
-        ctx.fillText(label, x + 23, y + th - 10 - bh / 2 + fs * 0.36);
-      }
-      ctx.restore();
 
-      ctx.fillStyle = TEXT;
-      ctx.font = `700 ${cols === 4 ? 24 : 28}px ${display}`;
-      ctx.textAlign = "center";
-      ctx.fillText(fitText(ctx, t.name, tw), x + tw / 2, y + th + 10 + nameH * 0.72);
-      ctx.textAlign = "left";
+      // label nomor · nama di pojok kiri bawah
+      const num = String(i + 1).padStart(2, "0");
+      const numFs = Math.max(20, Math.round(tw * 0.1));
+      const nameFs = Math.max(15, Math.round(tw * 0.068));
+      ctx.font = `600 ${numFs}px ${serif}`;
+      const numW = ctx.measureText(num).width;
+      ctx.font = `600 ${nameFs}px ${sans}`;
+      const first = t.name.split(" ")[0];
+      const nameText = fitText(ctx, first, iw - numW - 46);
+      const nameW = ctx.measureText(nameText).width;
+      const bh = Math.round(numFs * 1.5);
+      const bw = Math.min(iw - 8, Math.round(numW + nameW + 34));
+      const bx = ix, by = iy + ih - bh;
+      roundRect(ctx, bx, by, bw, bh + 8, 8);
+      ctx.fillStyle = rgba(badge, 0.88);
+      ctx.fill();
+      ctx.fillStyle = accent;
+      ctx.font = `600 ${numFs}px ${serif}`;
+      ctx.fillText(num, bx + 12, by + bh * 0.72);
+      ctx.fillStyle = "#FFFFFF";
+      ctx.font = `600 ${nameFs}px ${sans}`;
+      ctx.fillText(nameText, bx + 12 + numW + 10, by + bh * 0.7);
+      ctx.restore();
     });
   }
+
+  // ---- FOOTER
+  ctx.fillStyle = frame;
+  ctx.fillRect(0, footerTop, W, footerH);
+  const contact = [data.whatsapp ? `BOOKING WA ${data.whatsapp}` : null, data.instagram ? (data.instagram.startsWith("@") ? data.instagram : `@${data.instagram}`).toUpperCase() : null]
+    .filter(Boolean)
+    .join("  •  ");
+  ctx.textAlign = "center";
+  ctx.fillStyle = accent;
+  ctx.font = `600 24px ${sans}`;
+  const footText = hasContact ? contact : data.brandName.toUpperCase();
+  const fw = spacedText(ctx, footText, W / 2, footerTop + 66, 3.5);
+  ornamentLines(ctx, rgba(accent, 0.55), footerTop + 57, fw / 2 + 28, 40);
+  if (offNames.length) {
+    ctx.fillStyle = onFrameMuted;
+    ctx.font = `500 22px ${sans}`;
+    ctx.fillText(fitText(ctx, `Off hari ini: ${offNames.join(", ")}`, W - 120), W / 2, footerTop + 108);
+  }
+  ctx.textAlign = "left";
 
   return new Promise((resolve, reject) =>
     canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Gagal membuat gambar."))), "image/png")
@@ -410,7 +354,7 @@ export default function RosterPosterButton({ data }: { data: RosterPosterData })
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const urlRef = useRef<string | null>(null);
 
-  const filename = `relax-squad-${data.date}.png`;
+  const filename = `our-squad-${data.date}.png`;
 
   const generate = useCallback(async () => {
     setOpen(true);
@@ -486,7 +430,7 @@ export default function RosterPosterButton({ data }: { data: RosterPosterData })
           >
             <div className="row between">
               <div>
-                <div className="strong">Poster Your Relax Squad</div>
+                <div className="strong">Poster {data.title || POSTER_DEFAULT_TITLE}</div>
                 <div className="tiny dim">
                   {data.onDuty.length} bertugas · {data.off.length} off · {data.dateLabel}
                 </div>
@@ -516,7 +460,7 @@ export default function RosterPosterButton({ data }: { data: RosterPosterData })
             </div>
 
             <div className="tiny dim">
-              Daftar bertugas = semua terapis aktif outlet ini, kecuali yang Libur/Cuti hari ini. Ubah status off di halaman ini, lalu buat ulang posternya.
+              Daftar bertugas = semua terapis aktif outlet ini, kecuali yang Libur/Cuti hari ini. Ubah status off di halaman ini, lalu buat ulang posternya. Gambar header &amp; warna poster diatur Admin di Business Profile.
             </div>
 
             <div className="row g2" style={{ justifyContent: "flex-end" }}>

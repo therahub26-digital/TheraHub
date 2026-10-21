@@ -217,6 +217,17 @@ async function seedMasters(admin: Admin, log: SeedLog): Promise<Ctx> {
     logo_tone: "violet",
   }, "tenant");
   log.push(`tenant royal-spa ${tenantId}`);
+  // Poster "Our Squad Today" (migrasi 0044) — terpisah & toleran: kalau
+  // 0044 belum dijalankan, seed tetap jalan, poster memakai default.
+  {
+    const { error } = await admin.from("tenants").update({
+      poster_header_url: "/img/landing/royal-spa/poster-header.jpg",
+      poster_bg_color: "#2E1A2E",
+      poster_accent_color: "#D4B26A",
+      poster_title: "OUR SQUAD TODAY",
+    }).eq("id", tenantId);
+    if (error) log.push(`⚠️ pengaturan poster dilewati (${error.message}) — jalankan migrasi 0044`);
+  }
 
   const outletId = await upsertBy(admin, "outlets", { tenant_id: tenantId, code: DEMO_OUTLET_CODE }, {
     name: "Royal Spa — Bandung",

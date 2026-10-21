@@ -199,3 +199,58 @@ export async function setTenantBackgroundPhotoUrl(url: string | null): Promise<A
   revalidateProfile();
   return { ok: true };
 }
+
+// ---------------------------------------------------------------------
+// Poster "Our Squad Today" (migrasi 0044). Warna disimpan hex #RRGGBB;
+// string kosong = kembali ke default (null).
+// ---------------------------------------------------------------------
+const HEX = /^#[0-9A-Fa-f]{6}$/;
+
+export type TenantPosterInput = { bgColor: string; accentColor: string; title: string };
+
+export async function setTenantPosterSettings(input: TenantPosterInput): Promise<ActionResult> {
+  const { supabase, tenantId, error } = await requireTenant();
+  if (error || !tenantId) return { ok: false, error: error ?? "Tenant tidak ditemukan." };
+  const bg = input.bgColor.trim();
+  const accent = input.accentColor.trim();
+  const title = input.title.trim();
+  if (bg && !HEX.test(bg)) return { ok: false, error: "Warna latar harus format #RRGGBB." };
+  if (accent && !HEX.test(accent)) return { ok: false, error: "Warna aksen harus format #RRGGBB." };
+  if (title.length > 40) return { ok: false, error: "Judul poster maksimal 40 karakter." };
+
+  const { data, error: writeErr } = await supabase
+    .from("tenants")
+    .update({ poster_bg_color: bg || null, poster_accent_color: accent || null, poster_title: title || null })
+    .eq("id", tenantId)
+    .select("id")
+    .maybeSingle();
+  if (writeErr) {
+    if (/poster_/.test(writeErr.message ?? "")) return { ok: false, error: "Kolom poster belum ada — jalankan migrasi 0044 di Supabase dulu." };
+    return { ok: false, error: writeError(writeErr, "pengaturan poster") };
+  }
+  if (!data) return { ok: false, error: forbiddenMsg("pengaturan poster") };
+  revalidateProfile();
+  revalidatePath("/manager/schedule-check");
+  revalidatePath("/kasir/schedule-check");
+  return { ok: true };
+}
+
+export async function setTenantPosterHeaderUrl(url: string | null): Promise<ActionResult> {
+  const { supabase, tenantId, error } = await requireTenant();
+  if (error || !tenantId) return { ok: false, error: error ?? "Tenant tidak ditemukan." };
+  const { data, error: writeErr } = await supabase
+    .from("tenants")
+    .update({ poster_header_url: url })
+    .eq("id", tenantId)
+    .select("id")
+    .maybeSingle();
+  if (writeErr) {
+    if (/poster_/.test(writeErr.message ?? "")) return { ok: false, error: "Kolom poster belum ada — jalankan migrasi 0044 di Supabase dulu." };
+    return { ok: false, error: writeError(writeErr, "gambar header poster") };
+  }
+  if (!data) return { ok: false, error: forbiddenMsg("gambar header poster") };
+  revalidateProfile();
+  revalidatePath("/manager/schedule-check");
+  revalidatePath("/kasir/schedule-check");
+  return { ok: true };
+}

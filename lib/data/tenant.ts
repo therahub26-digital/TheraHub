@@ -129,3 +129,32 @@ export const getTenantTheme = cache(async (): Promise<TenantTheme> => {
     backgroundPhotoUrl: tenant?.backgroundPhotoUrl ?? null,
   };
 });
+// ---------------------------------------------------------------------
+// Pengaturan poster "Our Squad Today" (migrasi 0044, 2026-10-21).
+// SENGAJA query terpisah dari getCurrentTenant(): kalau migrasi 0044
+// belum dijalankan, select kolom baru gagal — dan kegagalan itu tidak
+// boleh ikut menjatuhkan tema seluruh portal. Gagal = semua null =
+// poster memakai default.
+// ---------------------------------------------------------------------
+export type TenantPosterSettings = {
+  headerUrl: string | null;
+  bgColor: string | null;
+  accentColor: string | null;
+  title: string | null;
+};
+
+export const getTenantPosterSettings = cache(async (): Promise<TenantPosterSettings> => {
+  const empty: TenantPosterSettings = { headerUrl: null, bgColor: null, accentColor: null, title: null };
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await getAuthUser();
+  if (!user) return empty;
+  const { data, error } = await supabase
+    .from("tenants")
+    .select("poster_header_url, poster_bg_color, poster_accent_color, poster_title")
+    .maybeSingle();
+  if (error || !data) return empty;
+  const row = data as { poster_header_url: string | null; poster_bg_color: string | null; poster_accent_color: string | null; poster_title: string | null };
+  return { headerUrl: row.poster_header_url, bgColor: row.poster_bg_color, accentColor: row.poster_accent_color, title: row.poster_title };
+});

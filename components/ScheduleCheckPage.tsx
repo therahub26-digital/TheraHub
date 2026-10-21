@@ -13,8 +13,9 @@ import ScheduleCheckBoard from "@/components/ScheduleCheckBoard";
 import LeavePlanBoard from "@/components/LeavePlanBoard";
 import LeaveRequestApprovalBoard from "@/components/LeaveRequestApprovalBoard";
 import RosterPosterButton, { type RosterPosterData } from "@/components/RosterPosterButton";
-import { getCurrentTenant, getTenantTheme } from "@/lib/data/tenant";
-import { brandByKey, backgroundByKey } from "@/lib/brand";
+import { POSTER_DEFAULT_ACCENT, POSTER_DEFAULT_TITLE, defaultPosterBg } from "@/lib/posterTheme";
+import { getCurrentTenant, getTenantTheme, getTenantPosterSettings } from "@/lib/data/tenant";
+import { brandByKey } from "@/lib/brand";
 import { ACTIVE_TENANT } from "@/lib/mock";
 
 // ---------------------------------------------------------------------
@@ -51,7 +52,7 @@ export default async function ScheduleCheckPage() {
     getLeaveRequestsForOutlet(outlet.id),
     getAttendanceForOutletOnDate(outlet.id, today),
   ]);
-  const [tenant, theme] = await Promise.all([getCurrentTenant(), getTenantTheme()]);
+  const [tenant, theme, poster] = await Promise.all([getCurrentTenant(), getTenantTheme(), getTenantPosterSettings()]);
   const therapistBoardProps = therapists.map((t) => ({
     id: t.id,
     name: t.name,
@@ -66,17 +67,17 @@ export default async function ScheduleCheckPage() {
   // terapis datang.
   const offById = new Map(exceptions.map((e) => [e.employeeId, e.type]));
   const brand = brandByKey(theme.brandKey);
-  const bg = backgroundByKey(theme.bgKey);
+  // Poster "Our Squad Today": pengaturan admin (0044) kalau ada, kalau
+  // tidak turunan warna brand — pita gelap bernuansa brand + aksen emas.
   const posterData: RosterPosterData = {
     date: today,
     dateLabel: fmtDateLong(today),
     brandName: tenant?.brandName ?? ACTIVE_TENANT.name,
     outletName: outlet.name,
-    logoUrl: theme.logoUrl,
-    heroPhotoUrl: theme.backgroundPhotoUrl ?? bg.image ?? null,
-    accent: brand.accent,
-    accent2: brand.accent2,
-    base: bg.base,
+    headerUrl: poster.headerUrl,
+    bgColor: poster.bgColor ?? defaultPosterBg(brand.accent),
+    accentColor: poster.accentColor ?? POSTER_DEFAULT_ACCENT,
+    title: poster.title ?? POSTER_DEFAULT_TITLE,
     whatsapp: tenant?.whatsapp || outlet.phone || null,
     instagram: tenant?.instagram || null,
     onDuty: therapists

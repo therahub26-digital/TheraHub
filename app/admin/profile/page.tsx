@@ -1,9 +1,11 @@
-import { getCurrentTenant } from "@/lib/data/tenant";
+import { getCurrentTenant, getTenantPosterSettings } from "@/lib/data/tenant";
+import { brandByKey } from "@/lib/brand";
+import { defaultPosterBg } from "@/lib/posterTheme";
 import BusinessProfileForm from "@/components/BusinessProfileForm";
 import MockDataNotice from "@/components/MockDataNotice";
 
 export default async function BusinessProfilePage() {
-  const tenant = await getCurrentTenant();
+  const [tenant, poster] = await Promise.all([getCurrentTenant(), getTenantPosterSettings()]);
 
   if (!tenant) {
     return (
@@ -14,5 +16,5 @@ export default async function BusinessProfilePage() {
     );
   }
 
-  return <BusinessProfileForm tenant={tenant} />;
+  return <BusinessProfileForm tenant={tenant} poster={poster} posterDefaultBg={defaultPosterBg(brandByKey(tenant.logoTone).accent)} />;
 }

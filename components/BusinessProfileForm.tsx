@@ -6,7 +6,8 @@ import { PageHead, Card, CardHead, Field, BrandPicker } from "@/components/ui";
 import ThemePresetPicker from "@/components/ThemePresetPicker";
 import { TenantLogoUploader, TenantBackgroundUploader } from "@/components/TenantBrandingUploaders";
 import { setTenantProfile, setTenantBrand, type TenantProfileInput } from "@/lib/actions/tenant";
-import type { TenantProfile } from "@/lib/data/tenant";
+import type { TenantProfile, TenantPosterSettings } from "@/lib/data/tenant";
+import PosterSettingsCard from "@/components/PosterSettingsCard";
 
 // ---------------------------------------------------------------------
 // Client half of /admin/profile (Business Profile). User (2026-08-25):
@@ -35,7 +36,7 @@ function fieldsFromTenant(t: TenantProfile): TenantProfileInput {
   };
 }
 
-export default function BusinessProfileForm({ tenant }: { tenant: TenantProfile }) {
+export default function BusinessProfileForm({ tenant, poster, posterDefaultBg }: { tenant: TenantProfile; poster: TenantPosterSettings; posterDefaultBg: string }) {
   const [fields, setFields] = useState<TenantProfileInput>(fieldsFromTenant(tenant));
   const [logoTone, setLogoTone] = useState(tenant.logoTone);
   const [bgTone, setBgTone] = useState(tenant.bgTone);
@@ -155,6 +156,15 @@ export default function BusinessProfileForm({ tenant }: { tenant: TenantProfile 
               backgroundUploadSlot={<TenantBackgroundUploader tenantId={tenant.id} />}
             />
           </Card>
+
+          <PosterSettingsCard
+            tenantId={tenant.id}
+            brandName={fields.brandName || tenant.brandName}
+            whatsapp={tenant.whatsapp}
+            instagram={tenant.instagram}
+            settings={poster}
+            defaultBg={posterDefaultBg}
+          />
 
           <Card className="card-pad">
             <div className="row g2" style={{ marginBottom: 10 }}>

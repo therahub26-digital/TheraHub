@@ -441,7 +441,7 @@ function fillDay(ctx: Ctx, acc: Acc, date: string, nowMin: number | null, rng: R
   const target = Math.round((26 + rng() * 10) * (weekend ? 1.35 : 1));
   const avail = ctx.therapists.filter((t) => OFF_DOW(t.idx) !== dow);
   const activeRooms = ctx.rooms.filter((r) => r.status === "ACTIVE");
-  const busyT: Busy = new Map(), busyR: Busy = new Map();
+  const busyT: Busy = new Map(), busyR: Busy = new Map(), busyC: Busy = new Map();
   for (const e of existing) {
     occupy(busyT, e.therapist_id, e.start, e.end + 15);
     if (e.room_id) occupy(busyR, e.room_id, e.start, e.end + 10);
@@ -450,12 +450,36 @@ function fillDay(ctx: Ctx, acc: Acc, date: string, nowMin: number | null, rng: R
   let made = existing.length;
   let tries = 0;
   let inSession = 0, awaitingPay = 0;
-  while (made < target && tries < target * 8) {
+  type St = "PAID" | "COMPLETED" | "IN_SESSION" | "ARRIVED" | "CONFIRMED" | "BOOKED" | "CANCELLED" | "NO_SHOW";
+
+  // Hari ini: kondisi "hidup" yang DIJAMIN ada saat reset, relatif jam
+  // sekarang — 6 tamu sedang dipijat (mulai 8–72 menit lalu), 2 selesai
+  // menunggu bayar, 2 sudah datang & menunggu di lounge (jadwal 10–20
+  // menit lagi, kamar dipilih kasir saat check-in). Sisanya acak.
+  const r5 = (x: number) => Math.round(x / 5) * 5;
+  const forced: { status: St; at: (dur: number) => number }[] = [];
+  if (nowMin !== null) {
+    for (const off of [8, 20, 32, 45, 58, 72]) forced.push({ status: "IN_SESSION", at: () => r5(nowMin - off) });
+    for (const back of [6, 16]) forced.push({ status: "COMPLETED", at: (dur) => r5(nowMin - back - dur) });
+    for (const ahead of [10, 20]) forced.push({ status: "ARRIVED", at: () => r5(nowMin + ahead) });
+  }
+  let forcedTries = 0;
+
+  while ((made < target || forced.length) && tries < target * 12) {
     tries++;
+    const f = forced[0];
+    if (f && ++forcedTries > 25) { forced.shift(); forcedTries = 0; continue; }
     const pkg = wpick(rng, ctx.packages, (p) => p.w);
-    const slots: number[] = [];
-    for (let t = OPEN_MIN; t + pkg.dur <= CLOSE_MIN; t += 30) slots.push(t);
-    const st = wpick(rng, slots, slotW);
+    let st: number;
+    if (f) {
+      st = f.at(pkg.dur);
+      if (st < OPEN_MIN || st + pkg.dur > CLOSE_MIN) continue;
+      if (f.status === "IN_SESSION" && st + pkg.dur <= (nowMin as number) + 10) continue;
+    } else {
+      const slots: number[] = [];
+      for (let t = OPEN_MIN; t + pkg.dur <= CLOSE_MIN; t += 30) slots.push(t);
+      st = wpick(rng, slots, slotW);
+    }
     const en = st + pkg.dur;
     const pax = pkg.room === "Couple" ? 2 : 1;
     const cand = avail.filter((t) => t.skills.includes(pkg.skill) && isFree(busyT, t.id, st, en + 15)).sort(() => rng() - 0.5);
@@ -463,29 +487,34 @@ function fillDay(ctx: Ctx, acc: Acc, date: string, nowMin: number | null, rng: R
     const roomTypes = pkg.room === "Couple" ? ["Couple"] : pkg.room === "VIP" ? ["VIP"] : ["Massage", "VIP"];
     const room = activeRooms.find((r) => roomTypes.includes(r.type) && isFree(busyR, r.id, st, en + 10));
     if (!room) continue;
-    occupy(busyR, room.id, st, en + 10);
 
     // Status relatif jam sekarang.
-    let status: "PAID" | "COMPLETED" | "IN_SESSION" | "CONFIRMED" | "BOOKED" | "CANCELLED" | "NO_SHOW" = "PAID";
-    if (nowMin === null) {
+    let status: St = "PAID";
+    if (f) status = f.status;
+    else if (nowMin === null) {
       const x = rng();
       status = x < 0.03 ? "CANCELLED" : x < 0.05 ? "NO_SHOW" : "PAID";
     } else if (en <= nowMin - 25) status = "PAID";
     else if (en <= nowMin) status = awaitingPay < 2 ? "COMPLETED" : "PAID";
     else if (st <= nowMin) status = inSession < 7 ? "IN_SESSION" : "PAID";
     else status = st - nowMin <= 120 ? "CONFIRMED" : "BOOKED";
+    if (status === "PAID" && nowMin !== null && st <= nowMin && en > nowMin) continue; // sesi berjalan sudah cukup
     if (status === "COMPLETED") awaitingPay++;
     if (status === "IN_SESSION") inSession++;
-    if (status === "PAID" && nowMin !== null && st <= nowMin && en > nowMin) continue; // slot sesi penuh, lewati
+    if (f) { forced.shift(); forcedTries = 0; }
+    occupy(busyR, room.id, st, en + 10);
 
-    const customerId = rng() < 0.08 ? ctx.customers[0] : pick(rng, ctx.customers);
+    // Satu customer tidak boleh punya dua kunjungan yang bentrok.
+    let customerId = rng() < 0.08 ? ctx.customers[0] : pick(rng, ctx.customers);
+    for (let k = 0; k < 8 && !isFree(busyC, customerId, st, en); k++) customerId = pick(rng, ctx.customers);
+    occupy(busyC, customerId, st, en);
     for (let k = 0; k < pax; k++) {
       const th = cand[k];
       occupy(busyT, th.id, st, en + 15);
       const startIso = wallClockIso(date, hhmm(st));
       const endIso = plusMinutes(startIso, pkg.dur);
       const bookingId = randomUUID();
-      const hasRoom = !["BOOKED", "CONFIRMED", "CANCELLED", "NO_SHOW"].includes(status);
+      const hasRoom = !["BOOKED", "CONFIRMED", "ARRIVED", "CANCELLED", "NO_SHOW"].includes(status);
       acc.bookings.push({
         id: bookingId, code: `BK-${date.replace(/-/g, "")}-${code4(rng)}`, outlet_id: ctx.outletId, customer_id: customerId,
         therapist_id: th.id, room_id: hasRoom ? room.id : null, package_id: pkg.id, duration_min: pkg.dur, price: pkg.price,
@@ -649,8 +678,10 @@ export async function refreshToday(admin: Admin, log: SeedLog = []): Promise<See
   const today = todayIsoDate();
   const [h, m] = nowHHMM().split(":").map(Number);
   // Di luar jam buka, tampilkan kondisi sore yang ramai supaya demo hidup.
+  // Jam nyata kalau di dalam jam buka; di luar itu kondisi sore yang ramai
+  // (catatan: di luar jam buka timer sesi akan tampak lewat waktu).
   let nowMin = h * 60 + m;
-  if (nowMin < 11 * 60 || nowMin > 22 * 60) nowMin = 15 * 60 + 40;
+  if (nowMin < 11 * 60 + 15 || nowMin > 22 * 60 + 15) nowMin = 15 * 60 + 40;
 
   // Booking hari ini yang masih utuh dari seed (belum disentuh pengunjung)
   // dibuang lalu dibuat ulang relatif jam sekarang.

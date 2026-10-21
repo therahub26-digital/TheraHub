@@ -52,6 +52,7 @@ export default function DemoRoleSwitcher({ roles }: { roles: R[] }) {
             </button>
           ))}
           <Link href="/" className="demo-switch-sub">Website Royal Spa</Link>
+          <Link href="/demo" className="demo-switch-sub">Reset data demo</Link>
           <button className="demo-switch-sub" onClick={exit} disabled={busy}>Keluar demo</button>
         </div>
       )}

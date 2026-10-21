@@ -8,8 +8,9 @@ import { seedRoyalSpa } from "@/lib/demo/royalSpaSeed";
 // Seed + reset tenant demo Royal Spa.
 //   - Pertama kali: dari `npm run dev` lokal → GET http://localhost:<port>/api/demo/seed
 //     (butuh DEMO_ACCOUNT_PASSWORD di .env.local, sama dengan di Vercel demo).
-//   - Setiap malam: Vercel Cron (vercel.json) di deploy demo, dengan header
-//     Authorization: Bearer <CRON_SECRET> yang dikirim Vercel otomatis.
+//   - Di deploy demo: dari tombol "Reset data" di /demo (route /api/demo/reset).
+//     Route ini tetap bisa dipanggil manual dengan Authorization: Bearer <CRON_SECRET>.
+//     Reset otomatis malam DIMATIKAN atas keputusan Adjie (2026-10-20).
 // Di deploy produksi (DEMO_MODE kosong) route ini 404.
 // ---------------------------------------------------------------------
 

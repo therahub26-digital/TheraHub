@@ -2,12 +2,9 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { isDemoMode, DEMO_GATE_COOKIE, DEMO_GATE_TTL_SEC } from "@/lib/demo/config";
 import { checkMarketingCredentials, signGate } from "@/lib/demo/gate";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { refreshToday } from "@/lib/demo/royalSpaSeed";
 
 // Gerbang marketing demo Royal Spa. Hanya hidup di deploy DEMO_MODE=1.
 export const dynamic = "force-dynamic";
-export const maxDuration = 30;
 
 export async function POST(req: Request) {
   if (!isDemoMode()) return NextResponse.json({ error: "not found" }, { status: 404 });
@@ -37,15 +34,5 @@ export async function POST(req: Request) {
     path: "/",
     maxAge: DEMO_GATE_TTL_SEC,
   });
-  // Segarkan jadwal "hari ini" relatif jam sekarang — reset malam membuat
-  // semua booking hari ini masih "terjadwal"; tanpa ini demo siang hari
-  // tampak penuh tamu yang tidak datang. Gagal di sini tidak boleh
-  // menggagalkan login.
-  try {
-    const log = await refreshToday(createAdminClient());
-    console.log("[demo/login] refreshToday", log.join(" | "));
-  } catch (e) {
-    console.error("[demo/login] refreshToday gagal", e);
-  }
   return NextResponse.json({ ok: true });
 }

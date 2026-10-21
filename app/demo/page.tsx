@@ -6,6 +6,7 @@ import { isDemoMode, DEMO_GATE_COOKIE, DEMO_ROLES } from "@/lib/demo/config";
 import { verifyGate } from "@/lib/demo/gate";
 import DemoGateForm from "@/components/demo/DemoGateForm";
 import DemoRolePicker from "@/components/demo/DemoRolePicker";
+import DemoResetButton from "@/components/demo/DemoResetButton";
 import "@/components/demo/demo.css";
 
 export const dynamic = "force-dynamic";
@@ -28,11 +29,12 @@ export default async function DemoPage() {
             <div>
               <h1 className="demo-h1">Masuk sebagai</h1>
               <p className="muted small">
-                Satu akun demo, enam peran. Semua data Royal Spa fiktif dan dikembalikan ke kondisi awal setiap malam pukul 03.00 WIB.
+                Satu akun demo, enam peran. Semua data Royal Spa fiktif. Gunakan Reset data di bawah sebelum presentasi.
               </p>
             </div>
             <DemoRolePicker roles={DEMO_ROLES.map(({ role, label, person, desc }) => ({ role, label, person, desc }))} />
             <Link className="demo-link" href="/">Lihat website Royal Spa →</Link>
+            <DemoResetButton />
           </>
         ) : (
           <>

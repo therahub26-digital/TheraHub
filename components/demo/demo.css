@@ -33,3 +33,10 @@
 .demo-switch-menu button[disabled]{cursor:default;opacity:.65}
 .demo-switch-menu button span{font-size:11px;font-weight:700;color:#1f6b3f}
 .demo-switch-sub{border-top:1px solid #eee !important;border-radius:0 !important;color:#6c5a66 !important;font-size:13px !important}
+.demo-reset{display:grid;gap:10px;border-top:1px solid #eee3e8;padding-top:16px}
+.demo-reset b{font-size:14px;color:#2a1826}
+.demo-reset p{margin:4px 0 0;font-size:13px;color:#6c5a66;line-height:1.5}
+.demo-reset-btn{justify-self:start;border:1.5px solid #5b2453;background:#5b2453;color:#fff;border-radius:10px;padding:8px 16px;font:600 14px/1.2 inherit;cursor:pointer}
+.demo-reset-btn.ghost{background:#fff;color:#5b2453}
+.demo-reset-msg{font-size:13px;color:#1f6b3f !important}
+.demo-reset-msg.err{color:#b91c1c !important}

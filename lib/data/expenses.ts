@@ -53,6 +53,7 @@ type PettyCashRow = {
 
 export type PettyCash = {
   outletId: string;
+  custodianId: string | null;
   balance: number;
   limit: number;
   custodianName: string;
@@ -121,6 +122,7 @@ export async function getPettyCash(outletId: string): Promise<{ pettyCash: Petty
       return {
         pettyCash: {
           outletId,
+          custodianId: r?.custodian_employee_id ?? null,
           balance: r ? Number(r.balance) : 0,
           limit: r ? Number(r.limit_amount) : 0,
           custodianName: r?.employees?.name ?? "Belum ditentukan",
@@ -135,6 +137,7 @@ export async function getPettyCash(outletId: string): Promise<{ pettyCash: Petty
   return {
     pettyCash: {
       outletId,
+      custodianId: null,
       balance: mock?.balance ?? 0,
       limit: mock?.limit ?? 0,
       custodianName: mock?.custodian ?? "—",
@@ -142,4 +145,52 @@ export async function getPettyCash(outletId: string): Promise<{ pettyCash: Petty
     },
     live: false,
   };
+}
+
+// ---------------------------------------------------------------------
+// Mutasi & pengaturan kas kecil (2026-10-23) — melengkapi alur kas kecil:
+// top-up, pengeluaran, pemegang & limit. Hanya untuk sesi login (mode
+// demo "Ganti Role" tidak punya mutasi).
+// ---------------------------------------------------------------------
+
+export type PettyCashMovement = {
+  id: string;
+  type: "TOP_UP" | "DISBURSEMENT" | "ADJUSTMENT" | "RETURN";
+  amount: number;
+  note: string | null;
+  at: string;
+  byName: string;
+  expenseId: string | null;
+};
+
+export async function getPettyCashMovements(outletId: string, limit = 10): Promise<PettyCashMovement[]> {
+  if (!(await isSignedIn())) return [];
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("petty_cash_movements")
+    .select("id, type, amount, note, at, expense_id, employees:by_employee_id(name)")
+    .eq("outlet_id", outletId)
+    .order("at", { ascending: false })
+    .limit(limit);
+  if (error || !data) return [];
+  return (data as unknown as {
+    id: string; type: PettyCashMovement["type"]; amount: number | string; note: string | null; at: string;
+    expense_id: string | null; employees: { name: string } | { name: string }[] | null;
+  }[]).map((r) => {
+    const emp = Array.isArray(r.employees) ? r.employees[0] : r.employees;
+    return { id: r.id, type: r.type, amount: Number(r.amount), note: r.note, at: r.at, byName: emp?.name ?? "—", expenseId: r.expense_id };
+  });
+}
+
+/** Karyawan aktif outlet yang bisa ditunjuk sebagai pemegang kas kecil. */
+export async function getPettyCashCustodianOptions(outletId: string): Promise<{ id: string; name: string }[]> {
+  if (!(await isSignedIn())) return [];
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("employees")
+    .select("id, name")
+    .eq("outlet_id", outletId)
+    .eq("status", "ACTIVE")
+    .order("name");
+  return (data ?? []) as { id: string; name: string }[];
 }

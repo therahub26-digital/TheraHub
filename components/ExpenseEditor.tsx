@@ -2,7 +2,10 @@
 
 import { useState, useTransition } from "react";
 import Icon from "@/components/Icon";
-import { createExpense, approveExpense, rejectExpense, topUpPettyCash, type PaymentMethod } from "@/lib/actions/expenses";
+import {
+  createExpense, approveExpense, rejectExpense, markExpensePaid, topUpPettyCash, disbursePettyCash, setPettyCashCustodian,
+  type PaymentMethod,
+} from "@/lib/actions/expenses";
 import { EXPENSE_CATEGORIES } from "@/lib/constants/expenseCategories";
 import { todayIsoDate } from "@/lib/wallclock";
 
@@ -185,6 +188,136 @@ export function PettyCashTopUpForm({ outletId }: { outletId: string }) {
               setError(null);
               startTransition(async () => {
                 const r = await topUpPettyCash({ outletId, amount: Number(amount) || 0, note });
+                if (r.ok) setOpen(false);
+                else setError(r.error);
+              });
+            }}
+          >
+            <Icon name="check" size={13} /> {isPending ? "Menyimpan…" : "Simpan"}
+          </button>
+          <button className="btn btn-ghost btn-sm" disabled={isPending} onClick={() => setOpen(false)}>Batal</button>
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// 2026-10-23 — melengkapi alur yang sebelumnya hanya ada di server:
+// tandai dibayar, pengeluaran kas kecil, pemegang & limit kas kecil.
+// ---------------------------------------------------------------------
+
+export function MarkPaidButton({ id, viaPettyCash }: { id: string; viaPettyCash: boolean }) {
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <div className="stack g1" style={{ alignItems: "flex-end" }}>
+      <button
+        className="btn btn-ghost btn-sm" disabled={isPending}
+        title={viaPettyCash ? "Saldo kas kecil akan dipotong sebesar jumlah + pajak" : "Tandai uangnya sudah dibayarkan"}
+        onClick={() => { setError(null); startTransition(async () => { const r = await markExpensePaid(id); if (!r.ok) setError(r.error); }); }}
+      >
+        <Icon name="check" size={12} /> {isPending ? "Menyimpan…" : "Tandai dibayar"}
+      </button>
+      <ErrorNote error={error} />
+    </div>
+  );
+}
+
+export function PettyCashDisburseForm({ outletId, balance }: { outletId: string; balance: number }) {
+  const [open, setOpen] = useState(false);
+  const [amount, setAmount] = useState("");
+  const [note, setNote] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  if (!open) {
+    return (
+      <button className="btn btn-ghost btn-sm" disabled={balance <= 0} title={balance <= 0 ? "Saldo kas kecil kosong" : undefined}
+        onClick={() => { setAmount(""); setNote(""); setError(null); setOpen(true); }}>
+        <Icon name="minus" size={12} /> Keluarkan
+      </button>
+    );
+  }
+
+  return (
+    <div style={{ position: "relative", display: "inline-block" }}>
+      <Panel width={300}>
+        <div className="small strong" style={{ color: "var(--text-1)" }}>Uang keluar dari kas kecil</div>
+        <div className="tiny dim">Untuk belanja kecil (parkir, galon, ATK). Belanja dengan nota/vendor sebaiknya dicatat lewat &ldquo;Catat Pengeluaran&rdquo; metode Petty Cash.</div>
+        <label className="stack g1">
+          <span className="tiny dim">Jumlah (saldo Rp{balance.toLocaleString("id-ID")})</span>
+          <input className="input" type="number" value={amount} disabled={isPending} onChange={(e) => setAmount(e.target.value)} />
+        </label>
+        <label className="stack g1">
+          <span className="tiny dim">Untuk keperluan</span>
+          <input className="input" value={note} disabled={isPending} onChange={(e) => setNote(e.target.value)} placeholder="mis. Galon air 3 buah" />
+        </label>
+        <ErrorNote error={error} />
+        <div className="row g2">
+          <button
+            className="btn btn-primary btn-sm" disabled={isPending}
+            onClick={() => {
+              setError(null);
+              startTransition(async () => {
+                const r = await disbursePettyCash({ outletId, amount: Number(amount) || 0, note });
+                if (r.ok) setOpen(false);
+                else setError(r.error);
+              });
+            }}
+          >
+            <Icon name="check" size={13} /> {isPending ? "Menyimpan…" : "Simpan"}
+          </button>
+          <button className="btn btn-ghost btn-sm" disabled={isPending} onClick={() => setOpen(false)}>Batal</button>
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+export function PettyCashSettingsForm({ outletId, custodianId, limit, employees }: {
+  outletId: string;
+  custodianId: string | null;
+  limit: number;
+  employees: { id: string; name: string }[];
+}) {
+  const [open, setOpen] = useState(false);
+  const [person, setPerson] = useState(custodianId ?? "");
+  const [limitValue, setLimitValue] = useState(String(limit || ""));
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  if (!open) {
+    return (
+      <button className="btn btn-ghost btn-sm" onClick={() => { setPerson(custodianId ?? ""); setLimitValue(String(limit || "")); setError(null); setOpen(true); }}>
+        <Icon name="settings" size={12} /> Atur
+      </button>
+    );
+  }
+
+  return (
+    <div style={{ position: "relative", display: "inline-block" }}>
+      <Panel width={300}>
+        <div className="small strong" style={{ color: "var(--text-1)" }}>Pengaturan kas kecil</div>
+        <label className="stack g1">
+          <span className="tiny dim">Pemegang kas kecil</span>
+          <select className="select" value={person} disabled={isPending} onChange={(e) => setPerson(e.target.value)}>
+            <option value="">— Belum ditentukan —</option>
+            {employees.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+          </select>
+        </label>
+        <label className="stack g1">
+          <span className="tiny dim">Limit saldo (plafon top-up, 0 = tanpa batas)</span>
+          <input className="input" type="number" value={limitValue} disabled={isPending} onChange={(e) => setLimitValue(e.target.value)} />
+        </label>
+        <ErrorNote error={error} />
+        <div className="row g2">
+          <button
+            className="btn btn-primary btn-sm" disabled={isPending}
+            onClick={() => {
+              setError(null);
+              startTransition(async () => {
+                const r = await setPettyCashCustodian(outletId, person || null, Number(limitValue) || 0);
                 if (r.ok) setOpen(false);
                 else setError(r.error);
               });

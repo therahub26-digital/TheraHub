@@ -83,7 +83,7 @@ export async function createExpense(input: CreateExpenseInput): Promise<ActionRe
   });
   if (error) return { ok: false, error: "Gagal menyimpan pengeluaran." };
 
-  revalidatePath("/manager/expenses");
+  revalidateExpensePages();
   return { ok: true };
 }
 
@@ -108,8 +108,13 @@ async function setExpenseStatus(
   const { error } = await supabase.from("expenses").update(patch).eq("id", id);
   if (error) return { ok: false, error: "Gagal mengubah status — pastikan akun Anda punya hak approval." };
 
-  revalidatePath("/manager/expenses");
+  revalidateExpensePages();
   return { ok: true };
+}
+
+function revalidateExpensePages() {
+  revalidatePath("/manager/expenses");
+  revalidatePath("/owner/expenses");
 }
 
 export async function approveExpense(id: string): Promise<ActionResult> {
@@ -120,8 +125,56 @@ export async function rejectExpense(id: string): Promise<ActionResult> {
   return setExpenseStatus(id, "REJECTED", true);
 }
 
+/**
+ * Pengeluaran yang sudah DISETUJUI ditandai DIBAYAR (2026-10-23). Bila
+ * metode bayarnya "Petty Cash", saldo kas kecil outlet langsung dipotong
+ * sebesar jumlah + pajak dan mutasinya ditautkan ke expense ini
+ * (petty_cash_movements.expense_id) supaya tidak tercatat dua kali.
+ * Saldo kurang → status TIDAK berubah.
+ */
 export async function markExpensePaid(id: string): Promise<ActionResult> {
-  return setExpenseStatus(id, "PAID", false);
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Sesi tidak ditemukan — silakan login ulang." };
+
+  const { data: expense } = await supabase
+    .from("expenses")
+    .select("id, outlet_id, vendor, category, amount, tax, payment_method, status")
+    .eq("id", id)
+    .maybeSingle();
+  if (!expense) return { ok: false, error: "Pengeluaran tidak ditemukan." };
+  if (expense.status !== "APPROVED") return { ok: false, error: "Hanya pengeluaran yang sudah disetujui yang bisa ditandai dibayar." };
+
+  // Ubah status dulu dengan penjaga status, supaya klik ganda tidak
+  // memotong kas kecil dua kali.
+  const { data: updated, error } = await supabase
+    .from("expenses")
+    .update({ status: "PAID" })
+    .eq("id", id)
+    .eq("status", "APPROVED")
+    .select("id");
+  if (error) return { ok: false, error: "Gagal mengubah status — pastikan akun Anda punya hak approval." };
+  if (!updated?.length) return { ok: false, error: "Status pengeluaran sudah berubah. Muat ulang halaman." };
+
+  if (expense.payment_method === "Petty Cash") {
+    const total = Number(expense.amount) + Number(expense.tax ?? 0);
+    const moved = await movePettyCash(
+      { outletId: expense.outlet_id, amount: total, note: `${expense.category} · ${expense.vendor}` },
+      "DISBURSEMENT",
+      -1,
+      expense.id,
+    );
+    if (!moved.ok) {
+      // Kembalikan status; pengeluaran belum benar-benar dibayar.
+      await supabase.from("expenses").update({ status: "APPROVED" }).eq("id", id).eq("status", "PAID");
+      return moved;
+    }
+  }
+
+  revalidateExpensePages();
+  return { ok: true };
 }
 
 // ============================================================== PETTY CASH
@@ -141,7 +194,8 @@ export type PettyCashMoveInput = { outletId: string; amount: number; note: strin
 async function movePettyCash(
   input: PettyCashMoveInput,
   type: "TOP_UP" | "DISBURSEMENT",
-  sign: 1 | -1
+  sign: 1 | -1,
+  expenseId: string | null = null,
 ): Promise<ActionResult> {
   const supabase = await createClient();
   const {
@@ -154,9 +208,14 @@ async function movePettyCash(
   const { employeeId } = await resolveIdentity(supabase, user.id);
   await ensurePettyCashRow(supabase, input.outletId);
 
-  const { data: current } = await supabase.from("petty_cash").select("balance").eq("outlet_id", input.outletId).single();
+  const { data: current } = await supabase.from("petty_cash").select("balance, limit_amount").eq("outlet_id", input.outletId).single();
   const newBalance = Number(current?.balance ?? 0) + sign * input.amount;
   if (newBalance < 0) return { ok: false, error: "Saldo kas kecil tidak cukup untuk pengeluaran ini." };
+  // Limit = plafon saldo kas kecil (0 = belum diatur, tidak dibatasi).
+  const limit = Number(current?.limit_amount ?? 0);
+  if (type === "TOP_UP" && limit > 0 && newBalance > limit) {
+    return { ok: false, error: `Top-up melebihi limit kas kecil. Maksimal top-up saat ini Rp${Math.max(0, limit - Number(current?.balance ?? 0)).toLocaleString("id-ID")}.` };
+  }
 
   const at = nowIso();
   const patch: Record<string, unknown> = { balance: newBalance, updated_at: at };
@@ -172,9 +231,10 @@ async function movePettyCash(
     note: input.note.trim() || null,
     at,
     by_employee_id: employeeId,
+    expense_id: expenseId,
   });
 
-  revalidatePath("/manager/expenses");
+  revalidateExpensePages();
   return { ok: true };
 }
 
@@ -182,11 +242,13 @@ export async function topUpPettyCash(input: PettyCashMoveInput): Promise<ActionR
   return movePettyCash(input, "TOP_UP", 1);
 }
 
+/** Uang keluar dari kas kecil untuk belanja kecil tanpa entri pengeluaran terpisah (wajib catatan). */
 export async function disbursePettyCash(input: PettyCashMoveInput): Promise<ActionResult> {
+  if (!input.note.trim()) return { ok: false, error: "Tulis untuk apa uangnya dipakai." };
   return movePettyCash(input, "DISBURSEMENT", -1);
 }
 
-export async function setPettyCashCustodian(outletId: string, employeeId: string, limitAmount: number): Promise<ActionResult> {
+export async function setPettyCashCustodian(outletId: string, employeeId: string | null, limitAmount: number): Promise<ActionResult> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -197,10 +259,10 @@ export async function setPettyCashCustodian(outletId: string, employeeId: string
   await ensurePettyCashRow(supabase, outletId);
   const { error } = await supabase
     .from("petty_cash")
-    .update({ custodian_employee_id: employeeId, limit_amount: limitAmount, updated_at: nowIso() })
+    .update({ custodian_employee_id: employeeId || null, limit_amount: limitAmount, updated_at: nowIso() })
     .eq("outlet_id", outletId);
   if (error) return { ok: false, error: "Gagal menyimpan pengaturan kas kecil." };
 
-  revalidatePath("/manager/expenses");
+  revalidateExpensePages();
   return { ok: true };
 }

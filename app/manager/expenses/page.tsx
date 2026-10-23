@@ -1,11 +1,11 @@
 import { PageHead, Card, CardHead, StatCard, Badge, StatusBadge } from "@/components/ui";
 import { DonutChart, LegendList } from "@/components/Charts";
 import { getCurrentOutlet } from "@/lib/data/outlets";
-import { getExpensesForOutlet, expenseByCategory, getPettyCash } from "@/lib/data/expenses";
-import { rp, fmtDateShort, monthLabel } from "@/lib/format";
+import { getExpensesForOutlet, expenseByCategory, getPettyCash, getPettyCashMovements, getPettyCashCustodianOptions } from "@/lib/data/expenses";
+import { rp, fmtDateShort, fmtDateTime, monthLabel } from "@/lib/format";
 import { toCsv, csvFilename } from "@/lib/csv";
 import ExportCsvButton from "@/components/ExportCsvButton";
-import { NewExpenseForm, ApproveRejectButtons, PettyCashTopUpForm } from "@/components/ExpenseEditor";
+import { NewExpenseForm, ApproveRejectButtons, PettyCashTopUpForm, MarkPaidButton, PettyCashDisburseForm, PettyCashSettingsForm } from "@/components/ExpenseEditor";
 import { todayIsoDate } from "@/lib/wallclock";
 
 // ---------------------------------------------------------------------
@@ -31,12 +31,22 @@ function currentPeriod(): string {
   return todayIsoDate().slice(0, 7);
 }
 
+const MOVEMENT_LABEL: Record<string, string> = {
+  TOP_UP: "Top-up",
+  DISBURSEMENT: "Keluar",
+  ADJUSTMENT: "Penyesuaian",
+  RETURN: "Kembali",
+};
+
 export default async function ExpensesPage() {
   const outlet = await getCurrentOutlet();
-  const [{ expenses, live }, { pettyCash }] = await Promise.all([
+  const [{ expenses, live }, { pettyCash }, movements, custodianOptions] = await Promise.all([
     getExpensesForOutlet(outlet.id),
     getPettyCash(outlet.id),
+    getPettyCashMovements(outlet.id, 10),
+    getPettyCashCustodianOptions(outlet.id),
   ]);
+  const awaitingPayment = expenses.filter((e) => e.status === "APPROVED");
   const period = live ? currentPeriod() : "2026-08"; // CURRENT_PERIOD equivalent for the mock branch's fixed demo data
   const thisMonth = expenses.filter((e) => e.date.startsWith(period));
   const pending = expenses.filter((e) => e.status === "SUBMITTED" || e.status === "DRAFT");
@@ -74,7 +84,7 @@ export default async function ExpensesPage() {
         <StatCard label="Total Bulan Ini" value={rp(total, { short: true })} icon="wallet" toneKey="teal" deltaLabel={`${thisMonth.length} entri`} />
         <StatCard label="Menunggu Approval" value={pending.length} icon="clock" toneKey="danger" deltaLabel="Draft & submitted" />
         <StatCard label="Kas Kecil" value={rp(pettyCash.balance, { short: true })} icon="piggy-bank" toneKey="gold" deltaLabel={`Limit ${rp(pettyCash.limit, { short: true })}`} />
-        <StatCard label="Custodian" value={pettyCash.custodianName.split(" ")[0]} icon="user" toneKey="sky" deltaLabel={pettyCash.lastTopUp ? `Top-up terakhir ${fmtDateShort(pettyCash.lastTopUp)}` : "Belum pernah top-up"} />
+        <StatCard label="Pemegang Kas" value={pettyCash.custodianName.split(" ")[0]} icon="user" toneKey="sky" deltaLabel={pettyCash.lastTopUp ? `Top-up terakhir ${fmtDateShort(pettyCash.lastTopUp)}` : "Belum pernah top-up"} />
       </div>
 
       <div className="grid grid-3" style={{ alignItems: "start", marginBottom: 20 }}>
@@ -93,7 +103,7 @@ export default async function ExpensesPage() {
           />
           <div className="table-wrap">
             <table className="tbl">
-              <thead><tr><th>Tanggal</th><th>Kategori</th><th>Vendor</th><th>Metode</th><th>Jumlah</th><th>Status</th></tr></thead>
+              <thead><tr><th>Tanggal</th><th>Kategori</th><th>Vendor</th><th>Metode</th><th>Jumlah</th><th>Status</th><th></th></tr></thead>
               <tbody>
                 {expenses.slice(0, 12).map((e) => (
                   <tr key={e.id}>
@@ -103,10 +113,13 @@ export default async function ExpensesPage() {
                     <td className="muted small">{e.paymentMethod}</td>
                     <td className="num small">{rp(e.amount)}</td>
                     <td><StatusBadge status={e.status} /></td>
+                    <td style={{ textAlign: "right" }}>
+                      {live && e.status === "APPROVED" && <MarkPaidButton id={e.id} viaPettyCash={e.paymentMethod === "Petty Cash"} />}
+                    </td>
                   </tr>
                 ))}
                 {expenses.length === 0 && (
-                  <tr><td colSpan={6} className="dim small" style={{ textAlign: "center", padding: "20px 0" }}>Belum ada pengeluaran tercatat.</td></tr>
+                  <tr><td colSpan={7} className="dim small" style={{ textAlign: "center", padding: "20px 0" }}>Belum ada pengeluaran tercatat.</td></tr>
                 )}
               </tbody>
             </table>
@@ -116,7 +129,6 @@ export default async function ExpensesPage() {
         <Card className="card-pad">
           <div className="row between" style={{ marginBottom: 10 }}>
             <div className="tiny dim uppercase">Distribusi Kategori</div>
-            <PettyCashTopUpForm outletId={outlet.id} />
           </div>
           <DonutChart data={byCategory} nameKey="name" valueKey="value" height={160} centerValue={rp(total, { short: true })} centerLabel="Total" />
           <div style={{ marginTop: 10 }}>
@@ -124,6 +136,62 @@ export default async function ExpensesPage() {
           </div>
         </Card>
       </div>
+
+      {live && (
+        <div className="grid grid-2" style={{ alignItems: "start", marginBottom: 20 }}>
+          <Card>
+            <CardHead
+              title="Kas Kecil"
+              sub={`Saldo ${rp(pettyCash.balance)}${pettyCash.limit ? ` dari limit ${rp(pettyCash.limit)}` : " · limit belum diatur"} · pemegang ${pettyCash.custodianName}`}
+              action={
+                <div className="row g1">
+                  <PettyCashTopUpForm outletId={outlet.id} />
+                  <PettyCashDisburseForm outletId={outlet.id} balance={pettyCash.balance} />
+                  <PettyCashSettingsForm outletId={outlet.id} custodianId={pettyCash.custodianId} limit={pettyCash.limit} employees={custodianOptions} />
+                </div>
+              }
+            />
+            <div className="table-wrap">
+              <table className="tbl">
+                <thead><tr><th>Waktu</th><th>Jenis</th><th>Keterangan</th><th>Oleh</th><th className="num">Jumlah</th></tr></thead>
+                <tbody>
+                  {movements.map((m) => (
+                    <tr key={m.id}>
+                      <td className="muted small">{fmtDateTime(m.at)}</td>
+                      <td><Badge tone={m.amount >= 0 ? "success" : "warning"}>{MOVEMENT_LABEL[m.type] ?? m.type}</Badge></td>
+                      <td className="small">{m.note ?? "—"}{m.expenseId ? <span className="tiny dim"> · dari pengeluaran</span> : null}</td>
+                      <td className="muted small">{m.byName}</td>
+                      <td className="num small strong" style={{ color: m.amount >= 0 ? "var(--success)" : "var(--text-1)" }}>{m.amount >= 0 ? "+" : "−"}{rp(Math.abs(m.amount))}</td>
+                    </tr>
+                  ))}
+                  {movements.length === 0 && (
+                    <tr><td colSpan={5} className="dim small" style={{ textAlign: "center", padding: "20px 0" }}>Belum ada mutasi kas kecil. Mulai dengan Top-up.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+
+          <Card>
+            <CardHead title="Menunggu Pembayaran" sub={`${awaitingPayment.length} pengeluaran disetujui, belum dibayar`} />
+            <div className="card-body stack g2">
+              {awaitingPayment.length === 0 && <div className="small dim">Semua pengeluaran yang disetujui sudah dibayar.</div>}
+              {awaitingPayment.map((e) => (
+                <div key={e.id} className="row between small" style={{ padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
+                  <div>
+                    <div className="strong" style={{ color: "var(--text-1)" }}>{e.vendor} — {e.category}</div>
+                    <div className="tiny dim">{fmtDateShort(e.date)} · {e.paymentMethod}{e.paymentMethod === "Petty Cash" ? " (dipotong dari kas kecil)" : ""}</div>
+                  </div>
+                  <div className="row g3" style={{ alignItems: "center" }}>
+                    <span className="strong" style={{ color: "var(--text-1)" }}>{rp(e.amount + e.tax)}</span>
+                    <MarkPaidButton id={e.id} viaPettyCash={e.paymentMethod === "Petty Cash"} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+      )}
 
       <Card>
         <CardHead title="Butuh Approval" sub={`${pending.length} pengeluaran menunggu`} />

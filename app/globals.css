@@ -1171,3 +1171,36 @@ html.print-preview .print-preview-bar .btn-ghost { color: #fafaf9 !important; bo
 }
 .report-date-input { width: auto; min-width: 150px; }
 .report-outlet-select { width: auto; }
+
+/* Grafik laporan (components/ReportCharts.tsx) — 2026-10-23 */
+.report-chart { display: block; width: 100%; height: auto; overflow: visible; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.report-chart-grid line { stroke: var(--border-2); stroke-width: 1; }
+.report-chart-axis { stroke: var(--border-2); stroke-width: 1.5; }
+.report-chart-connector { stroke: var(--text-3); stroke-width: 1; stroke-dasharray: 3 3; }
+.report-chart-grid text,
+.report-chart-label { fill: var(--text-3); font-family: var(--font-body); font-size: 11px; }
+.report-chart-label.strong { fill: var(--text-1); font-weight: 700; }
+.report-chart-text { fill: var(--text-2); font-family: var(--font-body); font-size: 13px; }
+.report-chart-text.strong { fill: var(--text-1); font-weight: 700; }
+.report-chart-value { fill: var(--text-1); font-family: var(--font-body); font-size: 11px; font-weight: 600; }
+.report-chart-inbar { fill: #064e3b; font-family: var(--font-body); font-size: 12px; font-weight: 700; }
+.report-chart-total { fill: var(--text-1); font-family: var(--font-body); font-size: 17px; font-weight: 700; }
+.report-chart-dot { stroke: var(--bg-surface); stroke-width: 2; }
+.report-chart-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 8px; font-size: 12px; }
+.report-chart-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.monthly-chart-stack { display: grid; gap: 14px; }
+
+@media print {
+  .report-chart-grid line, .report-chart-axis { stroke: #cbd5e1 !important; }
+  .report-chart-grid text, .report-chart-label, .report-chart-text { fill: #374151 !important; }
+  .report-chart-label.strong, .report-chart-text.strong, .report-chart-value, .report-chart-total { fill: #111827 !important; }
+  .report-chart-dot { stroke: #fff !important; }
+  .report-chart-legend svg { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+html.print-preview .report-chart-grid text,
+html.print-preview .report-chart-label,
+html.print-preview .report-chart-text { fill: #374151 !important; }
+html.print-preview .report-chart-label.strong,
+html.print-preview .report-chart-text.strong,
+html.print-preview .report-chart-value,
+html.print-preview .report-chart-total { fill: #111827 !important; }

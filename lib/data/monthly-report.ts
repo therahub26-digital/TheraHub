@@ -198,8 +198,21 @@ export type OutletProfitReport = OutletReport & {
   profit: number | null;
 };
 
+/** Satu titik tren: pendapatan & transaksi lunas per periode (2026-10-23). */
+export type TrendPoint = {
+  label: string;
+  start: string;
+  revenue: number;
+  transactions: number;
+  /** Periode yang sedang berjalan (belum tutup). */
+  running: boolean;
+  isCurrent: boolean;
+};
+
 export type MonthlyReport = {
   kind: ReportKind;
+  /** Bulanan: 6 bulan · mingguan: 8 minggu · harian: 14 hari, terlama dulu, diakhiri periode ini. */
+  trend: TrendPoint[];
   period: string;
   previousPeriod: string;
   /** "Oktober 2026" · "19–25 Okt 2026" · "Jumat, 23 Oktober 2026". */
@@ -948,6 +961,37 @@ function inWindowDate(timestamp: string, window: Window): boolean {
   return inWindow(timestamp.slice(0, 10), window);
 }
 
+const TREND_LENGTH: Record<ReportKind, number> = { month: 6, week: 8, day: 14 };
+const SHORT_MONTH = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+const SHORT_DAY = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
+
+function trendLabel(window: Window): string {
+  const [year, month, day] = window.start.split("-").map(Number);
+  if (window.kind === "month") return `${SHORT_MONTH[month - 1]} ${String(year).slice(2)}`;
+  if (window.kind === "week") return `${day} ${SHORT_MONTH[month - 1]}`;
+  return `${SHORT_DAY[new Date(`${window.start}T00:00:00Z`).getUTCDay()]} ${day}`;
+}
+
+/** Tren ringan: hanya kolom total transaksi lunas per periode, dikueri paralel. */
+async function fetchTrend(outletIds: string[], current: Window, today: string): Promise<TrendPoint[]> {
+  if (!outletIds.length) return [];
+  const windows: Window[] = [current];
+  while (windows.length < TREND_LENGTH[current.kind]) windows.unshift(previousWindow(windows[0]));
+  const supabase = await createClient();
+  const tomorrow = addDaysIso(today, 1);
+  return Promise.all(windows.map(async (window) => {
+    const endExcl = window.endExcl < tomorrow ? window.endExcl : tomorrow;
+    const base = { label: trendLabel(window), start: window.start, running: today >= window.start && today < window.endExcl, isCurrent: window === current };
+    if (window.start >= endExcl) return { ...base, revenue: 0, transactions: 0 };
+    const { rows } = await paged<{ total: number | string }>((from, to) => supabase.from("transactions")
+      .select("total")
+      .in("outlet_id", outletIds).eq("status", "PAID")
+      .gte("paid_at", `${window.start}T00:00:00+00:00`).lt("paid_at", `${endExcl}T00:00:00+00:00`)
+      .order("paid_at").order("id").range(from, to));
+    return { ...base, revenue: rows.reduce((sum, row) => sum + n(row.total), 0), transactions: rows.length };
+  }));
+}
+
 export async function getPeriodReport({
   outletIds,
   kind,
@@ -963,8 +1007,11 @@ export async function getPeriodReport({
   const current = reportWindow(kind, anchor);
   const fullPrevious = previousWindow(current);
   const uniqueOutletIds = [...new Set(outletIds)];
-  const data = await fetchData(uniqueOutletIds, [current, fullPrevious]);
   const today = todayIsoDate();
+  const [data, trend] = await Promise.all([
+    fetchData(uniqueOutletIds, [current, fullPrevious]),
+    fetchTrend(uniqueOutletIds, current, today),
+  ]);
   // Periode berjalan dibanding periode penuh sebelumnya terbaca seperti
   // anjlok yang hanya karena kalender. Bandingkan hari yang sama:
   // 1–17 Okt vs 1–17 Sep; Sen–Kam minggu ini vs Sen–Kam minggu lalu.
@@ -993,6 +1040,7 @@ export async function getPeriodReport({
   const monthly = kind === "month";
   const reportBase: Omit<MonthlyReport, "profit"> = {
     kind,
+    trend,
     period: current.period,
     previousPeriod: previous.period,
     periodLabel: reportWindowLabel(current),

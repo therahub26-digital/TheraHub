@@ -5,6 +5,7 @@ import PrintButton from "@/components/PrintButton";
 import { fmtDateLong, num, pct, rp } from "@/lib/format";
 import { percentageChange, percentagePointChange } from "@/lib/data/monthly-report-math";
 import type { MonthlyReport } from "@/lib/data/monthly-report";
+import { ColumnChart, DonutChart, HorizontalBars, TrendChart, WaterfallChart } from "@/components/ReportCharts";
 
 type OutletOption = { id: string; name: string };
 type MonthlyReportProps = {
@@ -31,6 +32,23 @@ const KIND_TEXT = {
   week: { title: "Laporan Mingguan", noun: "minggu", bucket: "hari", payrollNote: "Gaji & tunjangan dihitung per bulan" },
   month: { title: "Laporan Bulanan", noun: "bulan", bucket: "minggu", payrollNote: "" },
 } as const;
+
+function visitsByWeekday(values: MonthlyReport["customers"]["current"]["visitHoursByWeekday"]) {
+  return weekdaysOrder.map((day) => ({
+    label: day.label,
+    value: values.filter((item) => item.weekday === day.day).reduce((sum, item) => sum + item.visits, 0),
+  }));
+}
+
+const weekdaysOrder = [
+  { day: 1, label: "Senin" },
+  { day: 2, label: "Selasa" },
+  { day: 3, label: "Rabu" },
+  { day: 4, label: "Kamis" },
+  { day: 5, label: "Jumat" },
+  { day: 6, label: "Sabtu" },
+  { day: 0, label: "Minggu" },
+];
 
 const weekdays = [
   { day: 1, label: "Sen" },
@@ -616,9 +634,28 @@ export default function MonthlyReport({
         <div className="monthly-metrics-grid">
           {metrics.map((metric) => <Metric key={metric.label} label={metric.label} value={metric.value} comparison={metric.comparison} detail={metric.detail} />)}
         </div>
+        {data.trend.length > 1 && (
+          <Card className="monthly-card">
+            <CardHead title={`Tren ${data.trend.length} ${text.noun} terakhir`} sub="Pendapatan dan jumlah transaksi lunas per periode; batang tergelap = periode laporan ini" />
+            <div className="card-body"><TrendChart points={data.trend} noun={text.noun} /></div>
+          </Card>
+        )}
         {isOwner && (data.perOutlet?.current.length ?? 0) > 1 && (
           <Card className="monthly-card">
             <CardHead title="Perbandingan cabang" sub="Pendapatan dan biaya SDM pada periode terpilih" />
+            <div className="card-body">
+              <HorizontalBars
+                rows={(data.perOutlet?.current ?? []).map((row) => ({
+                  label: row.outletName,
+                  value: row.revenue,
+                  secondary: data.perOutlet?.previous.find((item) => item.outletId === row.outletId)?.revenue ?? 0,
+                  note: `${num(row.visits)} kunjungan`,
+                }))}
+                primaryLabel={data.periodLabel}
+                secondaryLabel={data.comparisonLabel}
+                empty="Belum ada pendapatan cabang."
+              />
+            </div>
             <div className="table-wrap">
               <table className="tbl">
                 <thead><tr><th>Cabang</th><th className="num">Pendapatan</th><th className="num">Kunjungan</th><th className="num">Rata-rata transaksi</th><th className="num">Biaya SDM / pendapatan</th></tr></thead>
@@ -649,7 +686,10 @@ export default function MonthlyReport({
         <div className="monthly-two-column">
           <Card className="monthly-card">
             <CardHead title="Pendapatan per jenis" sub="Layanan, perpanjangan, add-on, makanan & minuman, produk retail" />
-            <div className="card-body"><RevenueByCategory rows={data.revenue.current.byCategory} /></div>
+            <div className="card-body monthly-chart-stack">
+              <DonutChart slices={data.revenue.current.byCategory.map((row) => ({ label: row.label, value: row.amount }))} centerTitle="Total penjualan" empty="Belum ada data penjualan." />
+              <RevenueByCategory rows={data.revenue.current.byCategory} />
+            </div>
           </Card>
           <Card className="monthly-card">
             <CardHead title="Makanan & minuman" sub="Penjualan F&B dan laba kotornya" />
@@ -678,6 +718,14 @@ export default function MonthlyReport({
         <div className="monthly-two-column">
           <Card className="monthly-card">
             <CardHead title="Layanan & item terlaris" />
+            {serviceRows.length > 0 && (
+              <div className="card-body">
+                <HorizontalBars
+                  rows={serviceRows.slice(0, 8).map((row) => ({ label: row.name, value: row.amount, note: `${num(row.quantity)}×` }))}
+                  empty="Belum ada layanan terjual."
+                />
+              </div>
+            )}
             {serviceRows.length || extras.length ? (
               <div className="table-wrap">
                 <table className="tbl">
@@ -697,7 +745,10 @@ export default function MonthlyReport({
           </Card>
           <Card className="monthly-card">
             <CardHead title="Metode pembayaran" />
-            <div className="card-body"><Payments rows={data.revenue.current.byPaymentMethod} /></div>
+            <div className="card-body monthly-chart-stack">
+              <DonutChart slices={data.revenue.current.byPaymentMethod.map((row) => ({ label: row.method, value: row.amount }))} centerTitle="Total dibayar" empty="Belum ada transaksi pembayaran." />
+              <Payments rows={data.revenue.current.byPaymentMethod} />
+            </div>
           </Card>
         </div>
         <Card className="monthly-card">
@@ -723,6 +774,30 @@ export default function MonthlyReport({
             <Metric key={String(label)} label={String(label)} value={hasCustomerData ? num(Number(value)) : "Belum ada data"} />
           ))}
         </div>
+        {hasCustomerData && (
+          <div className="monthly-two-column">
+            <Card className="monthly-card">
+              <CardHead title="Pelanggan baru vs kembali" sub={`${num(data.customers.current.active)} pelanggan aktif`} />
+              <div className="card-body">
+                <DonutChart
+                  slices={[
+                    { label: "Pelanggan baru", value: data.customers.current.new },
+                    { label: "Pelanggan kembali", value: data.customers.current.returning },
+                  ]}
+                  centerTitle="Pelanggan"
+                  format={(value) => num(value)}
+                  empty="Belum ada pelanggan pada periode ini."
+                />
+              </div>
+            </Card>
+            <Card className="monthly-card">
+              <CardHead title="Kunjungan per hari" sub="Total sesi selesai menurut hari dalam seminggu" />
+              <div className="card-body">
+                <ColumnChart rows={visitsByWeekday(data.customers.current.visitHoursByWeekday)} empty="Belum ada data kunjungan." />
+              </div>
+            </Card>
+          </div>
+        )}
         <Card className="monthly-card">
           <CardHead title="Peta keramaian kunjungan" sub="Jumlah sesi selesai menurut jam dan hari" />
           <div className="card-body"><VisitHeatmap values={data.customers.current.visitHoursByWeekday} /></div>
@@ -810,6 +885,24 @@ export default function MonthlyReport({
             </div>
           </Card>
         </div>
+        {data.therapists.current.some((row) => row.generatedRevenue > 0) && (
+          <Card className="monthly-card">
+            <CardHead title="Pendapatan per terapis" sub="Urut pendapatan yang dihasilkan; catatan = jumlah treatment dan skor kinerja" />
+            <div className="card-body">
+              <HorizontalBars
+                rows={[...data.therapists.current]
+                  .sort((a, b) => b.generatedRevenue - a.generatedRevenue)
+                  .map((row) => ({
+                    label: outletCount > 1 ? `${row.name} · ${outletNames[row.outletId] ?? ""}` : row.name,
+                    value: row.generatedRevenue,
+                    note: `${num(row.treatments)} treatment${row.performanceScore === null ? "" : ` · skor ${row.performanceScore}`}`,
+                  }))}
+                color="#3b82f6"
+                empty="Belum ada pendapatan per terapis."
+              />
+            </div>
+          </Card>
+        )}
         {data.therapists.current.length ? (
           <Card className="monthly-card">
             <CardHead title="Peringkat terapis" sub="Skor: jumlah tamu 40% · rating pelanggan 25% · kehadiran 25% · ketepatan waktu 10%" />
@@ -870,6 +963,21 @@ export default function MonthlyReport({
         </Card>
         <Card className="monthly-card">
           <CardHead title="Pengeluaran per kategori" sub="Pengeluaran yang diajukan/disetujui pada periode ini" />
+          {data.costs.current.expensesByCategory.length > 0 && (
+            <div className="card-body">
+              <HorizontalBars
+                rows={data.costs.current.expensesByCategory.map((row) => ({
+                  label: row.category,
+                  value: row.amount,
+                  secondary: data.costs.previous.expensesByCategory.find((item) => item.category === row.category)?.amount ?? 0,
+                }))}
+                primaryLabel={data.periodLabel}
+                secondaryLabel={data.comparisonLabel}
+                color="#ef4444"
+                empty="Belum ada pengeluaran."
+              />
+            </div>
+          )}
           {data.costs.current.expensesByCategory.length ? (
             <div className="table-wrap">
               <table className="tbl">
@@ -982,6 +1090,21 @@ export default function MonthlyReport({
       {data.profit && !isMonth && (
         <Section number="08" title="Kontribusi Sebelum Gaji">
           <Card className="monthly-card">
+            <CardHead title="Dari pendapatan ke kontribusi" sub="Pendapatan dikurangi biaya variabel satu per satu; persen = porsi dari pendapatan" />
+            <div className="card-body">
+              <WaterfallChart
+                start={{ label: "Pendapatan", value: data.profit.current.revenue }}
+                steps={[
+                  { label: "Komisi", value: data.profit.current.commission },
+                  { label: "Pengeluaran", value: data.profit.current.expenses ?? 0 },
+                  { label: "Bahan treatment", value: data.profit.current.materials ?? 0 },
+                  { label: "HPP produk", value: data.profit.current.costOfGoodsSold ?? 0 },
+                ]}
+                resultLabel="Kontribusi"
+              />
+            </div>
+          </Card>
+          <Card className="monthly-card">
             <CardHead title="Kontribusi per cabang" sub="Pendapatan − komisi − pengeluaran − bahan treatment − HPP produk. Gaji & tunjangan tetap dihitung di laporan bulanan." />
             <div className="table-wrap">
               <table className="tbl">
@@ -1015,6 +1138,25 @@ export default function MonthlyReport({
 
       {data.profit && isMonth && (
         <Section number="08" title="Estimasi Laba Operasional">
+          <Card className="monthly-card">
+            <CardHead
+              title={data.profit.current.payrollCost === null ? "Dari pendapatan ke kontribusi (gaji belum dihitung)" : "Dari pendapatan ke estimasi laba"}
+              sub="Pendapatan dikurangi biaya satu per satu; persen = porsi dari pendapatan"
+            />
+            <div className="card-body">
+              <WaterfallChart
+                start={{ label: "Pendapatan", value: data.profit.current.revenue }}
+                steps={[
+                  { label: "Komisi", value: data.profit.current.commission },
+                  ...(data.profit.current.payrollCost === null ? [] : [{ label: "Gaji & tunjangan", value: data.profit.current.payrollCost }]),
+                  { label: "Pengeluaran", value: data.profit.current.expenses ?? 0 },
+                  { label: "Bahan treatment", value: data.profit.current.materials ?? 0 },
+                  { label: "HPP produk", value: data.profit.current.costOfGoodsSold ?? 0 },
+                ]}
+                resultLabel={data.profit.current.payrollCost === null ? "Kontribusi" : "Estimasi laba"}
+              />
+            </div>
+          </Card>
           <Card className="monthly-card">
             <CardHead title="Estimasi per cabang" sub="Komisi dihitung satu kali; gaji & tunjangan tidak mencakup komisi." />
             {data.profit.perOutlet.current.length ? (

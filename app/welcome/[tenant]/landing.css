@@ -241,3 +241,13 @@
 .lp-footer nav { display: grid; gap: 6px; }
 .lp-footer nav a:hover { color: var(--lp-accent-2); }
 .lp-powered { margin-top: 18px; font-size: 12px; color: var(--lp-ink-3); grid-column: 1 / -1; }
+
+/* Pita deploy demo Royal Spa (2026-10-23) */
+.lp-demo-ribbon {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 18px;
+  padding: 9px 16px; background: #1c1917; color: #f5f5f4; font-size: 13px; text-align: center;
+}
+.lp-demo-ribbon b { color: #e6c47f; }
+.lp-demo-ribbon-links { display: inline-flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
+.lp-demo-ribbon a { color: #e6c47f; font-weight: 700; text-decoration: none; }
+.lp-demo-ribbon a:hover { text-decoration: underline; }

@@ -15,6 +15,17 @@ export async function middleware(request: NextRequest) {
   // Di deploy produksi (DEMO_MODE kosong) blok ini tidak berjalan sama sekali.
   if (process.env.DEMO_MODE === "1") {
     const p = request.nextUrl.pathname;
+    // Website Royal Spa (landing) publik sejak 2026-10-23 — ditautkan dari
+    // therahub.biz.id sebagai contoh website tenant. Aplikasi (semua portal
+    // peran) tetap di balik gerbang marketing.
+    if (p === "/" || p === `/welcome/${DEMO_TENANT_SLUG}`) {
+      if (p === "/") {
+        const url = request.nextUrl.clone();
+        url.pathname = `/welcome/${DEMO_TENANT_SLUG}`;
+        return NextResponse.rewrite(url);
+      }
+      return NextResponse.next();
+    }
     const open = p === "/demo" || p.startsWith("/api/demo/") || p === "/manifest.webmanifest" || p.startsWith("/icons/");
     if (!open) {
       const ok = await verifyGate(request.cookies.get(DEMO_GATE_COOKIE)?.value);
@@ -23,11 +34,6 @@ export async function middleware(request: NextRequest) {
         url.pathname = "/demo";
         url.search = "";
         return NextResponse.redirect(url);
-      }
-      if (p === "/") {
-        const url = request.nextUrl.clone();
-        url.pathname = `/welcome/${DEMO_TENANT_SLUG}`;
-        return NextResponse.rewrite(url);
       }
     }
   }

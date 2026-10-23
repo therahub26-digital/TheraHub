@@ -43,6 +43,14 @@ export default async function DemoPage() {
               <p className="muted small">Masuk dengan akun marketing yang diberikan tim TheraHub.</p>
             </div>
             <DemoGateForm />
+            <p className="muted small">
+              Belum punya akses?{" "}
+              <a className="demo-link" href="https://wa.me/6285862388938?text=Halo%20TheraHub%2C%20saya%20mau%20mencoba%20simulasi%20demo%20Royal%20Spa." target="_blank" rel="noopener noreferrer">
+                Minta sesi demo via WhatsApp
+              </a>
+            </p>
+            <Link className="demo-link" href="/">← Lihat website Royal Spa</Link>
+            <a className="demo-link" href="https://www.therahub.biz.id/">Kembali ke therahub.biz.id</a>
           </>
         )}
       </div>

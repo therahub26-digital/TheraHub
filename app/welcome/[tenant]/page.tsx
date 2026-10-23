@@ -127,6 +127,17 @@ export default async function TenantLandingPage({ params }: { params: Promise<{ 
 
   return (
     <div className="lp" style={{ ["--lp-accent" as string]: brand.accent, ["--lp-accent-2" as string]: brand.accent2 }}>
+      {tenant === DEMO_TENANT_SLUG && (
+        // Pita khusus deploy demo (2026-10-23): pengunjung datang dari
+        // therahub.biz.id — beri jalan pulang dan jalan ke simulasi aplikasi.
+        <div className="lp-demo-ribbon">
+          <span>Contoh website spa buatan <b>TheraHub</b> · semua data fiktif</span>
+          <span className="lp-demo-ribbon-links">
+            <a href="https://www.therahub.biz.id/">← therahub.biz.id</a>
+            <Link href="/demo">Coba simulasi aplikasi →</Link>
+          </span>
+        </div>
+      )}
       <div className="lp-wrap">
         <header className="lp-header">
           <div className="lp-logo">

@@ -58,12 +58,20 @@ export async function selectInChunks<T>(
   chunkFetch: (chunk: string[], from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>
 ): Promise<{ data: T[]; error: unknown }> {
   const unique = [...new Set(ids)];
+  const chunks: string[][] = [];
+  for (let i = 0; i < unique.length; i += IN_CHUNK) chunks.push(unique.slice(i, i + IN_CHUNK));
+  // Paralel (audit 2026-10-23): potongan saling bebas, menunggu satu per
+  // satu hanya menambah round trip. Dibatasi 6 sekaligus supaya tidak
+  // membanjiri PostgREST saat daftar id sangat panjang.
   const out: T[] = [];
-  for (let i = 0; i < unique.length; i += IN_CHUNK) {
-    const chunk = unique.slice(i, i + IN_CHUNK);
-    const { rows, error } = await fetchAllRows<T>((from, to) => Promise.resolve(chunkFetch(chunk, from, to)));
-    if (error) return { data: out, error };
-    out.push(...rows);
+  for (let i = 0; i < chunks.length; i += 6) {
+    const results = await Promise.all(
+      chunks.slice(i, i + 6).map((chunk) => fetchAllRows<T>((from, to) => Promise.resolve(chunkFetch(chunk, from, to))))
+    );
+    for (const { rows, error } of results) {
+      if (error) return { data: out, error };
+      out.push(...rows);
+    }
   }
   return { data: out, error: null };
 }

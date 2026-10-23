@@ -37,6 +37,9 @@
   "exclude": [
     "node_modules",
     "_to_delete",
-    "_incoming"
+    "_incoming",
+    "_scratch_scripts",
+    "_git_lock_cleanup",
+    ".git-backup"
   ]
 }

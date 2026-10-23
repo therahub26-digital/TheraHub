@@ -48,3 +48,6 @@ _scratch_scripts/
 # Folder penampung file .lock git yang nyangkut (device_bash tidak bisa rm)
 _git_lock_cleanup/
 *.dump
+
+# Salinan .git lama (bukan kode aplikasi) — dikeluarkan dari repo 2026-10-23
+.git-backup/

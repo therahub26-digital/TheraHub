@@ -344,16 +344,40 @@ async function fetchData(outletIds: string[], windows: [Window, Window]): Promis
   const endExcl = windows[0].endExcl;
   const timestampStart = `${start}T00:00:00+00:00`;
   const timestampEnd = `${endExcl}T00:00:00+00:00`;
+  // Audit performa 2026-10-23: riwayat customer dan rincian transaksi
+  // dulu baru diminta SETELAH 18 query utama selesai (dua gelombang
+  // berurutan). Sekarang masing-masing dirantai ke query induknya dan
+  // berjalan bersamaan dengan sisa query.
+  const transactionsP = paged<TransactionRow>((from, to) => supabase.from("transactions")
+    .select("id, outlet_id, booking_id, customer_id, discount, total, payment_method, paid_at")
+    .in("outlet_id", outletIds).eq("status", "PAID").gte("paid_at", timestampStart).lt("paid_at", timestampEnd)
+    .order("paid_at").order("id").range(from, to));
+  const bookingsP = paged<BookingRow>((from, to) => supabase.from("bookings")
+    .select("id, outlet_id, customer_id, therapist_id, room_id, date, status")
+    .in("outlet_id", outletIds).gte("date", start).lt("date", endExcl).order("date").order("id").range(from, to));
+  const historyP = bookingsP.then((bookingsResult) => {
+    const customerIds = [...new Set(bookingsResult.rows.map((booking) => booking.customer_id))];
+    return Promise.all(Array.from({ length: Math.ceil(customerIds.length / 200) }, (_, index) => {
+      const ids = customerIds.slice(index * 200, (index + 1) * 200);
+      return paged<BookingRow>((from, to) => supabase.from("bookings")
+        .select("id, outlet_id, customer_id, therapist_id, room_id, date, status")
+        .in("customer_id", ids).lt("date", endExcl).order("date").order("id").range(from, to));
+    }));
+  });
+  const itemsP = transactionsP.then((transactionsResult) => {
+    const txIds = transactionsResult.rows.map((row) => row.id);
+    return Promise.all(Array.from({ length: Math.ceil(txIds.length / 200) }, (_, index) => {
+      const ids = txIds.slice(index * 200, (index + 1) * 200);
+      return paged<TransactionItemRow>((from, to) => supabase.from("transaction_items")
+        .select("transaction_id, item_type, name, qty, unit_price, therapist_id")
+        .in("transaction_id", ids).order("id").range(from, to));
+    }));
+  });
   const [outlets, transactions, bookings, sessions, commissions, reviews, attendance, employees, rooms,
     expenses, payrollItems, adjustments, alerts, movements, products, stocks, pettyCash, cashMovements] = await Promise.all([
     paged<OutletRow>((from, to) => supabase.from("outlets").select("id, name, open_hours").in("id", outletIds).range(from, to)),
-    paged<TransactionRow>((from, to) => supabase.from("transactions")
-      .select("id, outlet_id, booking_id, customer_id, discount, total, payment_method, paid_at")
-      .in("outlet_id", outletIds).eq("status", "PAID").gte("paid_at", timestampStart).lt("paid_at", timestampEnd)
-      .order("paid_at").order("id").range(from, to)),
-    paged<BookingRow>((from, to) => supabase.from("bookings")
-      .select("id, outlet_id, customer_id, therapist_id, room_id, date, status")
-      .in("outlet_id", outletIds).gte("date", start).lt("date", endExcl).order("date").order("id").range(from, to)),
+    transactionsP,
+    bookingsP,
     paged<SessionRow>((from, to) => supabase.from("sessions")
       .select("booking_id, outlet_id, therapist_id, room_id, actual_start, expected_end, actual_end, extension_minutes, status")
       .in("outlet_id", outletIds).gte("actual_start", timestampStart).lt("actual_start", timestampEnd)
@@ -409,26 +433,13 @@ async function fetchData(outletIds: string[], windows: [Window, Window]): Promis
   }
 
   const currentBookings = bookings.rows;
-  const customerIds = [...new Set(currentBookings.map((booking) => booking.customer_id))];
-  const history = await Promise.all(Array.from({ length: Math.ceil(customerIds.length / 200) }, (_, index) => {
-    const ids = customerIds.slice(index * 200, (index + 1) * 200);
-    return paged<BookingRow>((from, to) => supabase.from("bookings")
-      .select("id, outlet_id, customer_id, therapist_id, room_id, date, status")
-      .in("customer_id", ids).lt("date", endExcl).order("date").order("id").range(from, to));
-  }));
+  const [history, itemChunks] = await Promise.all([historyP, itemsP]);
   const historyError = history.find((result) => result.error)?.error;
   if (historyError) {
     const message = (historyError as { message?: string }).message ?? String(historyError);
     throw new Error(`Riwayat customer laporan bulanan gagal dimuat: ${message}`);
   }
 
-  const txIds = transactions.rows.map((row) => row.id);
-  const itemChunks = await Promise.all(Array.from({ length: Math.ceil(txIds.length / 200) }, (_, index) => {
-    const ids = txIds.slice(index * 200, (index + 1) * 200);
-    return paged<TransactionItemRow>((from, to) => supabase.from("transaction_items")
-      .select("transaction_id, item_type, name, qty, unit_price, therapist_id")
-      .in("transaction_id", ids).order("id").range(from, to));
-  }));
   const itemsError = itemChunks.find((result) => result.error)?.error;
   if (itemsError) {
     const message = (itemsError as { message?: string }).message ?? String(itemsError);
@@ -979,6 +990,29 @@ async function fetchTrend(outletIds: string[], current: Window, today: string): 
   while (windows.length < TREND_LENGTH[current.kind]) windows.unshift(previousWindow(windows[0]));
   const supabase = await createClient();
   const tomorrow = addDaysIso(today, 1);
+  // Harian/mingguan: satu query rentang penuh lalu dikelompokkan di JS —
+  // 14 atau 8 query kecil paralel ternyata lebih lambat daripada satu
+  // query (±500–1.700 baris). Bulanan tetap per jendela (paralel), karena
+  // 6 bulan bisa ribuan baris dan halaman berurutan lebih lama.
+  if (current.kind !== "month") {
+    const rangeEnd = current.endExcl < tomorrow ? current.endExcl : tomorrow;
+    const { rows } = await paged<{ total: number | string; paid_at: string }>((from, to) => supabase.from("transactions")
+      .select("total, paid_at")
+      .in("outlet_id", outletIds).eq("status", "PAID")
+      .gte("paid_at", `${windows[0].start}T00:00:00+00:00`).lt("paid_at", `${rangeEnd}T00:00:00+00:00`)
+      .order("paid_at").order("id").range(from, to));
+    return windows.map((window) => {
+      const inside = rows.filter((row) => row.paid_at.slice(0, 10) >= window.start && row.paid_at.slice(0, 10) < window.endExcl);
+      return {
+        label: trendLabel(window),
+        start: window.start,
+        running: today >= window.start && today < window.endExcl,
+        isCurrent: window === current,
+        revenue: inside.reduce((sum, row) => sum + n(row.total), 0),
+        transactions: inside.length,
+      };
+    });
+  }
   return Promise.all(windows.map(async (window) => {
     const endExcl = window.endExcl < tomorrow ? window.endExcl : tomorrow;
     const base = { label: trendLabel(window), start: window.start, running: today >= window.start && today < window.endExcl, isCurrent: window === current };
@@ -1008,10 +1042,6 @@ export async function getPeriodReport({
   const fullPrevious = previousWindow(current);
   const uniqueOutletIds = [...new Set(outletIds)];
   const today = todayIsoDate();
-  const [data, trend] = await Promise.all([
-    fetchData(uniqueOutletIds, [current, fullPrevious]),
-    fetchTrend(uniqueOutletIds, current, today),
-  ]);
   // Periode berjalan dibanding periode penuh sebelumnya terbaca seperti
   // anjlok yang hanya karena kalender. Bandingkan hari yang sama:
   // 1–17 Okt vs 1–17 Sep; Sen–Kam minggu ini vs Sen–Kam minggu lalu.
@@ -1024,14 +1054,23 @@ export async function getPeriodReport({
     ? fullPrevious
     : { ...fullPrevious, endExcl: addDaysIso(fullPrevious.start, comparisonDays), partialDays: comparisonDays };
   const comparisonLabel = reportWindowLabel(comparisonDays === null ? fullPrevious : { ...previous, kind: "day" === kind ? "day" : "week" });
-  const performance = await Promise.all([current, previous].flatMap((window) =>
-    data.outlets.map(async (outlet) => ({
-      period: window.period,
-      outletId: outlet.id,
-      rows: await getTherapistPerformance(outlet.id, window.start.slice(0, 7), today,
-        window.kind === "month" && !window.partialDays ? undefined : { start: window.start, endExcl: window.endExcl }),
-    }))
-  ));
+  // Audit performa 2026-10-23: data utama, tren, dan kinerja terapis saling
+  // bebas — dulu kinerja baru dihitung setelah data utama selesai.
+  const [data, trend, performanceAll] = await Promise.all([
+    fetchData(uniqueOutletIds, [current, fullPrevious]),
+    fetchTrend(uniqueOutletIds, current, today),
+    Promise.all([current, previous].flatMap((window) =>
+      uniqueOutletIds.map(async (outletId) => ({
+        period: window.period,
+        outletId,
+        rows: await getTherapistPerformance(outletId, window.start.slice(0, 7), today,
+          window.kind === "month" && !window.partialDays ? undefined : { start: window.start, endExcl: window.endExcl }),
+      }))
+    )),
+  ]);
+  // Hanya outlet yang memang terlihat oleh pengguna ini (RLS) yang dipakai.
+  const visibleOutletIds = new Set(data.outlets.map((outlet) => outlet.id));
+  const performance = performanceAll.filter((entry) => visibleOutletIds.has(entry.outletId));
   const getPerfRows = (window: Window) => performance
     .filter((entry) => entry.period === window.period)
     .flatMap((entry) => entry.rows);
@@ -1079,9 +1118,4 @@ export async function getPeriodReport({
       previous: previousReport.outletProfit ?? [],
     },
   }));
-}
-
-/** Kompatibilitas: laporan bulanan lama. */
-export async function getMonthlyReport({ outletIds, period, includeProfit }: { outletIds: string[]; period: string; includeProfit: boolean }) {
-  return getPeriodReport({ outletIds, kind: "month", anchor: period, includeProfit });
 }

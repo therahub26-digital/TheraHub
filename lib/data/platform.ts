@@ -2,6 +2,7 @@ import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthUser } from "@/lib/supabase/authUser";
+import { fetchAllRows } from "@/lib/supabase/paginate";
 
 // ---------------------------------------------------------------------
 // Read layer portal Super Admin — SATU-SATUNYA tempat di aplikasi ini yang
@@ -146,7 +147,9 @@ const loadPlatform = cache(async () => {
     admin.from("outlets").select("*"),
     admin.from("employees").select("*"),
     admin.from("app_users").select("*"),
-    admin.from("customers").select("*"),
+    // Hanya tenant_id yang dipakai (hitungan); dihalaman supaya tidak
+    // terpotong di 1.000 baris (audit 2026-10-23).
+    fetchAllRows<Row>((from, to) => Promise.resolve(admin.from("customers").select("id, tenant_id").order("id").range(from, to))).then((r) => ({ data: r.rows })),
     admin.from("rooms").select("*"),
   ]);
 

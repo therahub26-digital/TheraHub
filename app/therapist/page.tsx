@@ -54,7 +54,7 @@ export default async function TherapistHomePage() {
 
   if (signedIn) {
     const [todaysBookings, activeSession, notifications, todayAttendance, todayExceptions, myLeaveRequests] = await Promise.all([
-      getBookingsForOutlet(outlet.id),
+      getBookingsForOutlet(outlet.id, today),
       getSessionForTherapist(me.id),
       getNotificationsForTherapist(me.id, outlet.id),
       getTodayAttendanceForTherapist(me.id, me.name, today),

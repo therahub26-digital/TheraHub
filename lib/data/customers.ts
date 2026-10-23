@@ -1,7 +1,8 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import type { Customer, Booking } from "@/lib/types";
-import { getBookingsForOutlet, getBookingsForCustomer } from "@/lib/data/bookings";
+import { getBookingsForCustomer } from "@/lib/data/bookings";
+import { fetchAllRows } from "@/lib/supabase/paginate";
 import { getAuthUser } from "@/lib/supabase/authUser";
 
 // ---------------------------------------------------------------------
@@ -79,10 +80,13 @@ async function fetchLiveCustomers(): Promise<LiveCustomer[] | null> {
   } = await getAuthUser();
   if (!user) return null;
 
-  const { data, error } = await supabase.from("customers").select("*").order("name");
+  // Dihalaman (audit 2026-10-23): tanpa .range() PostgREST memotong di
+  // 1.000 pelanggan dan sisanya hilang diam-diam dari daftar.
+  const { rows, error } = await fetchAllRows<CustomerRow>((from, to) =>
+    Promise.resolve(supabase.from("customers").select("*").order("name").order("id").range(from, to)),
+  );
   if (error) return null;
-  if (!data) return [];
-  return (data as CustomerRow[]).map(mapCustomer);
+  return rows.map(mapCustomer);
 }
 
 const loadCustomersData = cache(async () => {
@@ -165,12 +169,45 @@ function aggregateHistory(bookings: Booking[]): Pick<Customer, "visitCount" | "l
  * visits, empty spend/favorite fields) rather than being dropped — an
  * honest "no history here yet" rather than hiding a real customer row.
  */
+/**
+ * Kunjungan PAID satu outlet untuk agregat daftar pelanggan — hanya kolom
+ * yang dipakai (audit performa 2026-10-23: dulu seluruh booking outlet
+ * dimuat lengkap dengan lookup nama pelanggan/kamar/add-on).
+ */
+async function getPaidVisitsForOutlet(
+  outletId: string,
+): Promise<{ customerId: string; date: string; price: number; therapistName: string; packageName: string }[]> {
+  const supabase = await createClient();
+  const { rows, error } = await fetchAllRows<{ customer_id: string; date: string; price: number | string; therapist_id: string | null; package_id: string }>(
+    (from, to) =>
+      Promise.resolve(
+        supabase.from("bookings").select("customer_id, date, price, therapist_id, package_id")
+          .eq("outlet_id", outletId).eq("status", "PAID").order("date").order("id").range(from, to),
+      ),
+  );
+  if (error || !rows.length) return [];
+  const therapistIds = [...new Set(rows.map((r) => r.therapist_id).filter((v): v is string => !!v))];
+  const packageIds = [...new Set(rows.map((r) => r.package_id))];
+  const [{ data: employees }, { data: packages }] = await Promise.all([
+    therapistIds.length ? supabase.from("employees").select("id, name").in("id", therapistIds) : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+    packageIds.length ? supabase.from("service_packages").select("id, name").in("id", packageIds) : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+  ]);
+  const employeeName = new Map((employees ?? []).map((e: { id: string; name: string }) => [e.id, e.name]));
+  const packageName = new Map((packages ?? []).map((p: { id: string; name: string }) => [p.id, p.name]));
+  return rows.map((r) => ({
+    customerId: r.customer_id,
+    date: r.date,
+    price: Number(r.price),
+    therapistName: (r.therapist_id && employeeName.get(r.therapist_id)) || "",
+    packageName: packageName.get(r.package_id) ?? "",
+  }));
+}
+
 export async function getCustomersForOutlet(outletId: string): Promise<Customer[] | null> {
   const live = await getLiveCustomers();
   if (live === null) return null;
 
-  const bookings = await getBookingsForOutlet(outletId);
-  const paid = bookings.filter((b) => b.status === "PAID");
+  const paid = await getPaidVisitsForOutlet(outletId);
 
   type Agg = {
     visitCount: number;

@@ -1,7 +1,7 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { SESSIONS as MOCK_SESSIONS, EXTENSION_REQUESTS as MOCK_EXTENSION_REQUESTS } from "@/lib/mock/ops";
-import { toHHMM, nowIso, minutesBetween } from "@/lib/wallclock";
+import { toHHMM, nowIso, minutesBetween, todayIsoDate } from "@/lib/wallclock";
 import type { SessionRec, ExtensionRequest } from "@/lib/types";
 import { sweepOverdueSessions } from "@/lib/data/sessionOverrunSweep";
 import { getAuthUser } from "@/lib/supabase/authUser";
@@ -120,26 +120,51 @@ function mapSessionRow(row: SessionRow, lookups: SessionLookups, now: string): S
   };
 }
 
-async function fetchLiveSessions(): Promise<SessionRec[] | null> {
-  const supabase = await createClient();
+// Audit performa 2026-10-23: dulu SELURUH riwayat sesi tenant dimuat di
+// setiap request (Royal Spa ±2.000 sesi + lookup booking/customer) hanya
+// untuk menampilkan sesi hari ini atau yang sedang berjalan. Sekarang
+// filter outlet/tanggal/terapis/status dijalankan di database dan di-cache
+// per kombinasi filter dalam satu request. Fallback mock tidak berubah.
 
+const isLiveSession = cache(async (): Promise<boolean> => {
   const {
     data: { user },
   } = await getAuthUser();
-  if (!user) return null; // demo/"Ganti Role" viewer -> mock. See header.
+  return user !== null;
+});
 
-  // Session overrun sweep (2026-08-23) — see lib/data/sessionOverrunSweep.ts
-  // for the full rationale. Same sweep-on-read chokepoint pattern as
-  // sweepNoShowBookings() in lib/data/bookings.ts, run once per request
-  // (this whole function is behind loadSessionsData's cache()).
+// Session overrun sweep (2026-08-23) — lihat lib/data/sessionOverrunSweep.ts.
+// Sekali per request, sama seperti sweep no-show di bookings.ts.
+const sweepOverdueOnce = cache(async (): Promise<void> => {
+  const supabase = await createClient();
   await sweepOverdueSessions(supabase);
+});
+
+const SESSION_COLUMNS =
+  "id, booking_id, outlet_id, therapist_id, room_id, purchased_duration_min, actual_start, expected_end, actual_end, extension_minutes, status";
+
+async function fetchLiveSessions(
+  outletId: string | null,
+  fromDate: string | null,
+  toDateExcl: string | null,
+  therapistId: string | null,
+  activeOnly: boolean,
+): Promise<SessionRec[]> {
+  const supabase = await createClient();
+  await sweepOverdueOnce();
 
   // Anti-truncation (2026-10-21) — sama seperti bookings.ts.
-  const { rows, error } = await fetchAllRows<SessionRow>((from, to) =>
-    Promise.resolve(supabase.from("sessions").select("*").order("actual_start").order("id").range(from, to))
-  );
-  if (error) return null;
-  if (!rows || rows.length === 0) return []; // real session, genuinely no treatments — honest empty
+  // Tanggal sesi = tanggal actual_start (bingkai wallclock, offset +00:00).
+  const { rows, error } = await fetchAllRows<SessionRow>((from, to) => {
+    let query = supabase.from("sessions").select(SESSION_COLUMNS);
+    if (outletId) query = query.eq("outlet_id", outletId);
+    if (therapistId) query = query.eq("therapist_id", therapistId);
+    if (activeOnly) query = query.eq("status", "ACTIVE");
+    if (fromDate) query = query.gte("actual_start", `${fromDate}T00:00:00+00:00`);
+    if (toDateExcl) query = query.lt("actual_start", `${toDateExcl}T00:00:00+00:00`);
+    return Promise.resolve(query.order("actual_start").order("id").range(from, to));
+  });
+  if (error || !rows || rows.length === 0) return [];
 
   const sessionRows = rows;
   const bookingIds = [...new Set(sessionRows.map((r) => r.booking_id))];
@@ -173,32 +198,53 @@ async function fetchLiveSessions(): Promise<SessionRec[] | null> {
   return sessionRows.map((row) => mapSessionRow(row, lookups, now));
 }
 
-const loadSessionsData = cache(async () => {
-  const live = await fetchLiveSessions();
-  // Explicit `!== null` on purpose: `[]` is truthy in JS, and telling the
-  // two kinds of "empty" apart (no session vs. no treatments) is the
-  // entire point of this check. Same landmine as lib/data/bookings.ts.
-  if (live !== null) return { sessions: live, live: true };
-  return { sessions: MOCK_SESSIONS, live: false };
-});
+const isRunning = (s: SessionRec) => s.status === "ACTIVE" || s.status === "ENDING_SOON";
 
-export async function isLiveSessionsData(): Promise<boolean> {
-  return (await loadSessionsData()).live;
+/** Satu pintu baca sesi; argumen primitif supaya cache() menyatukan pemanggilan yang sama. */
+const loadSessions = cache(
+  async (
+    outletId: string | null,
+    fromDate: string | null,
+    toDateExcl: string | null,
+    therapistId: string | null,
+    activeOnly: boolean,
+  ): Promise<SessionRec[]> => {
+    if (!(await isLiveSession())) {
+      return MOCK_SESSIONS.filter(
+        (s) =>
+          (!outletId || s.outletId === outletId) &&
+          (!therapistId || s.therapistId === therapistId) &&
+          (!activeOnly || isRunning(s)) &&
+          (!fromDate || s.date >= fromDate) &&
+          (!toDateExcl || s.date < toDateExcl),
+      );
+    }
+    return fetchLiveSessions(outletId, fromDate, toDateExcl, therapistId, activeOnly);
+  },
+);
+
+function nextDay(date: string): string {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
 }
 
+export async function isLiveSessionsData(): Promise<boolean> {
+  return isLiveSession();
+}
+
+/** Sesi satu outlet; dengan `date` hanya hari itu. Tanpa `date` = seluruh riwayat (hindari). */
 export async function getSessionsForOutlet(outletId: string, date?: string): Promise<SessionRec[]> {
-  const { sessions } = await loadSessionsData();
-  return sessions.filter((s) => s.outletId === outletId && (!date || s.date === date));
+  return date ? loadSessions(outletId, date, nextDay(date), null, false) : loadSessions(outletId, null, null, null, false);
 }
 
 /** Sessions currently on a table — what the monitor screens are actually for. */
 export async function getActiveSessionsForOutlet(outletId: string): Promise<SessionRec[]> {
-  return (await getSessionsForOutlet(outletId)).filter((s) => s.status === "ACTIVE" || s.status === "ENDING_SOON");
+  return (await loadSessions(outletId, null, null, null, true)).filter(isRunning);
 }
 
 export async function getSessionForTherapist(therapistId: string): Promise<SessionRec | undefined> {
-  const { sessions } = await loadSessionsData();
-  return sessions.find((s) => s.therapistId === therapistId && (s.status === "ACTIVE" || s.status === "ENDING_SOON"));
+  return (await loadSessions(null, null, null, therapistId, true)).find(isRunning);
 }
 
 // ------------------------------------------------------------------
@@ -231,7 +277,11 @@ async function fetchLiveExtensionRequests(sessions: SessionRec[]): Promise<Exten
   } = await getAuthUser();
   if (!user) return null;
 
-  const { data: rows, error } = await supabase.from("extension_requests").select("*").order("requested_at");
+  const sessionIds = sessions.map((x) => x.id);
+  if (!sessionIds.length) return [];
+  const { data: rows, error } = await selectInChunks<ExtensionRequestRow>(sessionIds, (c, f, t) =>
+    supabase.from("extension_requests").select("*").in("session_id", c).order("requested_at").order("id").range(f, t)
+  );
   if (error) return null;
   if (!rows || rows.length === 0) return [];
 
@@ -268,9 +318,16 @@ async function fetchLiveExtensionRequests(sessions: SessionRec[]): Promise<Exten
 }
 
 export async function getExtensionRequestsForOutlet(outletId: string): Promise<ExtensionRequest[]> {
-  const { sessions, live } = await loadSessionsData();
-  if (!live) return MOCK_EXTENSION_REQUESTS;
-  const outletSessions = sessions.filter((s) => s.outletId === outletId);
+  if (!(await isLiveSession())) return MOCK_EXTENSION_REQUESTS;
+  // Permintaan perpanjangan hanya relevan untuk sesi kemarin–hari ini dan
+  // yang masih berjalan (audit 2026-10-23: dulu memindai seluruh riwayat).
+  const today = todayIsoDate();
+  const yesterday = (() => { const d = new Date(`${today}T00:00:00Z`); d.setUTCDate(d.getUTCDate() - 1); return d.toISOString().slice(0, 10); })();
+  const [recent, active] = await Promise.all([
+    loadSessions(outletId, yesterday, nextDay(today), null, false),
+    loadSessions(outletId, null, null, null, true),
+  ]);
+  const outletSessions = [...new Map([...recent, ...active].map((x) => [x.id, x])).values()];
   const requests = await fetchLiveExtensionRequests(outletSessions);
   if (requests === null) return MOCK_EXTENSION_REQUESTS;
   const outletSessionIds = new Set(outletSessions.map((s) => s.id));

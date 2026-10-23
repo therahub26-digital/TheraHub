@@ -44,21 +44,21 @@ type TransactionItemRow = {
   therapist_id: string | null;
 };
 
-async function fetchLiveTransactions(): Promise<Transaction[] | null> {
+// Audit performa 2026-10-23: dulu seluruh riwayat transaksi tenant (+ item
+// setiap transaksi) dimuat untuk menampilkan struk hari ini. Sekarang filter
+// outlet & rentang paid_at dijalankan di database.
+async function fetchLiveTransactions(outletId: string, fromDate: string | null, toDateExcl: string | null): Promise<Transaction[]> {
   const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await getAuthUser();
-  if (!user) return null; // demo/"Ganti Role" viewer -> mock, same as bookings/sessions.
 
   // Anti-truncation (2026-10-21) — sama seperti bookings.ts. Urutan
   // terbaru-dulu dipertahankan; id sebagai pemecah seri supaya halaman stabil.
-  const { rows, error } = await fetchAllRows<TransactionRow>((from, to) =>
-    Promise.resolve(supabase.from("transactions").select("*").order("paid_at", { ascending: false }).order("id").range(from, to))
-  );
-  if (error) return null;
-  if (!rows || rows.length === 0) return [];
+  const { rows, error } = await fetchAllRows<TransactionRow>((from, to) => {
+    let query = supabase.from("transactions").select("*").eq("outlet_id", outletId);
+    if (fromDate) query = query.gte("paid_at", `${fromDate}T00:00:00+00:00`);
+    if (toDateExcl) query = query.lt("paid_at", `${toDateExcl}T00:00:00+00:00`);
+    return Promise.resolve(query.order("paid_at", { ascending: false }).order("id").range(from, to));
+  });
+  if (error || !rows || rows.length === 0) return [];
 
   const txRows = rows;
   const bookingIds = [...new Set(txRows.map((t) => t.booking_id).filter((v): v is string => !!v))];
@@ -112,18 +112,38 @@ async function fetchLiveTransactions(): Promise<Transaction[] | null> {
   }));
 }
 
-const loadTransactionsData = cache(async () => {
-  const live = await fetchLiveTransactions();
-  // `!== null`, not truthy — same landmine as bookings.ts/sessions.ts.
-  if (live !== null) return { transactions: live, live: true };
-  return { transactions: MOCK_TRANSACTIONS, live: false };
+const isLiveSession = cache(async (): Promise<boolean> => {
+  const {
+    data: { user },
+  } = await getAuthUser();
+  return user !== null;
 });
 
-export async function isLiveTransactionsData(): Promise<boolean> {
-  return (await loadTransactionsData()).live;
+const loadTransactions = cache(async (outletId: string, fromDate: string | null, toDateExcl: string | null): Promise<Transaction[]> => {
+  if (!(await isLiveSession())) {
+    return MOCK_TRANSACTIONS.filter(
+      (t) => t.outletId === outletId && (!fromDate || t.paidAt.slice(0, 10) >= fromDate) && (!toDateExcl || t.paidAt.slice(0, 10) < toDateExcl),
+    );
+  }
+  return fetchLiveTransactions(outletId, fromDate, toDateExcl);
+});
+
+function nextDay(date: string): string {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
 }
 
+export async function isLiveTransactionsData(): Promise<boolean> {
+  return isLiveSession();
+}
+
+/** Transaksi satu outlet; dengan `date` hanya yang dibayar hari itu. */
 export async function getTransactionsForOutlet(outletId: string, date?: string): Promise<Transaction[]> {
-  const { transactions } = await loadTransactionsData();
-  return transactions.filter((t) => t.outletId === outletId && (!date || t.paidAt.slice(0, 10) === date));
+  return date ? loadTransactions(outletId, date, nextDay(date)) : loadTransactions(outletId, null, null);
+}
+
+/** Transaksi yang dibayar dalam rentang [fromDate, toDateExcl). */
+export async function getTransactionsForOutletInRange(outletId: string, fromDate: string, toDateExcl: string): Promise<Transaction[]> {
+  return loadTransactions(outletId, fromDate, toDateExcl);
 }

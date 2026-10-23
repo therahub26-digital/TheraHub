@@ -2,7 +2,7 @@ import { PageHead, Card, CardHead, StatCard, KV, EmptyState, InfoNote } from "@/
 import MockDataNotice from "@/components/MockDataNotice";
 import { TrendArea, BarsChart, DonutChart, LegendList } from "@/components/Charts";
 import { getCurrentOutlet } from "@/lib/data/outlets";
-import { getTransactionsForOutlet, isLiveTransactionsData } from "@/lib/data/transactions";
+import { getTransactionsForOutletInRange, isLiveTransactionsData } from "@/lib/data/transactions";
 import { getCommissionsForOutlet } from "@/lib/data/commissions";
 import { getExpensesForOutlet, expenseByCategory } from "@/lib/data/expenses";
 import { getBookingKpi } from "@/lib/data/bookings";
@@ -80,8 +80,14 @@ export default async function ReportsPage() {
   const live = await isLiveTransactionsData();
   const period = live ? currentPeriod() : "2026-08";
 
+  // Hanya rentang yang dipakai halaman ini: awal bulan / awal tren (mana
+  // yang lebih dulu) s.d. akhir bulan — dulu seluruh riwayat (audit 2026-10-23).
+  const trendFrom = live ? plusDays(todayIsoDate(), -(TREND_DAYS - 1)) : "2026-08-05";
+  const monthStart = `${period}-01`;
+  const [py, pm] = period.split("-").map(Number);
+  const monthEndExcl = pm === 12 ? `${py + 1}-01-01` : `${py}-${String(pm + 1).padStart(2, "0")}-01`;
   const [allTx, commissions, { expenses }, kpi] = await Promise.all([
-    getTransactionsForOutlet(outlet.id),
+    getTransactionsForOutletInRange(outlet.id, trendFrom < monthStart ? trendFrom : monthStart, monthEndExcl),
     getCommissionsForOutlet(outlet.id, period),
     getExpensesForOutlet(outlet.id),
     getBookingKpi(outlet.id),

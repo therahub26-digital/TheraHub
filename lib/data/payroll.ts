@@ -4,6 +4,7 @@ import { PAYROLL as MOCK_PAYROLL } from "@/lib/mock/finance";
 import type { PayrollAdjustment, PayrollComponent } from "@/lib/payroll";
 import type { PayrollItem, JobRole } from "@/lib/types";
 import { getAuthUser } from "@/lib/supabase/authUser";
+import { fetchAllRows, selectInChunks } from "@/lib/supabase/paginate";
 
 // ---------------------------------------------------------------------
 // Dual-mode read layer for payroll — the last module in the Fase 5 order.
@@ -41,28 +42,27 @@ export type PayrollSettings = {
   note: string;
 };
 
-async function fetchLivePayroll(): Promise<PayrollItem[] | null> {
+// Audit 2026-10-23: dulu seluruh slip gaji tenant (semua bulan) dimuat lalu
+// disaring di JS; sekarang filter outlet/periode/karyawan di database dan
+// dihalaman supaya tidak terpotong di 1.000 baris.
+async function fetchLivePayroll(outletId: string | null, period: string | null, employeeId: string | null): Promise<PayrollItem[]> {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await getAuthUser();
-  if (!user) return null;
+  const { rows, error } = await fetchAllRows<PayrollRow>((from, to) => {
+    let query = supabase.from("payroll_items").select("*");
+    if (outletId) query = query.eq("outlet_id", outletId);
+    if (period) query = query.eq("period", period);
+    if (employeeId) query = query.eq("employee_id", employeeId);
+    return Promise.resolve(query.order("period", { ascending: false }).order("id").range(from, to));
+  });
+  if (error || !rows.length) return [];
 
-  const { data: rows, error } = await supabase
-    .from("payroll_items")
-    .select("*")
-    .order("period", { ascending: false });
-  if (error) return null;
-  if (!rows || rows.length === 0) return [];
-
-  const payrollRows = rows as PayrollRow[];
+  const payrollRows = rows;
   const employeeIds = [...new Set(payrollRows.map((r) => r.employee_id))];
 
-  const { data: employeeRows } = await supabase
-    .from("employees")
-    .select("id, name, job_role")
-    .in("id", employeeIds);
+  const { data: employeeRows } = await selectInChunks<{ id: string; name: string; job_role: string | null }>(employeeIds, (c, f, t) =>
+    supabase.from("employees").select("id, name, job_role").in("id", c).order("id").range(f, t)
+  );
   const employees = new Map((employeeRows ?? []).map((e) => [e.id, e]));
 
   return payrollRows.map((row) => ({
@@ -87,25 +87,32 @@ async function fetchLivePayroll(): Promise<PayrollItem[] | null> {
   }));
 }
 
-const loadPayrollData = cache(async () => {
-  const live = await fetchLivePayroll();
-  // `!== null`, not truthy — see lib/data/bookings.ts for the landmine.
-  if (live !== null) return { payroll: live, live: true };
-  return { payroll: MOCK_PAYROLL, live: false };
+const isLiveSession = cache(async (): Promise<boolean> => {
+  const {
+    data: { user },
+  } = await getAuthUser();
+  return user !== null;
+});
+
+const loadPayroll = cache(async (outletId: string | null, period: string | null, employeeId: string | null): Promise<PayrollItem[]> => {
+  if (!(await isLiveSession())) {
+    return MOCK_PAYROLL.filter(
+      (p) => (!outletId || p.outletId === outletId) && (!period || p.period === period) && (!employeeId || p.employeeId === employeeId),
+    );
+  }
+  return fetchLivePayroll(outletId, period, employeeId);
 });
 
 export async function isLivePayrollData(): Promise<boolean> {
-  return (await loadPayrollData()).live;
+  return isLiveSession();
 }
 
 export async function getPayrollForOutlet(outletId: string, period?: string): Promise<PayrollItem[]> {
-  const { payroll } = await loadPayrollData();
-  return payroll.filter((p) => p.outletId === outletId && (!period || p.period === period));
+  return loadPayroll(outletId, period ?? null, null);
 }
 
 export async function getPayrollForEmployee(employeeId: string): Promise<PayrollItem[]> {
-  const { payroll } = await loadPayrollData();
-  return payroll.filter((p) => p.employeeId === employeeId).sort((a, b) => (a.period < b.period ? 1 : -1));
+  return [...(await loadPayroll(null, null, employeeId))].sort((a, b) => (a.period < b.period ? 1 : -1));
 }
 
 /**

@@ -5,7 +5,7 @@ import { ME_THERAPIST, DAY_RANGE, bookingsOf, TODAY, outletOf } from "@/lib/mock
 import { StartSessionButton } from "@/components/SessionActions";
 import { getSignedInTherapist } from "@/lib/data/commissions";
 import { getCurrentOutlet } from "@/lib/data/outlets";
-import { getBookingsForOutlet, getEffectiveToday } from "@/lib/data/bookings";
+import { getBookingsForOutletInRange, getEffectiveToday } from "@/lib/data/bookings";
 import { fmtDayShort, fmtDateLong, fmtTime, addDays } from "@/lib/format";
 import type { Booking } from "@/lib/types";
 import { getTenantTheme } from "@/lib/data/tenant";
@@ -107,7 +107,8 @@ export default async function ShiftPage() {
     // outlet.id — dua gelombang, sebelumnya tiga await berurutan.
     const [outlet, today] = await Promise.all([getCurrentOutlet(), getEffectiveToday()]);
     const week = Array.from({ length: 7 }, (_, i) => addDays(today, i - 3));
-    const allBookings = await getBookingsForOutlet(outlet.id);
+    // Hanya 7 hari yang ditampilkan — dulu seluruh riwayat outlet (audit 2026-10-23).
+    const allBookings = await getBookingsForOutletInRange(outlet.id, week[0], addDays(week[6], 1));
     const jobsByDay = buildJobsByDay(allBookings, signedIn.id, week);
     const todayJobs = jobsByDay.find((d) => d.date === today)?.jobs ?? [];
     const totalMinutes = todayJobs.reduce((s, b) => s + b.durationMin, 0);

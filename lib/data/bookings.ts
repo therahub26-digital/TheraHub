@@ -101,45 +101,56 @@ async function mapBookingRow(
   };
 }
 
-async function fetchLiveBookings(): Promise<Booking[] | null> {
-  const supabase = await createClient();
+// ---------------------------------------------------------------------
+// Audit performa 2026-10-23 ("jangan ada yang lemot"): versi sebelumnya
+// memuat SELURUH riwayat booking tenant (Royal Spa ±2.200 baris + lookup
+// pelanggan) di setiap request yang menyentuh modul ini — termasuk
+// getEffectiveToday(), yang dipanggil hampir semua halaman hanya untuk
+// tahu "hari ini". Sekarang:
+//   • live/mock = cukup cek sesi auth (getAuthUser, sudah di-cache);
+//   • data diambil dengan filter outlet/tanggal/customer DI DATABASE,
+//     di-cache per kombinasi filter dalam satu request;
+//   • sweep no-show tetap sekali per request (cache tersendiri).
+// Aturan fallback mock tidak berubah: tanpa sesi → mock; sesi sah dengan
+// nol booking → [] jujur.
+// ---------------------------------------------------------------------
 
-  // IMPORTANT — different fallback rule than lib/data/outlets.ts /
-  // employees.ts / catalog.ts: those fall back to mock on an EMPTY result,
-  // which works there because dev-seed guarantees those tables are never
-  // actually empty for a real authenticated session (only an anonymous/demo
-  // "Ganti Role" viewer sees 0 rows, via RLS default-deny). Bookings are
-  // different: a real logged-in kasir/manager can correctly have ZERO real
-  // bookings for a long time (Amethyst has no real booking history yet) —
-  // that is a true, honest state, not a signal to fall back to ~500
-  // fabricated mock bookings. Falling back on row-count alone would show a
-  // real, authenticated staff member fictional customers and fictional
-  // revenue, which is worse than an empty table. So here the fallback
-  // trigger is "no authenticated session" specifically, not "no rows".
+const isLiveSession = cache(async (): Promise<boolean> => {
   const {
     data: { user },
   } = await getAuthUser();
-  if (!user) return null;
+  return user !== null;
+});
 
-  // Rule 3 (2026-08-23): close out bookings that never checked in before
-  // reading, so every caller of this module sees the same, already-swept
-  // truth — the kasir's queue, the therapist's day, the guest's own
-  // "Booking Mendatang" card, and createBooking()'s conflict check all
-  // agree. This is THE chokepoint every booking read passes through, and
-  // it sits inside the cache() below, so it runs at most once per
-  // request. See lib/data/noShowSweep.ts for why this is a sweep-on-read
-  // rather than a cron job, and why it uses the caller's own RLS.
+// Rule 3 (2026-08-23): booking yang tidak pernah check-in ditutup sebelum
+// dibaca, sekali per request — lihat lib/data/noShowSweep.ts.
+const sweepNoShowOnce = cache(async (): Promise<void> => {
+  const supabase = await createClient();
   await sweepNoShowBookings(supabase);
+});
 
-  // Anti-truncation (2026-10-21): tanpa .range() PostgREST memotong di
-  // ~1000 baris, dan karena urutannya dari tanggal TERLAMA, booking HARI
-  // INI yang terpotong duluan — tenant demo Royal Spa (2.100+ booking)
-  // tampil "0 booking hari ini". Lihat lib/supabase/paginate.ts.
-  const { rows, error } = await fetchAllRows<BookingRow>((from, to) =>
-    Promise.resolve(supabase.from("bookings").select("*").order("date").order("scheduled_start").order("id").range(from, to))
-  );
-  if (error) return null;
-  if (!rows || rows.length === 0) return []; // real session, genuinely zero bookings — NOT a mock-fallback trigger
+const BOOKING_COLUMNS =
+  "id, code, outlet_id, customer_id, therapist_id, room_id, package_id, duration_min, price, date, scheduled_start, scheduled_end, status, source, notes, add_on_ids, created_at";
+
+async function fetchLiveBookings(
+  outletId: string | null,
+  fromDate: string | null,
+  toDateExcl: string | null,
+  customerId: string | null,
+): Promise<Booking[]> {
+  const supabase = await createClient();
+  await sweepNoShowOnce();
+
+  // Anti-truncation (2026-10-21) tetap: fetchAllRows menghalaman .range().
+  const { rows, error } = await fetchAllRows<BookingRow>((from, to) => {
+    let query = supabase.from("bookings").select(BOOKING_COLUMNS);
+    if (outletId) query = query.eq("outlet_id", outletId);
+    if (customerId) query = query.eq("customer_id", customerId);
+    if (fromDate) query = query.gte("date", fromDate);
+    if (toDateExcl) query = query.lt("date", toDateExcl);
+    return Promise.resolve(query.order("date").order("scheduled_start").order("id").range(from, to));
+  });
+  if (error || !rows || rows.length === 0) return [];
 
   const bookingRows = rows;
   const customerIds = [...new Set(bookingRows.map((r) => r.customer_id))];
@@ -167,70 +178,69 @@ async function fetchLiveBookings(): Promise<Booking[] | null> {
   return Promise.all(bookingRows.map((row) => mapBookingRow(row, lookups)));
 }
 
-const loadBookingsData = cache(async () => {
-  const live = await fetchLiveBookings();
-  // null = no authenticated session (demo/"Ganti Role" viewer) -> mock.
-  // [] (or more) = real session, real (possibly zero) bookings -> live.
-  // Explicit !== null check on purpose — an empty array is truthy in JS,
-  // but relying on that here would be a landmine for whoever edits this
-  // next, given the whole point of this file is telling those two "empty"
-  // cases apart. See the comment in fetchLiveBookings() for why.
-  if (live !== null) return { bookings: live, live: true };
-  return { bookings: MOCK_BOOKINGS, live: false };
-});
+/** Satu pintu baca booking; argumen primitif supaya cache() bisa menyatukan pemanggilan yang sama. */
+const loadBookings = cache(
+  async (outletId: string | null, fromDate: string | null, toDateExcl: string | null, customerId: string | null): Promise<Booking[]> => {
+    if (!(await isLiveSession())) {
+      return MOCK_BOOKINGS.filter(
+        (b) =>
+          (!outletId || b.outletId === outletId) &&
+          (!customerId || b.customerId === customerId) &&
+          (!fromDate || b.date >= fromDate) &&
+          (!toDateExcl || b.date < toDateExcl),
+      );
+    }
+    return fetchLiveBookings(outletId, fromDate, toDateExcl, customerId);
+  },
+);
+
+function nextDay(date: string): string {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
 
 export async function isLiveBookingsData(): Promise<boolean> {
-  return (await loadBookingsData()).live;
+  return isLiveSession();
 }
 
 /**
  * "Today" for display purposes: the mock data is generated around a fixed
  * demo date (lib/mock/rng's TODAY, 2026-08-18) so mock mode keeps using
  * that for internal consistency with the rest of the still-mock app. Live
- * mode uses the real current date — a live booking page for a real spa
- * must show the actual day, not a frozen demo date.
+ * mode uses the real current date (lib/wallclock.ts, WIB — lihat bug
+ * 2026-08-25 di sana).
  */
 export async function getEffectiveToday(): Promise<string> {
-  const live = await isLiveBookingsData();
-  if (!live) return MOCK_TODAY;
-  // Delegate to lib/wallclock.ts's todayIsoDate() rather than reading
-  // new Date() with local getters here directly -- that used to return
-  // the HOST machine's calendar date (UTC on Vercel), which lags a full
-  // day behind WIB every night from 00:00-06:59, silently hiding same-day
-  // bookings from every "today" list. See wallclock.ts's WIB_OFFSET_MS
-  // comment for the 2026-08-25 bug this fixes.
-  return todayIsoDate();
+  return (await isLiveSession()) ? todayIsoDate() : MOCK_TODAY;
 }
 
 /** Same live/mock split as getEffectiveToday(), for the current wall-clock time-of-day. */
 export async function getEffectiveNow(): Promise<string> {
-  const live = await isLiveBookingsData();
-  if (!live) return MOCK_NOW_HHMM;
-  return nowHHMM();
-}
-
-export async function getBookingsForOutlet(outletId: string, date?: string): Promise<Booking[]> {
-  const { bookings } = await loadBookingsData();
-  return bookings.filter((b) => b.outletId === outletId && (!date || b.date === date));
+  return (await isLiveSession()) ? nowHHMM() : MOCK_NOW_HHMM;
 }
 
 /**
- * A single customer's own bookings, across EVERY outlet they've visited —
- * unlike getBookingsForOutlet(), not scoped to one outlet, because
- * `customers` (and therefore a customer's own history) isn't tied to one
- * outlet either (see lib/data/customers.ts's file header). Added
- * 2026-08-22 for the customer portal (/customer/history, /customer/page
- * "upcoming booking" card, getCurrentCustomer()'s visit-history math).
- *
- * Same live/mock split as every other getter here: in live mode this is
- * already RLS-scoped to the signed-in customer's own rows
- * (bookings_customer policy), so filtering by customerId here is a
- * belt-and-suspenders no-op for the live case — it matters for mock mode,
- * where MOCK_BOOKINGS has every demo customer's rows mixed together.
+ * Booking satu outlet. Dengan `date` → hanya hari itu (query ber-filter).
+ * Tanpa `date` → SELURUH riwayat outlet; hindari di halaman yang sering
+ * dibuka, pakai getBookingsForOutletInRange().
+ */
+export async function getBookingsForOutlet(outletId: string, date?: string): Promise<Booking[]> {
+  return date ? loadBookings(outletId, date, nextDay(date), null) : loadBookings(outletId, null, null, null);
+}
+
+/** Booking satu outlet dalam rentang tanggal [fromDate, toDateExcl). */
+export async function getBookingsForOutletInRange(outletId: string, fromDate: string, toDateExcl: string): Promise<Booking[]> {
+  return loadBookings(outletId, fromDate, toDateExcl, null);
+}
+
+/**
+ * A single customer's own bookings, across EVERY outlet they've visited
+ * (customers tidak terikat satu outlet). Filter customer_id di database;
+ * untuk akun customer RLS juga sudah membatasi ke barisnya sendiri.
  */
 export async function getBookingsForCustomer(customerId: string): Promise<Booking[]> {
-  const { bookings } = await loadBookingsData();
-  return bookings.filter((b) => b.customerId === customerId);
+  return loadBookings(null, null, null, customerId);
 }
 
 export async function getBookingsToday(outletId: string): Promise<Booking[]> {

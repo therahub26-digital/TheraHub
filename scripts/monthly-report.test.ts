@@ -13,6 +13,10 @@ import {
   percentageChange,
   summarizeRevenueItems,
   withOptionalProfit,
+  reportWindow,
+  previousWindow,
+  reportWindowLabel,
+  elapsedDays,
 } from "@/lib/data/monthly-report-math";
 
 type Result = { id: string; name: string; ok: boolean; detail?: string };
@@ -180,6 +184,38 @@ test("M16", "Kasir mencatat F&B sebagai PRODUCT: digolongkan F&B lewat kategori 
   assert.equal(byCategory.find((row) => row.key === "FNB")?.amount, 12_000);
   assert.equal(byCategory.find((row) => row.key === "PRODUCT")?.amount, 85_000);
   assert.equal(fnb.items[0].grossProfit, 9_000);
+});
+
+// ---- Laporan harian / mingguan (2026-10-23)
+test("P1", "Mingguan: Senin–Minggu dari tanggal mana pun (Jumat 23 Okt → 19–25 Okt)", () => {
+  const w = reportWindow("week", "2026-10-23");
+  assert.deepEqual([w.start, w.endExcl, w.days, w.period], ["2026-10-19", "2026-10-26", 7, "W:2026-10-19"]);
+  assert.equal(reportWindow("week", "2026-10-25").start, "2026-10-19"); // Minggu ikut minggu yang sama
+  assert.equal(reportWindow("week", "2026-10-26").start, "2026-10-26"); // Senin = minggu baru
+});
+test("P2", "Pembanding: hari → kemarin, minggu → minggu lalu, bulan → bulan lalu (lompat tahun)", () => {
+  assert.equal(previousWindow(reportWindow("day", "2026-11-01")).start, "2026-10-31");
+  assert.equal(previousWindow(reportWindow("week", "2026-10-23")).start, "2026-10-12");
+  assert.equal(previousWindow(reportWindow("month", "2027-01")).period, "2026-12");
+});
+test("P3", "Label periode", () => {
+  assert.equal(reportWindowLabel(reportWindow("day", "2026-10-23")), "Jumat, 23 Oktober 2026");
+  assert.equal(reportWindowLabel(reportWindow("week", "2026-10-23")), "19–25 Okt 2026");
+  assert.equal(reportWindowLabel(reportWindow("week", "2026-10-01")), "28 Sep – 4 Okt 2026");
+  assert.equal(reportWindowLabel(reportWindow("month", "2026-10")), "Oktober 2026");
+});
+test("P4", "Hari berjalan: periode lalu penuh, periode berjalan sampai hari ini, periode depan 0", () => {
+  assert.equal(elapsedDays(reportWindow("week", "2026-10-12"), "2026-10-23"), 7);
+  assert.equal(elapsedDays(reportWindow("week", "2026-10-23"), "2026-10-23"), 5);
+  assert.equal(elapsedDays(reportWindow("month", "2026-11"), "2026-10-23"), 0);
+});
+test("P5", "Potongan per hari untuk minggu yang melintasi akhir bulan", () => {
+  const rows = buildWeeklyCashflow("2026-09-28", 7, [{ date: "2026-10-01", amount: 500 }], [], 1);
+  assert.equal(rows.length, 7);
+  assert.deepEqual(rows.map((r) => r.label), ["28", "29", "30", "1", "2", "3", "4"]);
+  assert.equal(rows[3].start, "2026-10-01");
+  assert.equal(rows[3].revenue, 500);
+  assert.equal(buildWeeklyUsage("2026-10-23", 1, ["2026-10-23"], [], 1)[0].visits, 1);
 });
 
 for (const result of results) {

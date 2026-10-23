@@ -72,8 +72,17 @@ export function monthWindow(period: string): { start: string; endExcl: string; d
   return { start: `${period}-01`, endExcl: `${nextY}-${p(nextM)}-01`, days };
 }
 
-export async function getTherapistPerformance(outletId: string, period: string, today: string): Promise<TherapistPerformanceRow[]> {
-  const { start, endExcl, days } = monthWindow(period);
+export async function getTherapistPerformance(
+  outletId: string,
+  period: string,
+  today: string,
+  /** 2026-10-23: rentang selain satu bulan penuh (laporan harian/mingguan, atau pembanding sebagian). `period` tetap bulan untuk penilaian manajemen. */
+  range?: { start: string; endExcl: string }
+): Promise<TherapistPerformanceRow[]> {
+  const month = monthWindow(period);
+  const start = range?.start ?? month.start;
+  const endExcl = range?.endExcl ?? month.endExcl;
+  const days = Math.round((Date.parse(`${endExcl}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86_400_000);
   const supabase = await createClient();
 
   const [therapists, attendance, exceptions, allLeaveRequests, customerReviews, managementReviews, paidBookings] =
@@ -100,8 +109,11 @@ export async function getTherapistPerformance(outletId: string, period: string, 
     ]);
 
   // Hari yang sudah berlalu dari bulan ini (lihat header).
-  const currentPeriod = today.slice(0, 7);
-  const elapsedDays = period > currentPeriod ? 0 : period < currentPeriod ? days : Number(today.slice(8, 10));
+  // Hari yang sudah berlalu di rentang ini (berbasis tanggal, berlaku untuk bulan/minggu/hari).
+  const todayExcl = new Date(`${today}T00:00:00Z`);
+  todayExcl.setUTCDate(todayExcl.getUTCDate() + 1);
+  const until = Math.min(Date.parse(`${endExcl}T00:00:00Z`), todayExcl.getTime());
+  const elapsedDays = Math.max(0, Math.min(days, Math.round((until - Date.parse(`${start}T00:00:00Z`)) / 86_400_000)));
 
   const guestsByTherapist = new Map<string, number>();
   for (const b of paidBookings) {

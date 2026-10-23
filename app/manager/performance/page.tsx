@@ -1,5 +1,6 @@
 import { PageHead, Card, CardHead, InfoNote } from "@/components/ui";
 import MockDataNotice from "@/components/MockDataNotice";
+import PrintButton from "@/components/PrintButton";
 import TherapistPerformanceTable from "@/components/TherapistPerformanceTable";
 import { getCurrentOutlet, isLiveOutletsData } from "@/lib/data/outlets";
 import { getEffectiveToday } from "@/lib/data/bookings";
@@ -53,6 +54,7 @@ export default async function ManagerPerformancePage({ searchParams }: { searchP
           <form method="get" className="row g2" style={{ alignItems: "center" }}>
             <input type="month" name="period" defaultValue={period} max={currentPeriod} className="input" style={{ width: 160 }} />
             <button type="submit" className="btn btn-primary btn-sm">Tampilkan</button>
+            <PrintButton label="Cetak / Simpan PDF" />
           </form>
         }
       />

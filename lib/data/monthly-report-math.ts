@@ -194,19 +194,40 @@ export type WeeklyCashflowRow = {
  * "Contribution" = revenue − commission − expenses − materials, i.e. before
  * fixed salary; its running total shows when the month covers fixed payroll.
  */
+/** "2026-10-31" + 1 → "2026-11-01" (kalender UTC, sama seperti seluruh laporan). */
+export function addDaysIso(date: string, days: number): string {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Potongan periode untuk grafik/tabel kas & pemakaian. Laporan bulanan
+ * memakai potongan 7 hari ("1–7", "8–14", ...); laporan mingguan dan
+ * harian memakai potongan 1 hari. Dihitung dengan aritmetika tanggal
+ * (2026-10-23) supaya minggu yang melintasi akhir bulan tetap benar.
+ */
+function periodBuckets(periodStart: string, days: number, bucketDays: number) {
+  const out: { label: string; start: string; end: string }[] = [];
+  for (let offset = 0; offset < days; offset += bucketDays) {
+    const start = addDaysIso(periodStart, offset);
+    const end = addDaysIso(periodStart, Math.min(days, offset + bucketDays) - 1);
+    const d1 = Number(start.slice(8, 10)), d2 = Number(end.slice(8, 10));
+    out.push({ label: start === end ? `${d1}` : `${d1}–${d2}`, start, end });
+  }
+  return out;
+}
+
 export function buildWeeklyCashflow(
-  monthStart: string,
+  periodStart: string,
   days: number,
   revenueByDay: { date: string; amount: number }[],
-  costs: { date: string; kind: CashflowCostKind; amount: number }[]
+  costs: { date: string; kind: CashflowCostKind; amount: number }[],
+  bucketDays = 7
 ): WeeklyCashflowRow[] {
-  const prefix = monthStart.slice(0, 8);
   const rows: WeeklyCashflowRow[] = [];
   let cumulative = 0;
-  for (let first = 1; first <= days; first += 7) {
-    const last = Math.min(days, first + 6);
-    const start = `${prefix}${String(first).padStart(2, "0")}`;
-    const end = `${prefix}${String(last).padStart(2, "0")}`;
+  for (const { label, start, end } of periodBuckets(periodStart, days, bucketDays)) {
     const inBucket = (date: string) => date.slice(0, 10) >= start && date.slice(0, 10) <= end;
     const revenue = revenueByDay.filter((row) => inBucket(row.date)).reduce((sum, row) => sum + row.amount, 0);
     const sumOf = (kind: CashflowCostKind) => costs
@@ -217,7 +238,7 @@ export function buildWeeklyCashflow(
     const materials = sumOf("materials");
     const contribution = revenue - commission - expenses - materials;
     cumulative += contribution;
-    rows.push({ label: `${first}–${last}`, start, end, revenue, commission, expenses, materials, contribution, cumulativeContribution: cumulative });
+    rows.push({ label, start, end, revenue, commission, expenses, materials, contribution, cumulativeContribution: cumulative });
   }
   return rows;
 }
@@ -249,21 +270,92 @@ export type WeeklyUsageRow = { label: string; start: string; end: string; visits
 
 /** Visits and treatment-material cost per week of the month (same buckets as the cashflow chart). */
 export function buildWeeklyUsage(
-  monthStart: string,
+  periodStart: string,
   days: number,
   visitDates: string[],
-  materials: { date: string; amount: number }[]
+  materials: { date: string; amount: number }[],
+  bucketDays = 7
 ): WeeklyUsageRow[] {
-  const prefix = monthStart.slice(0, 8);
-  const rows: WeeklyUsageRow[] = [];
-  for (let first = 1; first <= days; first += 7) {
-    const last = Math.min(days, first + 6);
-    const start = `${prefix}${String(first).padStart(2, "0")}`;
-    const end = `${prefix}${String(last).padStart(2, "0")}`;
+  return periodBuckets(periodStart, days, bucketDays).map(({ label, start, end }) => {
     const inBucket = (date: string) => date.slice(0, 10) >= start && date.slice(0, 10) <= end;
     const visits = visitDates.filter(inBucket).length;
     const materialCost = materials.filter((row) => inBucket(row.date)).reduce((sum, row) => sum + row.amount, 0);
-    rows.push({ label: `${first}–${last}`, start, end, visits, materialCost, costPerVisit: visits ? materialCost / visits : null });
-  }
-  return rows;
+    return { label, start, end, visits, materialCost, costPerVisit: visits ? materialCost / visits : null };
+  });
 }
+
+// ---------------------------------------------------------------------
+// Jendela periode laporan (harian / mingguan / bulanan) — 2026-10-23.
+// Fungsi murni (tanpa server) supaya bisa diuji di scripts/monthly-report.test.ts.
+// ---------------------------------------------------------------------
+export type ReportKind = "day" | "week" | "month";
+
+export type ReportWindow = {
+  kind: ReportKind;
+  /** "2026-10" untuk bulanan (kunci payroll); "D:2026-10-23" / "W:2026-10-19" untuk lainnya. */
+  period: string;
+  start: string;
+  endExcl: string;
+  days: number;
+  /** Diisi bila hanya N hari pertama dibandingkan (periode berjalan). */
+  partialDays?: number;
+};
+
+const MONTHS_LONG = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+const MONTHS_SHORT = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+const WEEKDAYS = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+
+function daysBetween(start: string, endExcl: string): number {
+  return Math.round((Date.parse(`${endExcl}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86_400_000);
+}
+
+/**
+ * Jendela periode laporan. `anchor`: "YYYY-MM" (bulanan) atau tanggal
+ * "YYYY-MM-DD" di dalam periode. Minggu = Senin–Minggu.
+ */
+export function reportWindow(kind: ReportKind, anchor: string): ReportWindow {
+  if (kind === "month") {
+    const period = anchor.slice(0, 7);
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) throw new Error(`Periode laporan tidak valid: ${anchor}`);
+    const [y, mo] = period.split("-").map(Number);
+    const next = mo === 12 ? `${y + 1}-01` : `${y}-${String(mo + 1).padStart(2, "0")}`;
+    const start = `${period}-01`, endExcl = `${next}-01`;
+    return { kind, period, start, endExcl, days: daysBetween(start, endExcl) };
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(anchor)) throw new Error(`Tanggal laporan tidak valid: ${anchor}`);
+  if (kind === "day") return { kind, period: `D:${anchor}`, start: anchor, endExcl: addDaysIso(anchor, 1), days: 1 };
+  const weekday = new Date(`${anchor}T00:00:00Z`).getUTCDay();
+  const start = addDaysIso(anchor, -((weekday + 6) % 7));
+  return { kind, period: `W:${start}`, start, endExcl: addDaysIso(start, 7), days: 7 };
+}
+
+export function previousWindow(window: ReportWindow): ReportWindow {
+  if (window.kind === "month") {
+    const prior = new Date(`${window.start}T00:00:00Z`);
+    prior.setUTCMonth(prior.getUTCMonth() - 1);
+    return reportWindow("month", prior.toISOString().slice(0, 7));
+  }
+  return reportWindow(window.kind, addDaysIso(window.start, -window.days));
+}
+
+/** Label manusiawi: "Oktober 2026" · "19–25 Okt 2026" · "Jumat, 23 Oktober 2026". */
+export function reportWindowLabel(window: Pick<ReportWindow, "kind" | "start" | "endExcl">): string {
+  const last = addDaysIso(window.endExcl, -1);
+  const [y1, m1, d1] = window.start.split("-").map(Number);
+  const [y2, m2, d2] = last.split("-").map(Number);
+  if (window.kind === "month" && d1 === 1 && daysBetween(window.start, window.endExcl) >= 28) return `${MONTHS_LONG[m1 - 1]} ${y1}`;
+  if (window.start === last) {
+    const weekday = WEEKDAYS[new Date(`${window.start}T00:00:00Z`).getUTCDay()];
+    return `${weekday}, ${d1} ${MONTHS_LONG[m1 - 1]} ${y1}`;
+  }
+  if (y1 === y2 && m1 === m2) return `${d1}–${d2} ${MONTHS_SHORT[m1 - 1]} ${y1}`;
+  if (y1 === y2) return `${d1} ${MONTHS_SHORT[m1 - 1]} – ${d2} ${MONTHS_SHORT[m2 - 1]} ${y1}`;
+  return `${d1} ${MONTHS_SHORT[m1 - 1]} ${y1} – ${d2} ${MONTHS_SHORT[m2 - 1]} ${y2}`;
+}
+
+/** Hari yang sudah berjalan di jendela ini per `today` (0 untuk periode depan). */
+export function elapsedDays(window: Pick<ReportWindow, "start" | "endExcl">, today: string): number {
+  const end = window.endExcl < addDaysIso(today, 1) ? window.endExcl : addDaysIso(today, 1);
+  return Math.max(0, daysBetween(window.start, end));
+}
+

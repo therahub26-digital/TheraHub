@@ -1,7 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { fetchAllRows } from "@/lib/supabase/paginate";
-import { getEffectivePeriod } from "@/lib/data/commissions";
-import { getTherapistPerformance, monthWindow, type TherapistPerformanceRow } from "@/lib/data/performance";
+import { getTherapistPerformance, type TherapistPerformanceRow } from "@/lib/data/performance";
 import {
   calculateOperatingProfit,
   calculateRoomUtilization,
@@ -17,16 +16,24 @@ import {
   type RevenueCategoryKey,
   withOptionalProfit,
 } from "@/lib/data/monthly-report-math";
+import { addDaysIso, elapsedDays, previousWindow, reportWindow, reportWindowLabel, type ReportKind, type ReportWindow } from "@/lib/data/monthly-report-math";
+export { reportWindow, reportWindowLabel } from "@/lib/data/monthly-report-math";
 import { minutesBetween, nowIso, todayIsoDate } from "@/lib/wallclock";
 
-type Window = ReturnType<typeof monthWindow> & {
-  period: string;
-  /** Set when only days 1..N of the month are compared (current month still running). */
-  partialDays?: number;
-};
+// ---------------------------------------------------------------------
+// 2026-10-23 (Adjie: "laporan harian, mingguan, bulanan"): mesin yang sama
+// melayani tiga jenis periode. Semua perhitungan sudah berbasis rentang
+// tanggal [start, endExcl); yang khas bulanan hanya payroll (slip payroll
+// memang per bulan) — untuk harian/mingguan bagian itu diganti komisi
+// periode & kehadiran, bukan ditampilkan "belum dihitung".
+// ---------------------------------------------------------------------
+export type { ReportKind } from "@/lib/data/monthly-report-math";
+type Window = ReportWindow;
 
 export type MonthlySummary = {
   revenue: number;
+  /** Komisi terapis periode ini (payroll tersimpan bila bulanan & sudah dihitung, selain itu dari entri komisi). */
+  commission: number;
   visits: number;
   averageTransaction: number;
   humanResourceCost: number | null;
@@ -94,6 +101,16 @@ export type TherapistReport = {
   extendedSessionPct: number | null;
   lateCount: number;
   performanceScore: number | null;
+  /** Hari hadir (absen GPS) / hari kerja yang seharusnya; null bila absensi belum dipakai. */
+  presentDays: number;
+  expectedDays: number;
+  attendancePct: number | null;
+  /** Jumlah ulasan pelanggan yang membentuk rating. */
+  reviewCount: number;
+  /** Cuti/libur/izin tercatat di periode. */
+  leaveDays: number;
+  /** Penilaian manajemen bulan itu (1–5), bila ada. */
+  managementRating: number | null;
 };
 
 export type OperationsReport = {
@@ -168,6 +185,8 @@ export type ProfitReport = {
   materials: number | null;
   costOfGoodsSold: number | null;
   total: number | null;
+  /** Pendapatan − komisi − pengeluaran − bahan − HPP (sebelum gaji tetap). Dipakai laporan harian/mingguan. */
+  contributionBeforePayroll: number;
 };
 
 export type OutletProfitReport = OutletReport & {
@@ -180,8 +199,14 @@ export type OutletProfitReport = OutletReport & {
 };
 
 export type MonthlyReport = {
+  kind: ReportKind;
   period: string;
   previousPeriod: string;
+  /** "Oktober 2026" · "19–25 Okt 2026" · "Jumat, 23 Oktober 2026". */
+  periodLabel: string;
+  periodStart: string;
+  /** Tanggal terakhir (inklusif). */
+  periodEnd: string;
   status: "FINAL" | "SEMENTARA";
   /** What the comparison covers, e.g. "1–17 Sep 2026" while the month is running, else "Sep 2026". */
   comparisonLabel: string;
@@ -283,15 +308,6 @@ function n(value: number | string | null | undefined): number {
 
 function inWindow(date: string, window: Window): boolean {
   return date >= window.start && date < window.endExcl;
-}
-
-function monthPair(period: string): [Window, Window] {
-  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) throw new Error(`Periode laporan tidak valid: ${period}`);
-  const current = { period, ...monthWindow(period) };
-  const priorDate = new Date(`${period}-01T00:00:00Z`);
-  priorDate.setUTCMonth(priorDate.getUTCMonth() - 1);
-  const previousPeriod = `${priorDate.getUTCFullYear()}-${String(priorDate.getUTCMonth() + 1).padStart(2, "0")}`;
-  return [current, { period: previousPeriod, ...monthWindow(previousPeriod) }];
 }
 
 function parseOperatingHours(value: string | null): number | null {
@@ -483,7 +499,6 @@ type BuiltReport = {
 function buildReport(
   data: ReportData,
   window: Window,
-  effectivePeriod: string,
   today: string,
   performanceRows: TherapistPerformanceRow[],
   includeProfit: boolean
@@ -628,11 +643,7 @@ function buildReport(
     new Map(data.products.filter((product) => product.category).map((product) => [product.name, product.category as string]))
   );
 
-  const operatingDays = window.period < effectivePeriod
-    ? (window.partialDays ?? window.days)
-    : window.period > effectivePeriod
-      ? 0
-      : Math.min(window.days, Number(today.slice(8, 10)));
+  const operatingDays = elapsedDays(window, today);
   const hoursByOutlet = new Map(data.outlets.map((outlet) => [outlet.id, parseOperatingHours(outlet.open_hours)]));
   const activeRooms = data.rooms.filter((room) => room.status === "ACTIVE");
   const minutesByRoom = new Map<string, number>();
@@ -705,6 +716,12 @@ function buildReport(
         extendedSessionPct: therapistSessions.length ? extendedSessions / therapistSessions.length * 100 : null,
         lateCount: performance.lateCount,
         performanceScore: performance.performanceScore ?? null,
+        presentDays: performance.presentDays,
+        expectedDays: performance.expectedDays,
+        attendancePct: performance.attendancePct,
+        reviewCount: performance.customerCount,
+        leaveDays: performance.leaveSick + performance.leaveOff,
+        managementRating: performance.management?.rating ?? null,
       };
     });
 
@@ -734,6 +751,7 @@ function buildReport(
   });
   const summary: MonthlySummary = {
     revenue,
+    commission: commissionTotal,
     visits: completedOrPaidBookings.size,
     averageTransaction: tx.length ? revenue / tx.length : 0,
     humanResourceCost,
@@ -769,7 +787,7 @@ function buildReport(
         kind: "materials" as const,
         amount: Math.abs(n(row.qty)) * n(row.unit_cost),
       })),
-    ]).filter((row) => window.period !== effectivePeriod || row.start <= today),
+    ], window.kind === "month" ? 7 : 1).filter((row) => row.start <= today),
     fixedPayroll: payrollCost,
   };
   const result: BuiltReport = {
@@ -780,7 +798,7 @@ function buildReport(
         date.setUTCDate(date.getUTCDate() + index);
         const key = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
         return { date: key, amount: byDay.get(key) ?? 0 };
-      }).filter((row) => window.period !== effectivePeriod || row.date <= today),
+      }).filter((row) => row.date <= today),
       byService: [...services.entries()].map(([name, detail]) => ({
         name, ...detail, sharePct: revenue ? detail.amount / revenue * 100 : 0,
       })).sort((a, b) => b.amount - a.amount),
@@ -810,6 +828,7 @@ function buildReport(
       ? null
       : calculateOperatingProfit(revenue, commissionTotal, payrollCost, totalExpenses, materialCost, costOfGoodsSold);
     result.profit = {
+      contributionBeforePayroll: revenue - commissionTotal - totalExpenses - materialCost - costOfGoodsSold,
       revenue,
       commission: commissionTotal,
       payrollCost,
@@ -917,7 +936,8 @@ function buildInventory(
       window.start,
       window.days,
       visitedBookings.map((booking) => booking.date),
-      treatmentMovements.map((row) => ({ date: row.posted_at.slice(0, 10), amount: Math.abs(n(row.qty)) * n(row.unit_cost) }))
+      treatmentMovements.map((row) => ({ date: row.posted_at.slice(0, 10), amount: Math.abs(n(row.qty)) * n(row.unit_cost) })),
+      window.kind === "month" ? 7 : 1
     ).filter((row) => row.start <= todayIsoDate()),
     materialCostPerVisit: visits && treatmentMovements.length ? materialTotal / visits : null,
     stockValueNow,
@@ -928,52 +948,57 @@ function inWindowDate(timestamp: string, window: Window): boolean {
   return inWindow(timestamp.slice(0, 10), window);
 }
 
-export async function getMonthlyReport({
+export async function getPeriodReport({
   outletIds,
-  period,
+  kind,
+  anchor,
   includeProfit,
 }: {
   outletIds: string[];
-  period: string;
+  kind: ReportKind;
+  /** "YYYY-MM" untuk bulanan, "YYYY-MM-DD" (tanggal mana pun di periode) untuk harian/mingguan. */
+  anchor: string;
   includeProfit: boolean;
 }): Promise<MonthlyReport> {
-  const [current, fullPrevious] = monthPair(period);
+  const current = reportWindow(kind, anchor);
+  const fullPrevious = previousWindow(current);
   const uniqueOutletIds = [...new Set(outletIds)];
-  const [effectivePeriod, data] = await Promise.all([
-    getEffectivePeriod(),
-    fetchData(uniqueOutletIds, [current, fullPrevious]),
-  ]);
+  const data = await fetchData(uniqueOutletIds, [current, fullPrevious]);
   const today = todayIsoDate();
-  // Running month vs. a whole previous month reads as a collapse (-50%)
-  // that is only the calendar. Compare the same dates instead: 1–17 Okt vs 1–17 Sep.
-  const running = period >= effectivePeriod && today.slice(0, 7) === period;
-  const comparisonDays = running ? Math.min(Number(today.slice(8, 10)), fullPrevious.days) : null;
-  const previous: Window = comparisonDays === null ? fullPrevious : (() => {
-    const end = new Date(`${fullPrevious.start}T00:00:00Z`);
-    end.setUTCDate(end.getUTCDate() + comparisonDays);
-    return { ...fullPrevious, endExcl: end.toISOString().slice(0, 10), partialDays: comparisonDays };
-  })();
-  const monthShort = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-  const previousMonthName = `${monthShort[Number(fullPrevious.period.slice(5, 7)) - 1]} ${fullPrevious.period.slice(0, 4)}`;
-  const comparisonLabel = comparisonDays === null
-    ? previousMonthName
-    : `${comparisonDays === 1 ? "1" : `1–${comparisonDays}`} ${previousMonthName}`;
+  // Periode berjalan dibanding periode penuh sebelumnya terbaca seperti
+  // anjlok yang hanya karena kalender. Bandingkan hari yang sama:
+  // 1–17 Okt vs 1–17 Sep; Sen–Kam minggu ini vs Sen–Kam minggu lalu.
+  // Harian: hari ini vs kemarin apa adanya (status SEMENTARA).
+  const running = today >= current.start && today < current.endExcl;
+  const comparisonDays = running && kind !== "day"
+    ? Math.min(elapsedDays(current, today), fullPrevious.days)
+    : null;
+  const previous: Window = comparisonDays === null
+    ? fullPrevious
+    : { ...fullPrevious, endExcl: addDaysIso(fullPrevious.start, comparisonDays), partialDays: comparisonDays };
+  const comparisonLabel = reportWindowLabel(comparisonDays === null ? fullPrevious : { ...previous, kind: "day" === kind ? "day" : "week" });
   const performance = await Promise.all([current, previous].flatMap((window) =>
     data.outlets.map(async (outlet) => ({
       period: window.period,
       outletId: outlet.id,
-      rows: await getTherapistPerformance(outlet.id, window.period, today),
+      rows: await getTherapistPerformance(outlet.id, window.start.slice(0, 7), today,
+        window.kind === "month" && !window.partialDays ? undefined : { start: window.start, endExcl: window.endExcl }),
     }))
   ));
   const getPerfRows = (window: Window) => performance
     .filter((entry) => entry.period === window.period)
     .flatMap((entry) => entry.rows);
-  const currentReport = buildReport(data, current, effectivePeriod, today, getPerfRows(current), includeProfit);
-  const previousReport = buildReport(data, previous, effectivePeriod, today, getPerfRows(previous), includeProfit);
+  const currentReport = buildReport(data, current, today, getPerfRows(current), includeProfit);
+  const previousReport = buildReport(data, previous, today, getPerfRows(previous), includeProfit);
+  const monthly = kind === "month";
   const reportBase: Omit<MonthlyReport, "profit"> = {
-    period,
+    kind,
+    period: current.period,
     previousPeriod: previous.period,
-    status: period < effectivePeriod ? "FINAL" : "SEMENTARA",
+    periodLabel: reportWindowLabel(current),
+    periodStart: current.start,
+    periodEnd: addDaysIso(current.endExcl, -1),
+    status: today >= current.endExcl ? "FINAL" : "SEMENTARA",
     comparisonLabel,
     comparisonDays,
     summary: { current: currentReport.summary, previous: previousReport.summary },
@@ -984,19 +1009,21 @@ export async function getMonthlyReport({
     operations: { current: currentReport.operations, previous: previousReport.operations },
     costs: { current: currentReport.costs, previous: previousReport.costs },
     inventory: { current: currentReport.inventory, previous: previousReport.inventory },
+    // Payroll hanya relevan untuk laporan bulanan; harian/mingguan tidak
+    // pernah menampilkan "payroll belum dihitung".
     payrollMissingOutlets: {
-      current: data.outlets
+      current: monthly ? data.outlets
         .filter((outlet) => !data.payrollItems.some((item) => item.outlet_id === outlet.id && item.period === current.period))
-        .map((outlet) => outlet.name),
-      previous: data.outlets
+        .map((outlet) => outlet.name) : [],
+      previous: monthly ? data.outlets
         .filter((outlet) => !data.payrollItems.some((item) => item.outlet_id === outlet.id && item.period === previous.period))
-        .map((outlet) => outlet.name),
+        .map((outlet) => outlet.name) : [],
     },
   };
   if (uniqueOutletIds.length > 1) {
     reportBase.perOutlet = { current: currentReport.perOutlet, previous: previousReport.perOutlet };
   }
-  const report = withOptionalProfit(reportBase, includeProfit, () => ({
+  return withOptionalProfit(reportBase, includeProfit, () => ({
     current: currentReport.profit!,
     previous: previousReport.profit!,
     perOutlet: {
@@ -1004,5 +1031,9 @@ export async function getMonthlyReport({
       previous: previousReport.outletProfit ?? [],
     },
   }));
-  return report;
+}
+
+/** Kompatibilitas: laporan bulanan lama. */
+export async function getMonthlyReport({ outletIds, period, includeProfit }: { outletIds: string[]; period: string; includeProfit: boolean }) {
+  return getPeriodReport({ outletIds, kind: "month", anchor: period, includeProfit });
 }

@@ -1015,3 +1015,159 @@ table { border-collapse: collapse; width: 100%; }
     border: 0.5pt solid #9ca3af !important;
   }
 }
+
+/* =====================================================================
+   PRATINJAU CETAK (2026-10-23) — dipasang oleh components/PrintButton.tsx
+   lewat <html class="print-preview" data-theme="light">. Meniru aturan
+   @media print di atas pada layar: menu & tombol disembunyikan, kop
+   laporan tampil, isi berada di lembar A4 (210 mm, margin 15 mm).
+   ===================================================================== */
+.print-preview-bar { display: none; }
+
+html.print-preview body {
+  background: #e7e5e4 !important;
+}
+html.print-preview .app-bg,
+html.print-preview .sidebar,
+html.print-preview .topbar,
+html.print-preview .scrim,
+html.print-preview .page nav,
+html.print-preview .page-head > .row,
+html.print-preview .page .btn,
+html.print-preview .no-print:not(.print-preview-bar),
+html.print-preview .page:has(.monthly-print-header, .finance-print-header) .page-head,
+html.print-preview .demo-switch,
+html.print-preview .kasir-tabbar {
+  display: none !important;
+}
+html.print-preview .app-shell,
+html.print-preview .main-col {
+  display: block !important;
+  width: auto !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+}
+html.print-preview .page {
+  box-sizing: border-box;
+  width: 210mm !important;
+  max-width: calc(100vw - 16px) !important;
+  min-height: 297mm;
+  margin: 76px auto 32px !important;
+  padding: 15mm !important;
+  background: #fff !important;
+  color: #000 !important;
+  box-shadow: 0 6px 30px rgba(0, 0, 0, 0.18);
+  border-radius: 2px;
+}
+html.print-preview .page *:not(svg *) {
+  color: #000 !important;
+  text-shadow: none !important;
+  backdrop-filter: none !important;
+}
+html.print-preview .page .card,
+html.print-preview .page .stat,
+html.print-preview .page .monthly-metric,
+html.print-preview .page .monthly-card {
+  background: #fff !important;
+  box-shadow: none !important;
+  border: 1px solid #c8c8c8 !important;
+}
+html.print-preview .finance-print-header,
+html.print-preview .monthly-print-header {
+  display: block !important;
+  margin-bottom: 8mm;
+  padding-bottom: 4mm;
+  border-bottom: 1px solid #888;
+}
+html.print-preview .monthly-print-header h1,
+html.print-preview .finance-print-header h1 {
+  margin-bottom: 2mm;
+  font-size: 20pt;
+}
+html.print-preview .table-wrap {
+  overflow: visible !important;
+}
+html.print-preview .tbl {
+  font-size: 8pt !important;
+}
+html.print-preview .tbl th,
+html.print-preview .tbl td {
+  white-space: normal !important;
+  padding: 3px 5px !important;
+}
+html.print-preview .tbl th { background: #f2f2f2 !important; }
+/* Batas halaman perkiraan: tiap bagian laporan mulai di halaman baru saat dicetak. */
+html.print-preview .monthly-report-section + .monthly-report-section {
+  margin-top: 10mm;
+  padding-top: 8mm;
+  border-top: 1px dashed #b5b5b5;
+}
+
+html.print-preview .print-preview-bar {
+  position: fixed;
+  z-index: 1200;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 10px max(16px, env(safe-area-inset-left));
+  background: #1c1917;
+  color: #fafaf9;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+}
+.print-preview-title { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; }
+.print-preview-hint { font-size: 13px; opacity: 0.75; flex: 1; min-width: 200px; }
+.print-preview-actions { display: flex; gap: 8px; }
+html.print-preview .print-preview-bar .btn-ghost { color: #fafaf9 !important; border-color: #57534e !important; }
+
+@media print {
+  .print-preview-bar { display: none !important; }
+  /* Halaman tanpa kop cetak khusus (Kinerja Terapis, Reports): judul tetap dicetak, tombolnya tidak. */
+  .page:not(:has(.monthly-print-header, .finance-print-header)) .page-head {
+    display: block !important;
+    margin-bottom: 6mm;
+  }
+  .page-head > .row { display: none !important; }
+  .page-head h1, .page-head p { color: #000 !important; }
+  html.print-preview .page {
+    width: auto !important;
+    min-height: 0;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none;
+  }
+}
+
+/* Bilah pilih Laporan Harian · Mingguan · Bulanan */
+.report-period-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.report-kind-tabs {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border);
+}
+.report-kind-tab {
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+  text-decoration: none;
+}
+.report-kind-tab.active {
+  background: var(--accent);
+  color: #fff;
+}
+.report-date-input { width: auto; min-width: 150px; }
+.report-outlet-select { width: auto; }

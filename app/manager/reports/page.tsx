@@ -10,6 +10,7 @@ import { rp, pct, monthLabel, fmtDateShort } from "@/lib/format";
 import { todayIsoDate, plusDays } from "@/lib/wallclock";
 import { toCsv, csvFilename } from "@/lib/csv";
 import ExportCsvButton from "@/components/ExportCsvButton";
+import PrintButton from "@/components/PrintButton";
 
 // ---------------------------------------------------------------------
 // UPDATE 2026-08-26 — halaman ini dulu 100% lib/mock (revenueSeries,
@@ -186,6 +187,8 @@ export default async function ReportsPage() {
         title="Reports"
         desc={`${outlet.name} · ${monthLabel(period)} · Ringkasan operasional outlet.`}
         actions={
+          <>
+          <PrintButton label="Cetak / Simpan PDF" />
           <ExportCsvButton
             csv={txCsv}
             filename={csvFilename(`laporan-transaksi-${outlet.code}`, period)}
@@ -193,6 +196,7 @@ export default async function ReportsPage() {
             label="Export CSV"
             emptyReason="Belum ada transaksi lunas di periode ini untuk diekspor."
           />
+          </>
         }
       />
 

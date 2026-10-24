@@ -55,6 +55,7 @@ export const ROLES: RoleDef[] = [
       { href: "/super-admin/diagnostics", label: "Support Diagnostics", icon: "life-buoy", section: "Control" },
       { href: "/super-admin/analytics", label: "Platform Analytics", icon: "line-chart", section: "Insight" },
       { href: "/super-admin/audit", label: "Audit Log", icon: "scroll-text", section: "Insight" },
+      { href: "/super-admin/demo-akses", label: "Akses Demo", icon: "lock", section: "Control" },
     ],
   },
   {

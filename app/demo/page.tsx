@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { isDemoMode, DEMO_GATE_COOKIE, DEMO_ROLES } from "@/lib/demo/config";
-import { verifyGate } from "@/lib/demo/gate";
+import { readGate, isDemoAccessActive } from "@/lib/demo/gate";
+import { describeGateOwner } from "@/lib/demo/marketers";
 import DemoGateForm from "@/components/demo/DemoGateForm";
 import DemoRolePicker from "@/components/demo/DemoRolePicker";
 import DemoResetButton from "@/components/demo/DemoResetButton";
@@ -17,7 +18,10 @@ export const metadata: Metadata = {
 
 export default async function DemoPage() {
   if (!isDemoMode()) notFound();
-  const unlocked = await verifyGate((await cookies()).get(DEMO_GATE_COOKIE)?.value);
+  const gate = await readGate((await cookies()).get(DEMO_GATE_COOKIE)?.value);
+  const active = gate ? await isDemoAccessActive(gate.email) : false;
+  const unlocked = !!gate && active;
+  const owner = unlocked ? await describeGateOwner(gate!.email) : null;
 
   return (
     <div className="demo-page">
@@ -31,6 +35,7 @@ export default async function DemoPage() {
               <p className="muted small">
                 Satu akun demo, enam peran. Semua data Royal Spa fiktif. Gunakan Reset data di bawah sebelum presentasi.
               </p>
+              <p className="muted small">Akses: <strong>{owner?.name}</strong> · aktivitas demo tercatat.</p>
             </div>
             <DemoRolePicker roles={DEMO_ROLES.map(({ role, label, person, desc }) => ({ role, label, person, desc }))} />
             <Link className="demo-link" href="/">Lihat website Royal Spa →</Link>
@@ -40,7 +45,8 @@ export default async function DemoPage() {
           <>
             <div>
               <h1 className="demo-h1">Akses demo untuk marketing</h1>
-              <p className="muted small">Masuk dengan akun marketing yang diberikan tim TheraHub.</p>
+              <p className="muted small">Masuk dengan akun marketing pribadi yang diberikan tim TheraHub. Jangan bagikan password Anda — setiap akses tercatat atas nama Anda.</p>
+              {gate && !active && <div className="demo-err" role="alert">Akses demo untuk akun ini sudah dinonaktifkan atau kedaluwarsa.</div>}
             </div>
             <DemoGateForm />
             <p className="muted small">

@@ -3,7 +3,7 @@ import { updateSession } from "@/lib/supabase/middleware";
 import { ROLE_HOME, roleForPath } from "@/lib/route-guard";
 import { tenantSlugForHost } from "@/lib/tenantDomains";
 import { DEMO_GATE_COOKIE, DEMO_TENANT_SLUG } from "@/lib/demo/config";
-import { verifyGate } from "@/lib/demo/gate";
+import { readGate, isDemoAccessActive } from "@/lib/demo/gate";
 
 export async function middleware(request: NextRequest) {
   // ---- Deploy demo marketing (DEMO_MODE=1, 2026-10-20) ---------------
@@ -28,7 +28,10 @@ export async function middleware(request: NextRequest) {
     }
     const open = p === "/demo" || p.startsWith("/api/demo/") || p === "/manifest.webmanifest" || p.startsWith("/icons/");
     if (!open) {
-      const ok = await verifyGate(request.cookies.get(DEMO_GATE_COOKIE)?.value);
+      // Token sah DAN akunnya masih aktif — akun yang dicabut admin
+      // langsung tertutup, tidak menunggu token 12 jam habis (2026-10-24).
+      const gate = await readGate(request.cookies.get(DEMO_GATE_COOKIE)?.value);
+      const ok = !!gate && (await isDemoAccessActive(gate.email));
       if (!ok || p === "/login" || p === "/register") {
         const url = request.nextUrl.clone();
         url.pathname = "/demo";

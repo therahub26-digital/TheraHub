@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { isDemoMode, demoRole, DEMO_GATE_COOKIE } from "@/lib/demo/config";
-import { verifyGate } from "@/lib/demo/gate";
+import { readGate, isDemoAccessActive } from "@/lib/demo/gate";
+import { describeGateOwner, logDemoEvent } from "@/lib/demo/marketers";
 
 // ---------------------------------------------------------------------
 // Ganti peran TANPA password untuk pengunjung demo.
@@ -24,8 +25,17 @@ export async function POST(req: Request) {
   if (!isDemoMode()) return NextResponse.json({ error: "not found" }, { status: 404 });
 
   const jar = await cookies();
-  if (!(await verifyGate(jar.get(DEMO_GATE_COOKIE)?.value))) {
+  const gate = await readGate(jar.get(DEMO_GATE_COOKIE)?.value);
+  if (!gate) {
     return NextResponse.json({ ok: false, error: "Sesi demo berakhir. Masuk lagi dengan akun marketing." }, { status: 401 });
+  }
+  const h = await headers();
+  const owner = await describeGateOwner(gate.email);
+  // Akun yang dicabut admin langsung tertutup (2026-10-24).
+  if (!(await isDemoAccessActive(gate.email))) {
+    jar.delete(DEMO_GATE_COOKIE);
+    await logDemoEvent(h, { event: "DENIED", email: gate.email, marketerId: owner.id, detail: "ganti peran setelah akses dicabut" });
+    return NextResponse.json({ ok: false, error: "Akses demo Anda sudah dinonaktifkan." }, { status: 403 });
   }
 
   let role = "";
@@ -50,5 +60,6 @@ export async function POST(req: Request) {
       { status: 500 }
     );
   }
+  await logDemoEvent(h, { event: "SWITCH", email: gate.email, marketerId: owner.id, role: target.role });
   return NextResponse.json({ ok: true, redirect: target.home });
 }

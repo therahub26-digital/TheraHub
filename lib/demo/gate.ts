@@ -55,3 +55,59 @@ export function checkMarketingCredentials(email: string, password: string): bool
   const okPw = safeEqual(password, wantPw);
   return okEmail && okPw;
 }
+
+function b64urlDecode(text: string): string {
+  const padded = text.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((text.length + 3) % 4);
+  const bin = atob(padded);
+  return new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
+}
+
+/**
+ * Token sah → email pemiliknya (huruf kecil); selain itu null. Dipakai untuk
+ * tahu SIAPA yang sedang memakai demo (akun marketing per orang, 2026-10-24).
+ */
+export async function readGate(token: string | undefined | null): Promise<{ email: string } | null> {
+  if (!(await verifyGate(token))) return null;
+  try {
+    return { email: b64urlDecode(token!.split(".")[1]).toLowerCase() };
+  } catch {
+    return null;
+  }
+}
+
+/** Email akun utama dari env (akun Adjie) — selalu aktif, tidak ada di tabel. */
+export function isMasterDemoEmail(email: string): boolean {
+  const master = (process.env.DEMO_MARKETING_EMAIL ?? "").trim().toLowerCase();
+  return !!master && email.trim().toLowerCase() === master;
+}
+
+/**
+ * Apakah akun marketing ini masih boleh memakai demo (aktif & belum
+ * kedaluwarsa)? Dipanggil middleware supaya akun yang DICABUT langsung
+ * tertutup, bukan menunggu token 12 jam habis. Fetch REST biasa (bisa di
+ * Edge runtime) dengan service role; gagal menghubungi database = ditolak.
+ */
+export async function isDemoAccessActive(email: string): Promise<boolean> {
+  if (isMasterDemoEmail(email)) return true;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) return false;
+  const params = new URLSearchParams({
+    select: "id",
+    email: `ilike.${email.replace(/[%_,()*]/g, "")}`,
+    active: "is.true",
+    or: `(expires_at.is.null,expires_at.gt.${new Date().toISOString()})`,
+    limit: "1",
+  });
+  try {
+    const res = await fetch(`${url}/rest/v1/demo_marketers?${params}`, {
+      headers: { apikey: key, Authorization: `Bearer ${key}` },
+      cache: "no-store",
+    });
+    if (!res.ok) return false;
+    const rows = (await res.json()) as unknown[];
+    return rows.length > 0;
+  } catch {
+    return false;
+  }
+}
